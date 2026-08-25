@@ -1,0 +1,1898 @@
+<title>아슬아슬</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gothic+A1:wght@400;700;900&display=swap">
+<style>
+  /* ── 아슬아슬 : 단일 테마(다크 아케이드) 커밋. 모든 색은 명시적으로 칠한다 ── */
+  :root{
+    --ink:#07090F;        /* page ground */
+    --stage:#0B0F1D;      /* play field */
+    --panel:#121729;
+    --bone:#EDF1FF;
+    --dim:#68729A;
+    --orb:#7DF3FF;
+    --spark:#FFB454;      /* graze amber */
+    --hot:#FF5C7A;        /* fever */
+    --block:#222B4C;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--ink);
+    color:var(--bone);
+    font-family:"Gothic A1",-apple-system,"Malgun Gothic",sans-serif;
+    -webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    overflow:hidden;
+  }
+  #wrap{
+    height:100dvh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:10px;
+    background:radial-gradient(120% 90% at 50% 0%, #0D1226 0%, var(--ink) 62%);
+  }
+  #stage{
+    position:relative;width:min(430px,100vw);
+    height:min(100dvh, 100dvh);flex:1;max-height:100dvh;
+    background:var(--stage);
+    touch-action:none;overflow:hidden;
+  }
+  @media (min-width:520px) and (min-height:700px){
+    #wrap{padding:18px 0}
+    #stage{
+      flex:initial;height:min(820px, calc(100dvh - 64px));
+      border-radius:22px;
+      box-shadow:0 0 0 1px #1C2440, 0 30px 80px rgba(0,0,0,.6), 0 0 90px rgba(125,243,255,.05);
+    }
+    #foot{display:block}
+  }
+  #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* ── HUD ── */
+  #hud{position:absolute;inset:0;pointer-events:none;display:none}
+  #hud.on{display:block}
+  #score{
+    position:absolute;top:18px;left:0;right:0;text-align:center;
+    font-family:"Black Han Sans","Gothic A1",sans-serif;
+    font-size:46px;line-height:1;letter-spacing:1px;
+    font-variant-numeric:tabular-nums;
+    text-shadow:0 2px 24px rgba(125,243,255,.25);
+  }
+  #mult{
+    position:absolute;top:72px;left:50%;transform:translateX(-50%);
+    font-family:"Black Han Sans","Gothic A1",sans-serif;
+    font-size:27px;padding:3px 18px 4px;border-radius:99px;
+    color:var(--dim);background:rgba(255,255,255,.04);
+    transition:color .15s, background .15s, text-shadow .15s;
+    font-variant-numeric:tabular-nums;
+  }
+  #mult.t2{color:var(--spark);background:rgba(255,180,84,.10)}
+  #mult.t3{color:#FF8E4F;background:rgba(255,142,79,.13);text-shadow:0 0 18px rgba(255,142,79,.5)}
+  #mult.t4{color:var(--hot);background:rgba(255,92,122,.16);text-shadow:0 0 22px rgba(255,92,122,.7);animation:feverPulse 1.05s infinite}
+  #mult.t5{color:#FF3D64;background:rgba(255,61,100,.21);text-shadow:0 0 26px rgba(255,61,100,.85);animation:feverPulse .8s infinite}
+  #mult.t6{color:#FFD9E4;background:rgba(255,92,140,.22);text-shadow:0 0 28px rgba(255,110,150,.95);animation:feverPulse .65s infinite}
+  #mult.tmax{color:#FFDF6B;background:rgba(255,223,107,.18);text-shadow:0 0 30px rgba(255,200,60,.95);animation:feverPulse .55s infinite}
+  @keyframes feverPulse{50%{transform:translateX(-50%) scale(1.1)}}
+  #mult.pop{animation:pop .18s}
+  @keyframes pop{40%{transform:translateX(-50%) scale(1.65)}}
+  #score.bump{animation:sbump .18s}
+  @keyframes sbump{40%{transform:scale(1.1)}}
+  #best-hud{
+    position:absolute;top:20px;left:16px;font-size:11px;font-weight:700;
+    color:var(--dim);letter-spacing:.12em;font-variant-numeric:tabular-nums;
+  }
+  #mute{
+    position:absolute;top:12px;right:12px;pointer-events:auto;
+    width:38px;height:38px;border-radius:12px;border:1px solid #222B4C;
+    background:rgba(18,23,41,.7);color:var(--dim);font-size:16px;
+    cursor:pointer;
+  }
+
+  /* ── 오버레이 공통 ── */
+  .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;gap:0;
+    background:rgba(7,9,15,.55);backdrop-filter:blur(3px);
+    opacity:0;pointer-events:none;transition:opacity .25s;
+  }
+  .overlay.on{opacity:1;pointer-events:auto}
+  .kicker{font-size:12px;font-weight:900;letter-spacing:.34em;color:var(--spark);margin-bottom:14px}
+  h1{
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-weight:400;
+    font-size:64px;line-height:1.02;text-wrap:balance;
+    text-shadow:0 0 34px rgba(125,243,255,.35);
+  }
+  .rule-line{margin-top:16px;font-size:15px;font-weight:700;color:var(--bone)}
+  .rule-sub{margin-top:9px;font-size:13px;line-height:1.75;color:var(--dim)}
+  .rule-sub b{color:var(--spark);font-weight:900}
+  .tap{
+    margin-top:34px;font-size:13px;font-weight:900;letter-spacing:.22em;
+    color:var(--orb);animation:blink 1.4s infinite;
+  }
+  @keyframes blink{50%{opacity:.25}}
+  .bestline{margin-top:12px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+
+  /* ── 사망 화면 ── */
+  #verdict{font-size:13px;font-weight:700;color:var(--dim);margin-bottom:10px;letter-spacing:.02em}
+  #d-score{
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-size:78px;line-height:1;
+    font-variant-numeric:tabular-nums;text-shadow:0 4px 40px rgba(255,180,84,.3);
+  }
+  #newbest{
+    display:none;margin-top:10px;font-size:13px;font-weight:900;letter-spacing:.24em;
+    color:var(--spark);text-shadow:0 0 16px rgba(255,180,84,.8);
+  }
+  #newbest.on{display:block;animation:blink 1s infinite}
+  #chips{display:flex;gap:8px;margin-top:18px}
+  #chips2{display:flex;gap:8px;margin-top:8px}
+  #d-badge{
+    margin-top:14px;font-size:12px;font-weight:900;letter-spacing:.12em;
+    color:#FFDF6B;background:rgba(255,223,107,.09);border:1px solid #8A6A2A;
+    border-radius:99px;padding:5px 15px;
+  }
+  #d-close{margin-top:10px;font-size:13px;color:var(--hot);font-variant-numeric:tabular-nums}
+  #d-close b{color:#FFDF6B;font-weight:900;font-size:15px}
+  .chip{
+    font-size:12px;font-weight:700;color:var(--dim);
+    background:var(--panel);border:1px solid #1D2542;
+    padding:7px 12px;border-radius:99px;font-variant-numeric:tabular-nums;
+  }
+  .chip em{font-style:normal;color:var(--bone);font-weight:900}
+  #retry{
+    margin-top:32px;pointer-events:auto;cursor:pointer;
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-size:22px;
+    color:#161006;background:linear-gradient(180deg,#FFC97E,var(--spark));
+    border:none;border-radius:16px;padding:14px 46px 15px;
+    box-shadow:0 10px 30px rgba(255,180,84,.28), inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  #retry:active{transform:scale(.96)}
+  .anywhere{margin-top:14px;font-size:11px;letter-spacing:.18em;color:var(--dim)}
+  /* ── 로비 ── */
+  #lobby{gap:0}
+  .lbcard{
+    width:282px;background:rgba(18,23,41,.78);border:1px solid #1D2542;border-radius:16px;
+    padding:12px 16px;margin-top:10px;text-align:left;pointer-events:auto;
+  }
+  .lbname{font-family:"Black Han Sans","Gothic A1",sans-serif;font-size:16px;color:var(--bone)}
+  .lbstat{margin-top:4px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .lbrow{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;color:var(--bone)}
+  .lbbtn{
+    pointer-events:auto;cursor:pointer;font-family:"Gothic A1",sans-serif;font-size:11px;font-weight:700;
+    color:var(--orb);background:rgba(125,243,255,.07);border:1px solid #1C3A4A;border-radius:99px;padding:5px 12px;
+  }
+  #btn-play{
+    margin-top:22px;pointer-events:auto;cursor:pointer;
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-size:20px;
+    color:#161006;background:linear-gradient(180deg,#FFC97E,var(--spark));
+    border:none;border-radius:16px;padding:13px 60px 14px;
+    box-shadow:0 10px 30px rgba(255,180,84,.28), inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  #btn-play:active{transform:scale(.96)}
+  .hide{display:none !important}
+  .charcard{display:flex;gap:9px;font-size:11px;color:var(--dim);padding:8px 2px 2px;border-top:1px solid #1A2140;margin-top:7px;cursor:pointer;align-items:flex-start}
+  .charcard b{color:var(--bone)}
+  .charcard.lock{opacity:.55}
+  .chdot{width:12px;height:12px;border-radius:50%;box-shadow:0 0 8px rgba(255,255,255,.35);flex:none;margin-top:2px}
+  .chinfo{display:flex;flex-direction:column;gap:2px;flex:1}
+  .chact{color:#FFD98A;font-weight:900;flex:none;font-size:10px;margin-top:3px}
+  @keyframes skTw{50%{opacity:.35}}
+  .skv-on{animation:skTw 2.4s infinite}
+
+  /* ── 하늘 선택 칩 & 스테이지 진행 ── */
+  #skies{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin-top:10px;max-width:310px}
+  .skychip{
+    pointer-events:auto;cursor:pointer;font-family:"Gothic A1",sans-serif;
+    font-size:11px;font-weight:700;color:var(--dim);
+    background:rgba(255,255,255,.04);border:1px solid #222B4C;border-radius:99px;
+    padding:6px 12px;
+  }
+  .skychip.sel{color:#FFD98A;border-color:#8A6A2A;background:rgba(255,180,84,.08)}
+  .skychip.lock{opacity:.38;cursor:default}
+  #stprog{
+    position:absolute;top:38px;left:16px;font-size:11px;font-weight:700;
+    color:var(--dim);letter-spacing:.08em;font-variant-numeric:tabular-nums;
+  }
+  #cgauge{
+    position:absolute;top:0;left:0;right:0;height:3px;
+    background:rgba(255,255,255,.06);
+  }
+  #cgfill{
+    height:100%;width:0%;
+    background:linear-gradient(90deg,#FFB454,#FFDF6B);
+    box-shadow:0 0 8px rgba(255,223,107,.55);
+    transition:width .35s ease-out;
+  }
+  #tohome{pointer-events:auto;cursor:pointer;margin-top:10px;color:#8FA0CC}
+  /* ── 죽음 정산 — 이 판의 모든 것이 밤하늘의 재료가 된다 ── */
+  #settle{margin-top:18px;width:232px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+  #settle .srow{display:flex;justify-content:space-between;margin-bottom:5px}
+  #settle .srow b{color:#FFD98A;font-weight:900}
+  #gaugewrap{height:6px;border-radius:99px;background:#1A2140;overflow:hidden;margin:7px 0 5px}
+  #gauge{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg,#FFB454,#FFDF6B);box-shadow:0 0 10px rgba(255,223,107,.6)}
+  #gauge.anim{transition:width .8s cubic-bezier(.2,.8,.3,1)}
+  #s-next{font-size:11px;letter-spacing:.06em;text-align:center;color:var(--dim)}
+  #s-born{display:none;margin-top:7px;text-align:center;font-size:13px;font-weight:900;letter-spacing:.14em;color:#FFDF6B;text-shadow:0 0 16px rgba(255,223,107,.8)}
+  #s-born.on{display:block;animation:blink 1s infinite}
+  #d-day{margin-top:16px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+  #d-day b{color:var(--spark);font-weight:900}
+  #melody-btn,.dbtn{
+    margin-top:12px;pointer-events:auto;cursor:pointer;display:none;
+    font-family:"Gothic A1",sans-serif;font-size:12px;font-weight:700;
+    color:var(--orb);background:rgba(125,243,255,.07);
+    border:1px solid #1C3A4A;border-radius:99px;padding:8px 18px;
+  }
+  .dbtn{display:inline-block;margin-top:0;color:#FFD98A;border-color:#5A4A22;background:rgba(255,180,84,.07)}
+  #melody-btn.on{display:block}
+  #melody-btn:active,.dbtn:active{transform:scale(.96)}
+
+  #foot{display:none;font-size:11px;letter-spacing:.14em;color:#3A4364}
+  @media (prefers-reduced-motion: reduce){
+    .tap,#mult.t4,#mult.t5,#mult.t6,#mult.tmax,#newbest.on{animation:none}
+  }
+</style>
+
+<div id="wrap">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+
+    <div id="hud">
+      <div id="cgauge"><div id="cgfill"></div></div>
+      <div id="best-hud">BEST 0</div>
+      <div id="stprog"></div>
+      <div id="score">0</div>
+      <div id="mult">×1</div>
+    </div>
+    <button id="mute" title="소리 켜기/끄기">♪</button>
+
+    <div id="title" class="overlay on">
+      <div class="kicker">별똥별의 여정</div>
+      <h1>아슬<br>아슬</h1>
+      <div class="rule-line">스치면 배수 UP! 통과하면 10 × 배수!</div>
+      <div class="rule-sub">
+        엄지로 좌우 — 벽에 <b>닿으면 끝</b><br>
+        벽을 <b>스칠수록 배수</b>가 오르고, 줄을 <b>넘을 때마다 10 × 배수</b>를 번다<br>
+        안 스치면 식는다 — 그리고 <b>어둠</b>이 하늘을 닫는다
+      </div>
+      <div class="tap">화면을 탭해서 시작</div>
+      <div class="bestline" id="title-best"></div>
+    </div>
+
+    <div id="lobby" class="overlay">
+      <div class="kicker">로비</div>
+      <div class="lbcard">
+        <div class="lbrow"><span class="lbname">별똥별 여행자</span><button class="lbbtn" id="btn-skyview">밤하늘</button></div>
+        <div class="lbstat" id="lb-stats">별가루 0 · 별자리 0/5 · BEST 0</div>
+      </div>
+      <div class="lbcard">
+        <div class="lbrow"><span id="lb-charname">캐릭터 — 기본별</span><button class="lbbtn" id="btn-char">캐릭터 선택</button></div>
+        <div id="charpanel" class="hide"></div>
+      </div>
+      <div class="lbcard">
+        <div class="lbrow"><span id="lb-skyname">하늘 — 이름없는 별자리</span><button class="lbbtn" id="btn-sky">하늘 선택</button></div>
+        <div id="skies" class="hide"></div>
+      </div>
+      <button id="btn-play">게임 시작</button>
+      <div class="bestline" id="sky-line" style="margin-top:14px;color:#8FA0CC"></div>
+      <div class="bestline" id="mood-line" style="margin-top:4px;color:#C9A96A"></div>
+    </div>
+
+    <div id="cardview" class="overlay">
+      <div class="kicker">절정 카드</div>
+      <img id="cardimg" alt="절정 카드" style="width:76%;max-width:330px;border-radius:14px;border:1px solid #1D2542;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+      <div class="anywhere" style="margin-top:10px">이미지를 길게 눌러 저장할 수 있어</div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button id="card-share" class="lbbtn">공유하기</button>
+        <button id="card-close" class="lbbtn">닫기</button>
+      </div>
+    </div>
+
+    <div id="skyview" class="overlay">
+      <div class="kicker">나의 밤하늘</div>
+      <svg id="skv" viewBox="0 0 430 620" style="width:100%;max-width:400px;height:auto;pointer-events:none"></svg>
+      <button id="skv-close" class="lbbtn" style="margin-top:12px;pointer-events:auto">로비로</button>
+    </div>
+
+    <div id="death" class="overlay">
+      <div id="verdict">너무 안전했다</div>
+      <div id="d-score">0</div>
+      <div id="newbest">★ 신기록 ★</div>
+      <div id="d-badge"></div>
+      <div id="d-close"></div>
+      <div id="chips">
+        <div class="chip">최고 <em id="c-mult">×1</em></div>
+        <div class="chip">스침 <em id="c-graze">0</em>회</div>
+        <div class="chip">통과 <em id="c-pass">0</em>줄</div>
+      </div>
+      <div id="chips2">
+        <div class="chip">근접 <em id="c-close">–</em></div>
+        <div class="chip">연속 <em id="c-chain">0</em></div>
+        <div class="chip">관통 <em id="c-pierce">0</em></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button id="card-btn" class="dbtn">✧ 절정 카드</button>
+      </div>
+      <div id="settle">
+        <div class="srow"><span>별가루 <b id="s-dust">+0</b></span><span id="s-dust-t">총 0</span></div>
+        <div class="srow" id="s-row2"><span>별자리 <b id="s-emb">+0</b></span><span id="s-emb-d"></span></div>
+        <div id="gaugewrap"><div id="gauge"></div></div>
+        <div id="s-next"></div>
+        <div id="s-born">★ 새 별이 태어났다 ★</div>
+      </div>
+      <div id="d-day"></div>
+      <button id="melody-btn">♪ 절정 멜로디 다시 듣기</button>
+      <button id="retry">다시 한 판</button>
+      <div class="anywhere">아무 곳이나 탭해도 재시작</div>
+      <div id="tohome" class="anywhere">로비로</div>
+    </div>
+  </div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.38</div>
+</div>
+
+<script>
+(() => {
+'use strict';
+/* ═══════════════ 기본 셋업 ═══════════════ */
+const stage = document.getElementById('stage');
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+const hud = $('hud'), scoreEl = $('score'), multEl = $('mult'), bestHud = $('best-hud');
+const titleOv = $('title'), deathOv = $('death');
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  const r = stage.getBoundingClientRect();
+  W = r.width; H = r.height;
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+/* ═══════════════ 튜닝 값 (게임의 심장) ═══════════════ */
+const ORB_R   = 13;      // 플레이어 반지름
+const BAND    = 26;      // 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침'
+const BLOCK_H = 26;
+const T = {
+  speed0: 235, speed1: 610, rampSec: 70,   // 낙하 속도 곡선 (v0.24 램프 완화)
+  gap0: 4.3,  gap1: 2.35,                  // 통로 폭 (지름 배수) — 기본 하늘은 순하게
+  space0: 225, space1: 152,                // 줄 간격(px)
+  heatCap: 49,                             // 최대 배수 = 1 + heatCap = ×50
+  decayDelay: 1.4,                         // 안 스치고 버틸 수 있는 유예(초)
+  decayRate: 1.0, decayHeat: .13,          // 냉각 = 초당 1 + 0.13×열기 — 높을수록 빨리 식는다
+};
+
+/* ═══════════════ 오늘의 하늘 (데일리 시드) ═══════════════
+   같은 날 = 같은 코스. 기록 레이스의 트랙을 하루 단위로 고정한다.
+   (v0.11-12의 유성/라이벌 고스트는 제거 — 레이스는 집중이 전부, 필드에 상시 오브젝트를 더하지 않는다) */
+function mulberry32(a){ return function(){ a|=0; a = a+0x6D2B79F5|0; let t = Math.imul(a^a>>>15, 1|a); t = t+Math.imul(t^t>>>7, 61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const SKY_DATE = new Date();
+const SEED = SKY_DATE.getFullYear()*10000 + (SKY_DATE.getMonth()+1)*100 + SKY_DATE.getDate();
+const SKY_MD = (SKY_DATE.getMonth()+1) + '/' + SKY_DATE.getDate();
+let rng = mulberry32(SEED);                // 코스 배치 전용 난수 — 판마다 리셋해 같은 하늘을 다시 만든다
+const DKEY = 'aseul-day-' + SEED;          // 오늘의 기록 레이스 (시도 수·오늘 1등) — 경쟁 정보는 북엔드에서만 보여준다
+
+/* ── 오늘의 무드: 날짜가 고르는 오늘만의 변주. 항상 포지티브 — 손맛을 깎는 무드는 만들지 않는다(11조) ── */
+const MOODS = [
+  { id:'dust',   name:'별먼지의 날', desc:'별먼지가 두 배로 뿌려진다' },
+  { id:'gold',   name:'금빛의 날',   desc:'골드 벽이 두 배로 나타난다' },
+  { id:'phrase', name:'안무의 날',   desc:'작곡된 구간이 더 자주 나온다' },
+  { id:'nova',   name:'초신성의 날', desc:'초신성이 8초간 이어진다' },
+  { id:'calm',   name:'고요의 날',   desc:'배수가 느긋하게 식는다' },
+];
+const MOOD = MOODS[SEED % MOODS.length];
+const delayNow = () => T.decayDelay + (MOOD.id === 'calm' ? .6 : 0);
+function loadDay(){ try{ return JSON.parse(localStorage.getItem(DKEY)) || {n:0, hi:0}; }catch(e){ return {n:0, hi:0}; } }
+
+/* ── 하늘의 여정: 존이 곧 고도 — 배경은 조용히, 필드는 선명히 ── */
+const BANDS = [
+  { top:[5,7,15],   bot:[11,15,29], deco:'deep',   starA:1 },     // 별의 바다 (심우주)
+  { top:[6,16,24],  bot:[11,21,36], deco:'aurora', starA:.9 },    // 오로라
+  { top:[7,11,22],  bot:[16,22,39], deco:'haze',   starA:.7 },    // 성층권
+  { top:[10,14,25], bot:[20,27,44], deco:'cloud',  starA:.5 },    // 구름바다
+  { top:[8,10,20],  bot:[23,21,38], deco:'city',   starA:.35 },   // 도시의 불빛
+  { top:[10,13,26], bot:[38,32,58], deco:'dawn',   starA:.25 },   // 새벽
+];
+const vlerp = (a,b,t) => [0,1,2].map(i => Math.round(a[i] + (b[i]-a[i])*t));
+const cssv = v => `rgb(${v[0]},${v[1]},${v[2]})`;
+/* ── 스테이지 = 별자리: 선형으로 이어진 하늘들. 코어는 어디서든 무한 런 —
+   "무한 레벨에서 점수를 최대한 올려라". 판마다 낸 점수가 그 별자리의 게이지에 쌓이고,
+   게이지를 다 채우면 별자리를 획득, 다음 하늘이 열린다 (한 판에 못 채운다) ── */
+const STAGES = {
+  // 모든 하늘은 데일리 시드 — 매일 새 코스. 스테이지 간 차이는 테마·기믹뿐, 레벨 생성 문법은 동일.
+  // so = 시드 오프셋 (같은 날에도 하늘마다 다른 코스가 나오게)
+  noname: { name:'이름없는 별자리', daily: true,                        so:0, goal:20000 },
+  leo:    { name:'사자자리',        zones:['basic','fork','fork'],     band:1, so:1, goal:60000 },
+  cygnus: { name:'백조자리',        zones:['basic','mover','mover'],   band:3, so:2, goal:140000 },
+  orion:  { name:'오리온자리',      zones:['basic','narrow','narrow'], band:4, so:3, goal:300000 },
+  draco:  { name:'용자리',          zones:['basic','closer','closer'], band:5, so:4, goal:600000 },
+};
+const STAGE_ORDER = ['noname', 'leo', 'cygnus', 'orion', 'draco'];
+
+/* ── 캐릭터 = 별: 규칙 한 줄 비틀기. 초신성은 '자기 상한 도달'로 일반화 ── */
+const CHARS = {
+  basic: { name:'기본별', desc:'모든 여정의 시작',                 cost:0,   graze:1, deep:2, heatCap:49, heat0:0, decayMul:1, col:'#EAFBFF' },
+  ember: { name:'잿불별', desc:'×5에서 시작, 초신성이 ×30에서 터진다 — 대신 상한도 ×30', cost:200, graze:1, deep:2, heatCap:29, heat0:4, decayMul:1, col:'#FFD9B8' },
+  comet: { name:'혜성',   desc:'스침 +2 — 대신 두 배로 빨리 식는다 (초신성 ×50)',        cost:500, graze:2, deep:3, heatCap:49, heat0:0, decayMul:2, col:'#CFE3FF' },
+};
+const CHAR_ORDER = ['basic', 'ember', 'comet'];
+let charsOwned = { basic: 1 };
+try{ charsOwned = Object.assign({ basic: 1 }, JSON.parse(localStorage.getItem('aseul-chars') || '{}')); }catch(e){}
+let curChar = localStorage.getItem('aseul-char') || 'basic';
+if(!CHARS[curChar] || !charsOwned[curChar]) curChar = 'basic';
+const CH = () => CHARS[curChar];
+const capH = () => CH().heatCap;
+let currentSky = 'noname';
+{
+  const sel = localStorage.getItem('aseul-sky-sel');
+  if(sel && STAGES[sel]) currentSky = sel;   // 해금 검증은 renderSkies에서 — 잠긴 하늘이면 아래에서 되돌린다
+}
+function loadClear(){ try{ return JSON.parse(localStorage.getItem('aseul-clear')) || {}; }catch(e){ return {}; } }
+
+const CLOUDS = []; for(let i=0;i<7;i++) CLOUDS.push({ x: Math.random(), y: Math.random(), s: .5+Math.random()*.9 });
+const CITYW = []; for(let i=0;i<26;i++) CITYW.push({ x: Math.random()*.96, h: 18+Math.random()*46, w: .02+Math.random()*.045, ph: Math.random()*6.28 });
+const HAZE = []; for(let i=0;i<4;i++) HAZE.push({ y: .12+i*.2+Math.random()*.05, ph: Math.random()*6.28 });
+
+/* ═══════════════ 사운드 (WebAudio 신스, 에셋 0) ═══════════════ */
+let AC = null, muted = localStorage.getItem('aseul-muted') === '1';
+const PENTA = [523,587,659,784,880,1046,1174,1318,1568,1760,2093,2349];
+let lastMaxIdx = -1;   // 절정 스침음이 같은 음을 연달아 내지 않게
+function ac(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC && AC.state==='suspended') AC.resume(); return AC; }
+function tone(freq, dur, type, gain, when=0){
+  const a = AC; if(!a || muted) return;
+  const o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime + when;
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(a.destination);
+  o.start(t0); o.stop(t0 + dur + .02);
+}
+let noiseBuf = null;
+function noiseBuffer(){
+  if(!noiseBuf){
+    noiseBuf = AC.createBuffer(1, AC.sampleRate*.3|0, AC.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  }
+  return noiseBuf;
+}
+function kick(t){
+  if(muted) return;
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(150,t);
+  o.frequency.exponentialRampToValueAtTime(46,t+.12);
+  g.gain.setValueAtTime(.4,t); g.gain.exponentialRampToValueAtTime(.0001,t+.2);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t+.25);
+}
+function hat(t,g0){
+  if(muted) return;
+  const s=AC.createBufferSource(); s.buffer=noiseBuffer();
+  const f=AC.createBiquadFilter(); f.type='highpass'; f.frequency.value=6500;
+  const g=AC.createGain(); g.gain.setValueAtTime(g0,t);
+  g.gain.exponentialRampToValueAtTime(.0001,t+.05);
+  s.connect(f).connect(g).connect(AC.destination); s.start(t); s.stop(t+.08);
+}
+function pluck(t, f, g){
+  if(muted) return;
+  const o=AC.createOscillator(), gn=AC.createGain();
+  o.type='square'; o.frequency.value=f;
+  gn.gain.setValueAtTime(g, t);
+  gn.gain.exponentialRampToValueAtTime(.0001, t+.13);
+  o.connect(gn).connect(AC.destination); o.start(t); o.stop(t+.16);
+}
+function bassN(t, f){
+  if(muted) return;
+  const o=AC.createOscillator(), gn=AC.createGain();
+  o.type='triangle'; o.frequency.value=f;
+  gn.gain.setValueAtTime(.24, t);
+  gn.gain.exponentialRampToValueAtTime(.0001, t+.16);
+  o.connect(gn).connect(AC.destination); o.start(t); o.stop(t+.2);
+}
+/* 그루브 엔진 — 밝은 코드 진행(C–G–Am–F) 위에 통통 튀는 베이스와 뿅뿅 아르페지오.
+   BPM은 열기를 따라 104→147, 스침 음계(C 펜타토닉)와 같은 조성이라 저절로 화음이 된다 */
+const CHORDS = [
+  { bass:130.81, arp:[523.25, 659.25, 783.99, 1046.5] },   // C
+  { bass:98.00,  arp:[493.88, 587.33, 783.99, 987.77] },   // G
+  { bass:110.00, arp:[440.00, 523.25, 659.25, 880.00] },   // Am
+  { bass:87.31,  arp:[440.00, 523.25, 698.46, 880.00] },   // F
+];
+const ARP_ORDER = [0,2,1,3,2,0,3,1];
+const BEAT = { next:0, n:0, timer:null, lastKick:0, spb:.6 };
+function bpmNow(){ return 104 + (Math.min(heat, capH()) / capH()) * 43; }   // 104→147, 자기 상한 비율 기준
+function startMusic(){
+  if(!ac() || BEAT.timer) return;
+  BEAT.next = AC.currentTime + .06; BEAT.n = 0;
+  BEAT.timer = setInterval(() => {
+    if(BEAT.next < AC.currentTime - .25) BEAT.next = AC.currentTime + .05;
+    while(BEAT.next < AC.currentTime + .13){
+      const spb = 60/bpmNow(); BEAT.spb = spb;
+      const i = BEAT.n % 8;                        // 8분음표 단위, 1마디 = 8
+      const ch = CHORDS[(BEAT.n >> 3) % CHORDS.length];
+      if(i === 0 || i === 4){ kick(BEAT.next); BEAT.lastKick = BEAT.next; }
+      if(i % 2 === 1) bassN(BEAT.next, ch.bass);   // 오프비트 베이스 = 통통 그루브
+      pluck(BEAT.next, ch.arp[ARP_ORDER[i]], heat >= 8 ? .075 : .055);
+      if(heat >= 24) pluck(BEAT.next, ch.arp[ARP_ORDER[i]]*2, .04);  // 고콤보: 한 옥타브 위 반짝이
+      hat(BEAT.next, i % 2 ? .06 : .03);
+      if(heat >= 36) hat(BEAT.next + spb/4, .07);   // 절정 직전: 더블타임 고스트 햇
+      if(heat >= 12 && i === 4) hat(BEAT.next, .15); // 콤보 붙으면 백비트 강조
+      BEAT.next += spb/2; BEAT.n++;
+    }
+  }, 30);
+}
+function stopMusic(){ if(BEAT.timer){ clearInterval(BEAT.timer); BEAT.timer = null; } }
+function beatPulse(){
+  if(!AC || !BEAT.timer) return 0;
+  const p = (AC.currentTime - BEAT.lastKick) / (BEAT.spb || .6);
+  return (p>=0 && p<1) ? Math.max(0, 1 - p*2.6) : 0;
+}
+const sfx = {
+  graze(h, deep, gold, chain){
+    let idx = Math.min(11, Math.floor(Math.sqrt(h / capH()) * 11.99));  // 음계 사다리를 자기 등반 전체에 펼친다
+    if(h >= capH()){                              // 최고 화력: 고음역 6개 랜덤, 직전 음 반복 금지
+      do { idx = 6 + (Math.random()*6|0); } while(idx === lastMaxIdx);
+      lastMaxIdx = idx;
+    }
+    const f = PENTA[idx];
+    tone(f,.13,'triangle', deep ? .4 : .3);
+    tone(f*2,.09,'sine', deep ? .17 : .1);
+    if(h >= 24) tone(f*1.5,.07,'sine',.055,.03);  // 콤보 중반부터 반짝임 한 겹
+    if(h >= capH()) tone(f*1.5,.1,'sine',.1,.05); // 절정 반짝임 레이어
+    if(chain && AC && !muted) hat(AC.currentTime+.03,.11);  // 연속 스침 체인 틱
+    if(AC && !muted && (deep || h>=5)) hat(AC.currentTime, deep ? .22 : .14);
+    if(gold && AC && !muted){                     // 코인 아르페지오
+      tone(987.77,.09,'square',.16);
+      tone(1318.5,.09,'square',.16,.07);
+      tone(1568,.16,'square',.18,.14);
+    }
+  },
+  pass(m){                                        // 통과음 — 배수가 높을수록 풍성해진다
+    const f = PENTA[Math.min((m/3)|0, 7)] * .5;
+    tone(f,.07,'triangle',.13);
+    if(m >= 5)  tone(f*1.5,.08,'triangle',.1,.02);
+    if(m >= 15) tone(f*2,.1,'triangle',.11,.05);
+    if(m >= 25) tone(f*3,.12,'sine',.1,.08);
+    if(m >= 40) tone(f*4,.12,'sine',.08,.11);
+  },
+  milestone(){ tone(784,.18,'triangle',.32); tone(1174,.26,'triangle',.26,.06); if(AC && !muted) kick(AC.currentTime); },
+  death(){
+    if(!AC || muted) return;
+    const a=AC,o=a.createOscillator(),g=a.createGain(),t0=a.currentTime;
+    o.type='sawtooth'; o.frequency.setValueAtTime(170,t0);
+    o.frequency.exponentialRampToValueAtTime(42,t0+.45);
+    g.gain.setValueAtTime(.22,t0); g.gain.exponentialRampToValueAtTime(.0001,t0+.5);
+    o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+.55);
+  }
+};
+const muteBtn = $('mute');
+function drawMute(){ muteBtn.textContent = muted ? '∅' : '♪'; muteBtn.style.color = muted ? '#3A4364' : 'var(--dim)'; }
+muteBtn.addEventListener('pointerdown', e => { e.stopPropagation(); muted = !muted; localStorage.setItem('aseul-muted', muted?'1':'0'); drawMute(); });
+drawMute();
+function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
+
+/* ═══════════════ 상태 ═══════════════ */
+let state = 'title';           // title | play | dying | dead
+let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
+let motes = [], nova = 0;      // 별먼지(금빛 미끼) · 초신성(×50 폭주) 잔여 초
+let dark = 0;                  // 어둠의 장막(px) — 안 스치면 내려오고, 별빛이 밀어낸다
+let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
+let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
+let bandSnap, bandTo, bandT, bandCur;   // 하늘의 여정 — 고도 배경 블렌드
+let dust = [], dustT = 0;
+let lastMultShown = -1, zoom = 1, vign = 0;
+let orb, elapsed, distAcc, nextSpace, score, dispScore, heat, mult, peakMult, grazes, passed;
+let dustRun;                   // 이번 판에 주운 별가루 — 죽음 정산에서 지갑으로
+let runMinDist, runMinSpd;     // 아슬아슬 기록 — 이번 판 최고 근접(가장자리 기준 px)과 그 순간의 속도
+let maxChain, curChain, deepCount, goldCount, pierceCount, novaCount;
+let zc = null;                 // 죽음 하이라이트 — 줌 중심점
+let tut = false, tutDarkHint = false;   // 역발상 온보딩 — 첫 두 판, "벽 옆이 살 길"을 몸으로
+let path = [], lastPathT = 0;           // 절정 카드용 경량 궤적 (0.05초당 x 1점)
+let firstGrazeT = null, secondGrazeT = null, deathZone = '';   // 검증 로거 — 문법 학습·사망 원인 추적
+let constSaved, constHad, constGotRun;   // 현재 별자리: 누적 점수 / 이미 획득 / 이번 판에 획득
+let rowsSpawned, zoneIdx, lastGapC, zigDir, forkSafeLeft;
+let phraseQueue = [];          // 진행 중인 프레이즈의 남은 줄들
+let melody, peakAt;            // 절정 멜로디 — 스침 음표의 기록
+let sinceGraze, timeScale, shake, flash, deadAt, lockUntil = 0;
+let best = +(localStorage.getItem('aseul3-best') || 0);
+let bestMult = +(localStorage.getItem('aseul3-bmult') || 0);
+
+for(let i=0;i<48;i++) lines.push({x:Math.random(), y:Math.random(), l:16+Math.random()*34, a:.04+Math.random()*.09});
+const dots = [];                                   // 먼 우주의 별들
+for(let i=0;i<60;i++) dots.push({x:Math.random(), y:Math.random(), r:.6+Math.random()*1.4, ph:Math.random()*6.28, w:1+Math.random()*2});
+
+function reset(){
+  const stg = STAGES[currentSky];
+  rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0;
+  motes = []; nova = 0; dark = 0; lastG = { t: -9, b: null }; novaRainT = 0;
+  const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
+  bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
+  bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
+  elapsed = 0; distAcc = 0; nextSpace = 0;
+  score = 0; dispScore = 0; grazes = 0; passed = 0;
+  heat = CH().heat0; mult = 1 + Math.floor(heat); peakMult = mult;   // 잿불별은 ×5에서 출발
+  dustRun = 0;
+  runMinDist = 999; runMinSpd = 1; maxChain = 0; curChain = 0;
+  deepCount = 0; goldCount = 0; pierceCount = 0; novaCount = 0; zc = null;
+  tut = +(localStorage.getItem('aseul-runs') || 0) < 2; tutDarkHint = false;
+  path = []; lastPathT = 0;
+  firstGrazeT = null; secondGrazeT = null; deathZone = '';
+  rowsSpawned = 0; zoneIdx = 0; lastGapC = W/2; zigDir = 1; forkSafeLeft = true;
+  phraseQueue = [];
+  melody = []; peakAt = 0;
+  sinceGraze = 99; timeScale = 1; shake = 0; flash = 0; zoom = 1; vign = 0;
+  orb = { x: W/2, tx: W/2, y: H*.74, trail: [], px: W/2, vxs: 0 };
+  lastMultShown = -1;
+  constSaved = +(localStorage.getItem('aseul-const-' + currentSky) || 0);
+  constHad = !!loadClear()[currentSky];
+  constGotRun = false;
+  rng = mulberry32(SEED + (stg.so || 0) * 7919);   // 모든 하늘이 날짜 시드 — 매일 새 코스, 하늘마다 다른 코스
+}
+reset();
+
+/* ═══════════════ 입력 ═══════════════ */
+let keyL=false, keyR=false;
+function pointerX(e){
+  const r = stage.getBoundingClientRect();
+  return (e.clientX - r.left) * (W / r.width);
+}
+stage.addEventListener('pointerdown', e => {
+  ac();
+  if(state === 'title'){ showLobby(); return; }          // 메인 → 로비
+  if(state === 'lobby') return;                          // 로비는 버튼으로만
+  if(state === 'dead'){ if(performance.now() > lockUntil) startRun(); return; }
+  if(state === 'play') orb.tx = pointerX(e);
+});
+stage.addEventListener('pointermove', e => { if(state==='play') orb.tx = pointerX(e); });
+stage.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+addEventListener('keydown', e => {
+  if(e.key==='ArrowLeft') keyL = true;
+  if(e.key==='ArrowRight') keyR = true;
+  if((e.key===' '||e.key==='Enter')){
+    if(state==='title') showLobby();
+    else if(state==='lobby') startRun();
+    else if(state==='dead' && performance.now()>lockUntil) startRun();
+  }
+});
+addEventListener('keyup', e => {
+  if(e.key==='ArrowLeft') keyL = false;
+  if(e.key==='ArrowRight') keyR = false;
+});
+$('retry').addEventListener('pointerdown', e => { e.stopPropagation(); ac(); startRun(); });
+$('melody-btn').addEventListener('pointerdown', e => {                  // 별똥별이 남긴 노래 — 절정 8초 재생
+  e.stopPropagation();
+  if(!ac()) return;
+  const win = melody.filter(n => n.e >= peakAt - 6 && n.e <= peakAt + 2);
+  if(!win.length) return;
+  const t0 = win[0].e;
+  for(const n of win){
+    const when = (n.e - t0) * .8;                                       // 살짝 조여서 노래처럼
+    let idx = Math.min(11, Math.floor(Math.sqrt(n.h / capH()) * 11.99));
+    if(n.h >= capH()) idx = 6 + (Math.random()*6|0);
+    const f = PENTA[idx];
+    tone(f, .14, 'triangle', n.d ? .34 : .26, when);
+    tone(f*2, .1, 'sine', .1, when);
+    if(n.g){ tone(987.77,.09,'square',.13,when); tone(1318.5,.09,'square',.13,when+.07); tone(1568,.14,'square',.15,when+.14); }
+  }
+});
+
+function startRun(){
+  reset();
+  state = 'play';
+  startMusic();
+  titleOv.classList.remove('on');
+  deathOv.classList.remove('on');
+  $('lobby').classList.remove('on');
+  hud.classList.add('on');
+  bestHud.textContent = 'BEST ' + best.toLocaleString();
+  if(tut) floater(W/2, H*.52, '벽 옆의 금빛 별을 따라가 봐', '#FFD98A', 16, 2.8);   // 온보딩 — 첫 안내
+}
+
+/* ═══════════════ 패턴 생성 ═══════════════ */
+const lerp = (a,b,t) => a + (b-a)*t;
+const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+function diff(){ return clamp(elapsed / T.rampSec, 0, 1); }
+function speed(){
+  return (lerp(T.speed0, T.speed1, diff()) + Math.max(0, elapsed - T.rampSec) * 1.1) * zone().spdMul
+    * (1 + Math.min(heat, capH()) / capH() * .12)         // 폭주 — 뜨거울수록 세계가 빨라진다 (최대 +12%)
+    * (nova > 0 ? 1.25 : 1);                              // 초신성 — 질주
+}
+
+/* ── ZONE 시스템: 13줄마다 페이지가 넘어가듯 테마가 바뀐다 ── */
+/* 존 사전 — 기본 하늘은 순한 3존 순환, 특성 기믹 4종은 스테이지 하늘 전용 */
+const ZONE_DEFS = {
+  basic:  { name:'워밍업',    col:'#3A4680', type:'basic',  gapMul:1.0,  spdMul:1.0 },
+  zigzag: { name:'지그재그',  col:'#2E5F6E', type:'zigzag', gapMul:1.0,  spdMul:1.0 },
+  island: { name:'별 소나기', col:'#6E5230', type:'island', gapMul:1.12, spdMul:1.0 },
+  fork:   { name:'갈림길',    col:'#3F6045', type:'fork',   gapMul:1.0,  spdMul:.97 },
+  mover:  { name:'무빙워크',  col:'#4A3E86', type:'mover',  gapMul:1.06, spdMul:1.0 },
+  narrow: { name:'좁은 골목', col:'#5C3550', type:'narrow', gapMul:.88,  spdMul:.94 },
+  closer: { name:'닫히는 문', col:'#6E3A3A', type:'closer', gapMul:1.0,  spdMul:.96 },
+};
+const BASE_ROTATION = ['basic', 'zigzag', 'island'];
+
+/* ── 코스의 작곡: 손으로 짠 프레이즈 — 같은 조작이 놓이는 맥락을 안무한다 ──
+   g = 통로 폭(지름 배수), c = 통로 중심(화면 비율). 랜덤 나열이 못 만드는 긴장의 드라마 */
+const PHRASES = [
+  { name:'조임',      rows:[ {g:2.2,c:.5}, {g:1.7,c:.5}, {g:1.35,c:.5}, {g:1.0,c:.5}, {g:.75,c:.5}, {g:2.0,c:.5} ] },
+  { name:'외길',      rows:[ {g:.85,c:.3}, {g:.85,c:.33}, {g:.85,c:.36}, {g:.85,c:.39}, {g:.85,c:.42} ] },
+  { name:'파도',      rows:[ {g:1.1,c:.2}, {g:1.1,c:.45}, {g:1.1,c:.7}, {g:1.1,c:.45}, {g:1.1,c:.2} ] },
+  { name:'바늘 계단', rows:[ {g:.72,c:.35}, {g:1.8,c:.6}, {g:.72,c:.65}, {g:1.8,c:.4}, {g:.72,c:.5} ] },
+  { name:'골드 유혹', rows:[ {g:1.4,c:.3,gold:1}, {g:1.2,c:.42,gold:1}, {g:1.0,c:.54,gold:1}, {g:.8,c:.64,gold:1} ] },
+];
+const ROWS_PER_ZONE = 13;
+function zone(){
+  const list = STAGES[currentSky].zones || BASE_ROTATION;
+  return ZONE_DEFS[list[zoneIdx % list.length]];   // 모든 하늘이 무한 순환 — 코어는 어디서든 같다
+}
+
+function gate(row, gapW, gc){
+  gc = clamp(gc, gapW*.7 + gapW/2, W - gapW*.7 - gapW/2);
+  row.blocks.push({ x: 0, w: gc - gapW/2 }, { x: gc + gapW/2, w: W - gc - gapW/2 });
+  lastGapC = gc;
+}
+function island(row, bw, bx, amp){
+  row.blocks.push({ x: bx, w: bw, baseX: bx, amp: amp || 0,
+    spd: lerp(.9,1.6,rng()), ph: rng()*6.28 });
+}
+
+function spawnRow(y = -BLOCK_H - 6){
+  const d = diff(), z = zone();
+  const gapW = lerp(T.gap0, T.gap1, d) * ORB_R * 2 * z.gapMul;
+  const row = { y, blocks: [], scored: false, col: z.col };
+  const r = rng();                                       // 배치 난수는 전부 rng — 오늘 안에서 코스가 고정된다
+  const gateRow = (rowsSpawned + 1) % ROWS_PER_ZONE === 0;
+
+  // 프레이즈 시작 판정 — 조용한 존들에서 가끔, 작곡된 5~6줄이 끼어든다
+  if(!gateRow && !phraseQueue.length && rowsSpawned >= 6 &&
+     (z.type === 'basic' || z.type === 'zigzag') && rng() < (MOOD.id === 'phrase' ? .36 : .18)){
+    phraseQueue = PHRASES[(rng() * PHRASES.length)|0].rows.slice();
+  }
+
+  if(gateRow){                                           // 별의 문 — 존의 마지막 줄은 순금 바늘구멍
+    phraseQueue.length = 0;                              // 문 앞에서 프레이즈는 끝난다
+    const gw = Math.max(gapW * .85, ORB_R * 2 * 1.9);
+    gate(row, gw, lerp(W*.3, W*.7, rng()));
+    row.blocks.forEach(b => b.gold = true);
+  } else if(rowsSpawned < 3){                            // 첫 3줄은 넓은 게이트
+    gate(row, gapW*1.25, lerp(W*.3, W*.7, rng()));
+  } else if(phraseQueue.length){                         // 작곡된 프레이즈 진행 중
+    const ps = phraseQueue.shift();
+    const pg = Math.max(gapW * ps.g, 54);                // 폭은 현재 난이도에 상대적 — 초반은 순하고 후반은 조인다
+    gate(row, pg, ps.c * W + (rng() - .5) * 24);
+    if(ps.gold) row.blocks[rng() < .5 ? 0 : 1].gold = true;
+  } else if(z.type === 'closer'){                        // 닫히는 문 — 내려올수록 조여든다. 도착 시점을 예측하라
+    const c = clamp(lerp(W*.22, W*.78, rng()), gapW*.9, W - gapW*.9);
+    row.close = { c, g0: gapW*1.7, g1: Math.max(gapW*.62, 54), y0: y };
+    row.blocks.push({ x: 0, w: 1, dyn: 'L' }, { x: 0, w: 1, dyn: 'R' });   // 실제 기하는 매 프레임 계산
+    lastGapC = c;
+  } else if(z.type === 'zigzag'){                        // 좌우로 꺾이는 통로
+    zigDir = -zigDir;
+    gate(row, gapW, lastGapC + zigDir * lerp(110, 190, rng()));
+  } else if(z.type === 'mover'){                         // 움직이는 벽 위주
+    if(r < .6){
+      const bw = clamp(W - 2.2*gapW, 60, W*.5);
+      island(row, bw, lerp(gapW*.8, W - gapW*.8 - bw, rng()), lerp(26,52,rng()));
+    } else gate(row, gapW, lerp(gapW, W - gapW, rng()));
+  } else if(z.type === 'fork'){                          // 갈림길: 넓은 안전로 vs 좁고 금빛인 아슬로 — 선택은 손가락 위치 그 자체
+    const side = (W - 46) / 2;                           // 46px 중앙 분리대 기준 좌우 반쪽
+    const safeG = Math.min(gapW * 1.25, side * .78);
+    const riskG = Math.max(gapW * .6, 58);
+    const wob = (rng() - .5) * 34, gRoll = rng(), gSide = rng();   // 난수 소비 수를 줄마다 고정
+    const lgw = forkSafeLeft ? safeG : riskG;
+    const rgw = forkSafeLeft ? riskG : safeG;
+    const lc = clamp(side*.5 + wob, lgw*.55 + 10, side - lgw*.55);
+    const rc = clamp(side + 46 + side*.5 + wob, side + 46 + rgw*.55, W - rgw*.55 - 10);
+    row.blocks.push(
+      { x: 0, w: lc - lgw/2 },
+      { x: lc + lgw/2, w: (rc - rgw/2) - (lc + lgw/2) },
+      { x: rc + rgw/2, w: W - rc - rgw/2 });
+    if(gRoll < .4){                                      // 아슬로는 금빛으로 빛난다 — 룰은 세계에 그린다
+      const ri = forkSafeLeft ? (gSide < .5 ? 1 : 2) : (gSide < .5 ? 0 : 1);
+      if(row.blocks[ri]) row.blocks[ri].gold = true;
+    }
+    if(rng() < .6){                                      // 아슬로 한가운데로 이어지는 별먼지 점선
+      const rcx = forkSafeLeft ? rc : lc;
+      motes.push({ x: rcx + (rng() - .5)*14, y: y - 26 - rng()*14, ph: rng()*6.28 },
+                 { x: rcx + (rng() - .5)*14, y: y - 88 - rng()*14, ph: rng()*6.28 });
+    }
+  } else if(z.type === 'narrow'){                        // 좁지만 살짝 느린 골목
+    gate(row, gapW, lerp(gapW, W - gapW, rng()));
+  } else if(z.type === 'island'){                        // 떠 있는 섬들 = 그레이즈 파티
+    if(r < .5){
+      const bw = W * lerp(.14,.2,rng());
+      island(row, bw, W*.5 - bw - gapW*.55, 0);
+      island(row, bw, W*.5 + gapW*.55, 0);
+    } else {
+      const bw = clamp(W - 2*gapW, 60, W*.55);
+      island(row, bw, lerp(gapW*.7, W - gapW*.7 - bw, rng()), 0);
+    }
+  } else {                                               // basic: 게이트+섬 혼합
+    if(r < .55) gate(row, gapW, lerp(gapW, W - gapW, rng()));
+    else {
+      const bw = clamp(W - 2*gapW, 60, W*.55);
+      const mv = rng() < .3;                             // 난수 소비 순서를 판마다 같게 유지
+      island(row, bw, lerp(gapW*.7, W - gapW*.7 - bw, rng()), d > .4 && mv ? 30 : 0);
+    }
+  }
+  row.blocks = row.blocks.filter(b => b.dyn || b.w > 8);
+  if(!gateRow && rowsSpawned >= 3 && row.blocks.length && rng() < (MOOD.id === 'gold' ? .16 : .08)){  // 골드 벽 잭팟 (금빛의 날 두 배)
+    row.blocks[(rng()*row.blocks.length)|0].gold = true;
+  }
+  // 별먼지 — 위험한 라인을 따라 금빛 미끼를 뿌린다 (벽 모서리 20px 안쪽 = 그레이즈 라인)
+  // 일렬 정렬은 부자연스럽다 — 손으로 흩뿌린 듯 개수·간격·좌우를 조금씩 흐트러뜨린다
+  if(gateRow){
+    for(let k = 0; k < 3; k++)
+      motes.push({ x: lastGapC + (rng() - .5)*18, y: y - 34 - k*42 - rng()*16, ph: rng()*6.28 });
+  } else if(rowsSpawned >= 3){
+    const mRoll = rng(), mPick = rng(), mSide = rng() < .5;
+    const cbs = row.blocks.filter(b => !b.amp && !b.dyn);   // 움직이는 벽·닫히는 문에는 안 뿌린다
+    const mRate = MOOD.id === 'dust' ? .8 : .38;            // 별먼지의 날 — 두 배 살포
+    if(((tut && rowsSpawned < 14) || mRoll < mRate) && cbs.length){   // 온보딩 — 첫 존은 빵부스러기가 끊기지 않는다
+      const b = cbs[(mPick * cbs.length)|0];
+      let mx;
+      if(b.x <= 1) mx = b.x + b.w + 20;
+      else if(b.x + b.w >= W - 1) mx = b.x - 20;
+      else mx = mSide ? b.x - 20 : b.x + b.w + 20;
+      if(mx > 10 && mx < W - 10){
+        const n = 2 + (rng()*2|0) + (MOOD.id === 'dust' ? 1 : 0);   // 2~3개 (별먼지의 날 +1)
+        for(let k = 0; k < n; k++)
+          motes.push({ x: mx + (rng() - .5)*16, y: y - k*38 - rng()*18, ph: rng()*6.28 });
+      }
+    }
+  }
+  row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; });
+  rows.push(row);
+
+  rowsSpawned++;
+  if(rowsSpawned % ROWS_PER_ZONE === 0){                 // 페이지 넘김
+    zoneIdx++;
+    const nz = zone();
+    if(nz.type === 'fork') forkSafeLeft = rng() < .5;    // 이번 갈림길의 안전측 결정
+    if(STAGES[currentSky].band === undefined){           // 1스테이지만 고도가 계속 내려간다 — 이후 별자리는 제 색 고정
+      bandSnap = { top: bandCur.top, bot: bandCur.bot, starA: bandCur.starA, deco: BANDS[bandTo].deco };
+      bandTo = zoneIdx % BANDS.length; bandT = 0;
+    }
+    floater(W/2, H*.36, 'ZONE ' + (zoneIdx+1) + ' · ' + nz.name, '#7DF3FF', 26, 1.5);
+    rings.push({x:W/2, y:H*.5, r0:20, r1:W*.7, col:'#7DF3FF', lw:3, life:.6, t:0});
+    nextSpace += 250;                                    // 한 박자 쉼표
+    if(AC && !muted){ hat(AC.currentTime,.12); hat(AC.currentTime+.09,.12); hat(AC.currentTime+.18,.18); kick(AC.currentTime+.27); }
+  }
+}
+
+/* ═══════════════ 파티클 & 플로터 ═══════════════ */
+function sparks(x, y, n, col, pow=1){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*6.283, s = (60+Math.random()*190)*pow;
+    parts.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: .4+Math.random()*.35, t: 0, r: 1.4+Math.random()*2.2, col });
+  }
+}
+function floater(x, y, txt, col, size=15, life=.8){
+  // 겹침 방지 — 방금 생긴 플로터와 자리가 겹치면 위로 쌓는다 (점수와 배수 텍스트가 안 겹치게)
+  let moved = true, guard = 0;
+  while(moved && guard++ < 5){
+    moved = false;
+    for(const f of floats){
+      if(f.t < .45 && Math.abs(f.x - x) < 72 && Math.abs(f.y - y) < 21){ y = f.y - 22; moved = true; }
+    }
+  }
+  floats.push({ x, y, txt, col, size, t: 0, life });
+}
+function spawnStars(x, y, n){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*6.283, s = 70+Math.random()*150;
+    stars.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, t: 0, life: .5,
+      r: 3.5+Math.random()*3.5, rot: Math.random()*6.28, vr: (Math.random()-.5)*10 });
+  }
+}
+/* 스침 이벤트 — 점수가 아니라 '배수'가 오른다. 스침 +1 · 아슬 +2 · 골드 +5 */
+function grazeEvent(cx, cy, deep, b){
+  const gold = !!b.gold;
+  const chain = sinceGraze < .9;   // 콤보가 '거듭되는' 중 — 룰은 그대로, 연출만 세진다
+  const pierce = (elapsed - lastG.t < .28) && lastG.b !== b;   // 관통 — 서로 다른 두 벽을 한 호흡에 꿰다
+  lastG = { t: elapsed, b };
+  // 배수 공식(어린이 암산 가능): 스침/아슬은 캐릭터 값 · 골드 +5(고정) · 관통 +2 · 상한은 캐릭터별
+  heat = Math.min(heat + (gold ? 5 : deep ? CH().deep : CH().graze) + (pierce ? 2 : 0), capH());
+  dark = Math.max(0, dark - (deep ? 320 : 240) - (gold ? 160 : 0) - (pierce ? 200 : 0));  // 별빛이 어둠을 밀어낸다
+  if(pierce){
+    floater(orb.x, orb.y - 58, '관통 +2', '#CFF6FF', 20, .9);
+    rings.push({x: orb.x, y: orb.y, r0: 8, r1: 96, col: '#CFF6FF', lw: 4, life: .4, t: 0});
+    tone(880, .07, 'square', .14); tone(1760, .12, 'sine', .14, .05);
+    buzz(20);
+  }
+  grazes++; sinceGraze = 0;
+  if(firstGrazeT === null) firstGrazeT = elapsed;       // 문법 학습 지표: 첫 스침 → 두 번째 스침 전환
+  else if(secondGrazeT === null) secondGrazeT = elapsed;
+  curChain = chain ? curChain + 1 : 1; maxChain = Math.max(maxChain, curChain);   // 연속 스침 기록
+  if(deep) deepCount++;
+  if(gold) goldCount++;
+  if(pierce) pierceCount++;
+  const m = 1 + Math.floor(heat);
+  const col = gold ? '#FFDF6B' : deep ? '#FF5C7A' : '#FFB454';
+  sparks(cx, cy, (deep ? 14 : 8) + (chain ? 5 : 0), col, (deep ? 1.25 : 1) + (chain ? .15 : 0));
+  spawnStars(cx, cy, Math.min((deep ? 5 : 3) + (gold ? 5 : 0), 8));
+  // 배수 이벤트는 '이유 + 증가량'으로 표기 — 점수 플로터(숫자만)와 딱 구분된다
+  floater(cx, cy - 16, gold ? '골드 +5' : deep ? '아슬 +2' : '스침 +1', col,
+    (deep || gold ? 19 : 14) + (chain ? 2 : 0), deep || gold ? .95 : .7);
+  sfx.graze(Math.floor(heat), deep, gold, chain);
+  if(!localStorage.getItem('aseul-firstgraze')){       // 생애 첫 스침 — 문법을 몸으로 깨닫는 순간을 축하한다
+    try{ localStorage.setItem('aseul-firstgraze', '1'); }catch(e){}
+    floater(W/2, H*.5, '바로 그거야! 스칠수록 배수가 오른다', '#FFDF6B', 17, 2.6);
+    rings.push({x: cx, y: cy, r0: 8, r1: 120, col: '#FFDF6B', lw: 4, life: .6, t: 0});
+  }
+  if(melody.length < 900) melody.push({ e: elapsed, h: Math.floor(heat), d: deep, g: gold });   // 이 판의 악보
+  buzz(deep ? 25 : 10);
+  rings.push({x:cx, y:cy, r0:6, r1: deep ? 64 : 46, col: deep ? '#FFEDF0' : '#FFD98A', lw: deep ? 4 : 3, life:.35, t:0});
+  if(!REDUCED){
+    timeScale = deep ? .32 : .5;
+    zoom = deep ? 1.055 : 1.03;
+    if(deep) vign = .55;
+  }
+}
+
+/* 닫히는 문의 현재 기하 — 스폰 위치에서 플레이어 고도까지 스무스하게 조여든다 */
+function closeGap(row){
+  const p = clamp((row.y - row.close.y0) / (H*.74 - row.close.y0), 0, 1);
+  return lerp(row.close.g0, row.close.g1, p*p*(3 - 2*p));
+}
+function blockGeom(row, b){
+  if(!b.dyn) return { x: b.amp ? b.baseX + Math.sin(elapsed*b.spd + b.ph)*b.amp : b.x, w: b.w };
+  const g = closeGap(row), c = row.close.c;
+  return b.dyn === 'L' ? { x: 0, w: c - g/2 } : { x: c + g/2, w: W - c - g/2 };
+}
+
+/* ═══════════════ 그레이즈 & 충돌 (게임의 전부) ═══════════════ */
+function hitTest(dt){
+  const ox = orb.x, oy = orb.y;
+  for(const row of rows){
+    if(row.y > oy + ORB_R + BAND + BLOCK_H || row.y + BLOCK_H < oy - ORB_R - BAND){
+      row.blocks.forEach(b => {
+        if(b.pending){                                  // 범위를 벗어나며 판정 확정
+          b.pending = false; b.judged = true;
+          grazeEvent(b.lastCx || orb.x, b.lastCy || orb.y, b.minDist < ORB_R + 11, b);
+        }
+        b.inBand = false;
+      });
+      continue;
+    }
+    for(const b of row.blocks){
+      const geo = blockGeom(row, b);
+      const cx = clamp(ox, geo.x, geo.x + geo.w), cy = clamp(oy, row.y, row.y + BLOCK_H);
+      const dist = Math.hypot(ox - cx, oy - cy);
+
+      if(dist >= ORB_R && dist - ORB_R < runMinDist){   // 아슬아슬 기록 — 살아있는 순간의 최고 근접
+        runMinDist = dist - ORB_R; runMinSpd = speed();
+      }
+
+      if(dist < ORB_R){
+        if(nova > 0){                                   // 초신성 — 벽을 부수며 관통한다
+          row.blocks.splice(row.blocks.indexOf(b), 1);
+          sparks(cx, cy, 22, '#FFDF6B', 1.5); sparks(cx, cy, 10, '#FFFFFF', 1.2);
+          spawnStars(cx, cy, 6);
+          rings.push({x:cx, y:cy, r0:8, r1:90, col:'#FFDF6B', lw:4, life:.4, t:0});
+          if(!REDUCED) shake = Math.max(shake, 7);
+          if(AC && !muted){ kick(AC.currentTime); hat(AC.currentTime, .2); }
+          buzz(30);
+          break;                                        // 이 줄의 판정은 다음 프레임에
+        }
+        die(cx, cy); return;
+      }
+      if(nova > 0){ b.inBand = false; continue; }       // 초신성 중엔 스침 판정 없음 — 파괴가 전부
+
+      if(dist < ORB_R + BAND){
+        if(!b.inBand){
+          b.inBand = true;
+          if(!b.judged && !b.pending){                  // 접촉 — 판정은 0.14초 뒤 딱 1번
+            b.pending = true; b.judgeAt = elapsed + .14; b.minDist = dist;
+            tone(660,.04,'sine',.05);                   // 접촉 확인음(작게)
+            sparks(cx, cy, 3, '#FFB454', .6);
+          }
+        }
+        if(b.pending){
+          b.minDist = Math.min(b.minDist, dist);        // 가장 깊이 붙은 순간을 기록
+          b.lastCx = cx; b.lastCy = cy;
+          if(elapsed >= b.judgeAt){                     // 판정 확정: 스침이냐 아슬이냐
+            b.pending = false; b.judged = true; b.flash = 1;
+            grazeEvent(cx, cy, b.minDist < ORB_R + 11, b);
+          }
+        }
+      } else {
+        b.inBand = false;
+        if(b.pending){                                  // 밴드를 떠나는 순간 조기 확정
+          b.pending = false; b.judged = true; b.flash = 1;
+          grazeEvent(b.lastCx || cx, b.lastCy || cy, b.minDist < ORB_R + 11, b);
+        }
+      }
+    }
+  }
+}
+
+function die(x, y){
+  state = 'dying'; deadAt = 0;
+  deathZone = zone().name;                              // 사망 원인(존) 기록 — 밸런싱 데이터
+  zc = { x, y };                                        // 죽음의 지점으로 카메라가 빨려 들어간다
+  stopMusic();
+  sfx.death(); buzz(70);
+  rings.push({x:orb.x, y:orb.y, r0:12, r1:170, col:'#FFFFFF', lw:5, life:.55, t:0});
+  sparks(orb.x, orb.y, 46, '#7DF3FF', 1.6);
+  sparks(orb.x, orb.y, 26, '#FF5C7A', 1.2);
+  if(runMinDist < 999)                                  // 하이라이트: 이번 판 최고 근접이 크게 뜬다
+    floater(x, y - 48, Math.max(0, Math.round(runMinDist)) + 'px', '#FFDF6B', 36, 2.4);
+  if(!REDUCED){ shake = 9; flash = .8; timeScale = .06; }
+}
+
+/* 별자리 획득 — 게이지가 판 중에 차오르면 그 자리에서 하늘이 열린다 */
+function acquireConstellation(){
+  constHad = true; constGotRun = true;
+  const cl = loadClear(); cl[currentSky] = 1;
+  try{ localStorage.setItem('aseul-clear', JSON.stringify(cl)); }catch(e){}
+  const stg = STAGES[currentSky];
+  floater(W/2, H*.4, '★ ' + stg.name + ' 완성! ★', '#FFDF6B', 26, 2);
+  floater(W/2, H*.4 + 36, '다음 하늘이 열렸다', '#FFD98A', 14, 2);
+  rings.push({x: W/2, y: H*.45, r0: 20, r1: W, col: '#FFDF6B', lw: 4, life: .8, t: 0});
+  if(AC && !muted){ kick(AC.currentTime); for(let i = 0; i < 8; i++) tone(PENTA[Math.min(i+2, 11)], .14, 'triangle', .16, i*.08); }
+  buzz([40, 60, 40]);
+  if(!REDUCED){ flash = Math.max(flash, .4); zoom = 1.07; }
+}
+
+/* ═══════════════ 사망 화면 ═══════════════ */
+/* 플레이 스타일 칭호 — 동사는 하나, 결과가 이야기가 된다 (우선순위 순, 판당 1개) */
+function runTitle(){
+  if(runMinDist < 999 && runMinDist <= 4) return '종이 한 장';   // 아슬 정체성이 최상위 (리뷰 반영: 납득 가능한 우선순위)
+  if(novaCount >= 2) return '초신성의 심장';
+  if(maxChain >= 12) return '스침의 연주자';
+  if(pierceCount >= 5) return '바늘귀의 재봉사';
+  if(deepCount >= 10 && deepCount * 2 >= grazes) return '외줄 위의 별';
+  if(goldCount >= 4) return '금빛 사냥꾼';
+  if(dustRun >= 25) return '별먼지 수집가';
+  if(grazes <= 3 && passed >= 15) return '신중한 비행사';
+  if(peakMult >= 30) return '타오르는 꼬리';
+  if(passed >= 30) return '긴 여정의 별';
+  return '떨어지는 별';
+}
+function verdictLine(){
+  if(peakMult <= 2)  return '너무 안전했다 — 점수는 위험 옆에 있다';
+  if(peakMult <= 5)  return '감 잡았다. 조금만 더 붙자';
+  if(peakMult <= 9)  return '그 정도면 도박사';
+  if(peakMult <= 14) return '면도날 위를 달렸다';
+  if(peakMult <= 24) return '당신, 벽이랑 사귀는 중?';
+  if(peakMult <= 39) return '별똥별? 아니, 혜성이다';
+  if(peakMult <= 49) return '우주가 당신을 피해 다닌다';
+  return '초신성 — 별의 전설이 됐다';
+}
+function showDeath(){
+  state = 'dead';
+  lockUntil = performance.now() + 350;
+  hud.classList.remove('on');
+  const isBest = score > best;
+  if(isBest){ best = score; localStorage.setItem('aseul3-best', best); }
+  if(peakMult > bestMult){ bestMult = peakMult; localStorage.setItem('aseul3-bmult', bestMult); }
+  $('verdict').textContent = verdictLine();
+  $('newbest').classList.toggle('on', isBest && score > 0);
+  $('c-mult').textContent = '×' + peakMult;
+  $('c-graze').textContent = grazes;
+  $('c-pass').textContent = passed;
+  try{ localStorage.setItem('aseul-runs', +(localStorage.getItem('aseul-runs') || 0) + 1); }catch(e){}   // 온보딩 판 카운트
+  // 검증 로거 — 판마다 핵심 지표를 로컬에 남긴다 (최근 200판, KPI 분포 산출용)
+  try{
+    const rl = JSON.parse(localStorage.getItem('aseul-log') || '[]');
+    rl.push({ t: Date.now(), sky: currentSky, ch: curChar, mood: MOOD.id,
+      s: score, m: peakMult, p: passed, g: grazes, mc: maxChain, pi: pierceCount, nv: novaCount,
+      px: runMinDist < 999 ? Math.round(runMinDist * 10) / 10 : null,
+      du: Math.round(elapsed * 10) / 10,
+      fg: firstGrazeT === null ? null : Math.round(firstGrazeT * 10) / 10,
+      sg: secondGrazeT === null ? null : Math.round(secondGrazeT * 10) / 10,
+      dz: deathZone });
+    while(rl.length > 200) rl.shift();
+    localStorage.setItem('aseul-log', JSON.stringify(rl));
+  }catch(e){}
+  // 아슬아슬 기록 — 점수는 결과지만, 아슬함은 정체성이다
+  const px = runMinDist < 999 ? Math.max(0, Math.round(runMinDist)) : null;
+  if(px !== null){
+    const tSec = (runMinDist / Math.max(1, runMinSpd)).toFixed(3);
+    const rawClose = localStorage.getItem('aseul3-close');
+    const prevClose = rawClose === null ? 999 : +rawClose;
+    const isClosest = runMinDist < prevClose;
+    if(isClosest) try{ localStorage.setItem('aseul3-close', runMinDist); }catch(e){}
+    $('d-close').innerHTML = `가장 가까웠던 순간 <b>${px}px</b> · 죽음까지 ${tSec}초` + (isClosest && prevClose < 999 ? ' · <b>역대 최근접!</b>' : '');
+  } else $('d-close').textContent = '';
+  $('c-close').textContent = px === null ? '–' : px + 'px';
+  $('c-chain').textContent = maxChain;
+  $('c-pierce').textContent = pierceCount;
+  $('d-badge').textContent = '칭호 — ' + runTitle();
+  // 죽음 정산 — 별가루는 어느 하늘에서든 쌓인다 (주기만 하고, 빼앗지 않는다)
+  const wallet = +(localStorage.getItem('aseul-dust') || 0) + dustRun;
+  try{ localStorage.setItem('aseul-dust', wallet); }catch(e){}
+  $('s-dust').textContent = '+' + dustRun;
+  $('s-dust-t').textContent = '총 ' + wallet.toLocaleString();
+  // 별자리 게이지 — 스테이지에서만: 이번 판 점수만큼 찬다. 다 차면 별자리 획득, 다음 하늘 개방
+  const stg = STAGES[currentSky];
+  const stageMode = !!stg.goal;
+  $('s-row2').style.display = stageMode ? 'flex' : 'none';
+  $('gaugewrap').style.display = stageMode ? 'block' : 'none';
+  $('s-next').style.display = stageMode ? 'block' : 'none';
+  $('s-born').classList.remove('on');
+  if(stageMode){
+    const gk = 'aseul-const-' + currentSky;
+    const cl = loadClear();
+    const had = !!cl[currentSky];
+    let prog = +(localStorage.getItem(gk) || 0);
+    const prevPct = Math.min(100, prog / stg.goal * 100);
+    prog = Math.min(stg.goal, prog + score);
+    try{ localStorage.setItem(gk, prog); }catch(e){}
+    const got = (!had && prog >= stg.goal) || constGotRun;
+    if(got && !cl[currentSky]){ cl[currentSky] = 1; try{ localStorage.setItem('aseul-clear', JSON.stringify(cl)); }catch(e){} }
+    const pct = Math.round(prog / stg.goal * 100);
+    $('s-emb').textContent = '+' + score.toLocaleString();
+    $('s-emb-d').textContent = '점수만큼 게이지가 찬다';
+    $('s-next').textContent = (had || got) ? `${stg.name} — 획득 완료 ★` : `${stg.name} — 게이지 ${pct}% (목표 ${stg.goal.toLocaleString()}점)`;
+    $('s-born').textContent = `★ ${stg.name}를 얻었다 — 다음 하늘이 열렸다 ★`;
+    $('s-born').classList.toggle('on', got);
+    if(got && !constGotRun && AC && !muted) for(let i = 0; i < 8; i++) tone(PENTA[Math.min(i+2, 11)], .14, 'triangle', .15, .55 + i*.07);
+    const ga = $('gauge');
+    ga.classList.remove('anim'); ga.style.width = prevPct + '%'; void ga.offsetWidth;
+    ga.classList.add('anim');
+    setTimeout(() => { ga.style.width = pct + '%'; }, 80);
+  }
+  // 기록 레이스 북엔드 — 경쟁 정보는 필드가 아니라 여기서만 (1스테이지=데일리 / 이후=하늘별 최고)
+  if(stg.daily){
+    const day = loadDay();
+    day.n++;
+    const dailyTop = score > 0 && score >= day.hi;
+    day.hi = Math.max(day.hi, score);
+    try{ localStorage.setItem(DKEY, JSON.stringify(day)); }catch(e){}
+    $('d-day').innerHTML = dailyTop
+      ? `오늘의 하늘 ${SKY_MD} — <b>${day.n}번째 별똥별, 오늘의 1등!</b>`
+      : `오늘의 하늘 ${SKY_MD} — ${day.n}번째 별똥별 · 오늘 1등 ${day.hi.toLocaleString()}점 (<b>-${(day.hi - score).toLocaleString()}</b>)`;
+  } else {
+    const bk = 'aseul-stbest-' + currentSky;
+    const prevBest = +(localStorage.getItem(bk) || 0);
+    if(score > prevBest) try{ localStorage.setItem(bk, score); }catch(e){}
+    $('d-day').textContent = `${stg.name} — 이 하늘 최고 ${Math.max(prevBest, score).toLocaleString()}점`;
+  }
+  // 절정 멜로디 — 들려줄 만큼 스쳤을 때만
+  $('melody-btn').classList.toggle('on', melody.filter(n => n.e >= peakAt - 6 && n.e <= peakAt + 2).length >= 4);
+  deathOv.classList.add('on');
+  // 점수 카운트업
+  const target = score, t0 = performance.now(), el = $('d-score');
+  (function roll(){
+    const p = Math.min((performance.now()-t0)/700, 1);
+    el.textContent = Math.round(target * (1-Math.pow(1-p,3))).toLocaleString();
+    if(p < 1) requestAnimationFrame(roll);
+  })();
+}
+
+/* ═══════════════ 메인 루프 ═══════════════ */
+let last = performance.now();
+document.addEventListener('visibilitychange', () => {
+  last = performance.now();
+  if(document.hidden) stopMusic();
+  else if(state === 'play') startMusic();
+});
+
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt = Math.min((now - last)/1000, .033); last = now;
+  timeScale += (1 - timeScale) * Math.min(1, dt*6);
+  const sdt = dt * timeScale;
+
+  if(state === 'play' || state === 'dying') update(sdt, dt);
+  draw();
+}
+requestAnimationFrame(frame);
+
+function update(sdt, rawDt){
+  if(state === 'dying'){
+    deadAt += rawDt;
+    zoom += ((REDUCED ? 1 : 1.5) - zoom) * Math.min(1, rawDt * 5);   // 죽음의 지점으로 줌 인 (정지된 시간 속에서)
+    shake = Math.max(0, shake - rawDt * 26);
+    updateFx(sdt);
+    if(deadAt > .85) showDeath();
+    return;
+  }
+  elapsed += sdt;
+  const spd = speed();
+
+  // 스폰
+  distAcc += spd * sdt;
+  if(distAcc >= nextSpace){
+    distAcc = 0;
+    nextSpace = lerp(T.space0, T.space1, diff());
+    spawnRow();
+  }
+  // 이동
+  for(const row of rows) row.y += spd * sdt;
+  rows = rows.filter(r => r.y < H + 80);
+
+  // 통과 점수 — 한 만큼 즉시 정산한다 (번 것은 빼앗지 않는다)
+  for(const row of rows){
+    if(!row.scored && row.y > orb.y + ORB_R){
+      row.scored = true; passed++;
+      const gain = 10 * mult;
+      score += gain;
+      floater(orb.x, orb.y - 34, '+' + gain,
+        mult >= 40 ? '#FFDF6B' : mult >= 10 ? '#FF5C7A' : mult >= 5 ? '#FF8E4F' : '#FFD98A',
+        Math.min(13 + mult, 30), .7);
+      spawnStars(W/2, 46, Math.min(3 + (mult >> 3), 6));   // 별은 점수판에서 터진다 — 시야 보호
+      sfx.pass(mult);
+      scoreEl.classList.remove('bump'); void scoreEl.offsetWidth; scoreEl.classList.add('bump');
+      if(mult >= 10 && !REDUCED) zoom = Math.max(zoom, 1.025);
+    }
+  }
+
+  // 조작
+  if(keyL) orb.tx -= 520 * rawDt;
+  if(keyR) orb.tx += 520 * rawDt;
+  orb.tx = clamp(orb.tx, ORB_R + 2, W - ORB_R - 2);
+  orb.x += (orb.tx - orb.x) * Math.min(1, rawDt * 22);
+  const ivx = (orb.x - orb.px) / Math.max(rawDt, .001);   // 몸짓용 횡속도 (부드럽게)
+  orb.vxs += (ivx - orb.vxs) * Math.min(1, rawDt * 10);
+  orb.px = orb.x;
+  if(elapsed - lastPathT > .05 && path.length < 6000){    // 절정 카드용 궤적 샘플
+    lastPathT = elapsed; path.push({ e: elapsed, x: orb.x });
+  }
+  for(const tp of orb.trail) tp.y += spd * sdt;   // 궤적은 우주 공간에 남는다
+  orb.trail.unshift({x: orb.x, y: orb.y});
+  const hs = heat / capH();                       // 꼬리 = 콤보 게이지: 뜨거울수록 길어진다 (자기 상한 기준)
+  const tlim = 22 + (hs * 26 | 0);
+  while(orb.trail.length > tlim) orb.trail.pop();
+  dustT += sdt;                                   // 궤적에서 별가루가 떨어진다 — 콤보가 높을수록 촘촘히
+  if(dustT > .05 - hs*.028 && dust.length < 40 + (hs*30|0)){
+    dustT = 0;
+    dust.push({ x: orb.x + (Math.random()-.5)*8, y: orb.y + 12, vx: (Math.random()-.5)*36, vy: 20+Math.random()*30,
+      t: 0, life: .45+Math.random()*.3, r: (1.6+Math.random()*2.4)*(1+hs*.4), rot: Math.random()*6.28, vr: (Math.random()-.5)*8 });
+  }
+
+  // 별먼지 — 흐르고, 스치면 먹는다 (픽업은 후하게, 죽음은 엄격하게)
+  for(let i = motes.length - 1; i >= 0; i--){
+    const mt = motes[i];
+    mt.y += spd * sdt;
+    if(mt.y > H + 20){ motes.splice(i, 1); continue; }
+    if(Math.hypot(orb.x - mt.x, orb.y - mt.y) < ORB_R + 12){
+      motes.splice(i, 1);
+      // 별가루 = 보너스 점수 + 재화. 콤보(아슬함의 척도)는 절대 건드리지 않는다 — 역할 분리
+      dustRun++;
+      score += 5;
+      sparks(mt.x, mt.y, 4, '#FFD98A', .6);
+      if(nova <= 0) floater(mt.x, mt.y - 12, '+5', '#FFD98A', 11, .45);   // 소나기 중엔 텍스트 생략 — 소리와 불꽃만
+      tone(1568, .07, 'triangle', .12); tone(2093, .09, 'sine', .08, .04);   // 동전 반짝 — 스침 음계와 구분
+    }
+  }
+
+  // 히트/그레이즈
+  hitTest(sdt);
+  if(state !== 'play') return;
+
+  // 초신성 타이머 — 다 태우면 재로부터 다시. 그동안 하늘에서 별가루가 쏟아진다
+  if(nova > 0){
+    nova -= sdt;
+    novaRainT += sdt;
+    if(novaRainT > .12 && motes.length < 90){          // 초당 ~8개 — 6초간 재화의 소나기
+      novaRainT = 0;
+      motes.push({ x: 20 + Math.random()*(W - 40), y: -14, ph: Math.random()*6.28 });
+    }
+    if(nova <= 0){
+      nova = 0; heat = CH().heat0; sinceGraze = 99;
+      floater(W/2, H*.42, '다 태웠다 — 다시, 아슬하게', '#9BE8FF', 16, 1.4);
+      tone(784, .3, 'sine', .15); tone(392, .4, 'sine', .12, .1);
+    }
+  }
+
+  // 배수 냉각 — 안전하게 놀면 식는다. 높이 오를수록 빨리 식는다 (초신성 중엔 동결)
+  sinceGraze += sdt;
+  if(nova <= 0 && sinceGraze > delayNow()) heat = Math.max(CH().heat0, heat - (T.decayRate + heat*T.decayHeat) * CH().decayMul * sdt);
+  // 어둠 — 식기 시작하면 하늘이 닫힌다 (냉각의 시각화이자 시야의 대가). 초신성은 어둠을 불태운다
+  const darkMax = orb.y - 150;
+  if(nova > 0) dark = Math.max(0, dark - 600 * sdt);
+  else if(sinceGraze > delayNow()) dark = Math.min(darkMax, dark + (70 + diff() * 60) * sdt);
+  if(tut && !tutDarkHint && dark > 110){               // 온보딩 — 어둠의 이유를 그 순간에 가르친다
+    tutDarkHint = true;
+    floater(W/2, Math.min(dark + 44, orb.y - 80), '벽을 스치면 어둠이 물러난다!', '#9BE8FF', 15, 2.4);
+  }
+  const newMult = 1 + Math.floor(heat);
+  if(newMult !== mult){
+    const prev = mult, up = newMult > mult;
+    mult = newMult;
+    if(mult > peakMult){ peakMult = mult; peakAt = elapsed; }   // 절정의 순간 — 멜로디 창의 기준점
+    const m5 = Math.floor(mult/5)*5;                 // 골드 +5 점프로 건너뛴 마일스톤도 잡는다
+    if(up && m5 >= 5 && m5 > Math.floor(prev/5)*5){
+      const MS = {5:'불붙었다',10:'활활',15:'이글이글',20:'폭주!!',25:'유성우!!',30:'혜성!!',35:'신성!!',40:'백열!!',45:'은하!!',50:'초신성!!'};
+      floater(W/2, H*.42, MS[m5] + ' ×' + m5, m5 >= 40 ? '#FFDF6B' : m5 >= 10 ? '#FF5C7A' : '#FFB454', 30);
+      sfx.milestone();
+      rings.push({x:orb.x, y:orb.y, r0:12, r1:130, col: m5 >= 40 ? '#FFDF6B' : m5 >= 10 ? '#FF5C7A' : '#FFD98A', lw:4, life:.5, t:0});
+      if(!REDUCED){ flash = m5 >= 50 ? .45 : .3; zoom = 1.06; if(m5 >= 50) vign = .7; }
+      if(mult >= 1 + capH() && nova <= 0){               // 자기 상한 도달 — 초신성: 벽을 뚫는다, 그리고 재가 된다
+        nova = MOOD.id === 'nova' ? 8 : 6; novaCount++;  // 초신성의 날은 8초
+        floater(W/2, H*.52, '벽을 뚫는다!', '#FFDF6B', 20, 1.6);
+        rings.push({x:orb.x, y:orb.y, r0:14, r1:W*.9, col:'#FFFFFF', lw:5, life:.6, t:0});
+        if(!REDUCED){ shake = 12; zoom = 1.08; }
+        if(AC && !muted){ kick(AC.currentTime); kick(AC.currentTime + .16); hat(AC.currentTime + .08, .25); }
+        buzz([40, 60, 40]);
+      }
+    }
+  }
+  updateFx(sdt);
+  updateHud();
+}
+
+function updateFx(sdt){
+  for(const p of parts){ p.t += sdt; p.x += p.vx*sdt; p.y += p.vy*sdt; p.vx *= .96; p.vy = p.vy*.96 + 60*sdt; }
+  parts = parts.filter(p => p.t < p.life);
+  for(const f of floats){ f.t += sdt; f.y -= 34*sdt; }
+  floats = floats.filter(f => f.t < f.life);
+  for(const st of stars){                                  // 그 자리에서 팡 터지고 사라진다
+    st.t += sdt;
+    const damp = Math.max(0, 1 - 3*sdt);
+    st.vx *= damp; st.vy *= damp;
+    st.x += st.vx*sdt; st.y += st.vy*sdt; st.rot += st.vr*sdt;
+  }
+  stars = stars.filter(s => s.t < s.life);
+  for(const q of rings) q.t += sdt;
+  rings = rings.filter(q => q.t < q.life);
+  if(state !== 'dying') zoom += (1 - zoom) * Math.min(1, sdt*6);   // 죽음 중엔 dying 루프가 줌을 몬다
+  vign = Math.max(0, vign - sdt*2.2);
+  for(const row of rows) for(const b of row.blocks) b.flash = Math.max(0, b.flash - sdt*2.4);
+  shake = Math.max(0, shake - sdt*46);
+  flash = Math.max(0, flash - sdt*2.2);
+  const sp = state==='play' ? speed() : 60;
+  for(const l of lines){ l.y += (sp*.45*sdt)/H; if(l.y > 1.1) { l.y = -.1; l.x = Math.random(); } }
+  for(const d0 of dots){ d0.y += (sp*.1*sdt)/H; if(d0.y > 1.02){ d0.y = -.02; d0.x = Math.random(); } }
+  for(const d1 of dust){ d1.t += sdt; d1.x += d1.vx*sdt; d1.y += (d1.vy + sp*.55)*sdt; d1.rot += d1.vr*sdt; }
+  dust = dust.filter(d1 => d1.t < d1.life);
+  // 하늘의 여정 — 고도 배경 블렌드 & 구름 패럴랙스
+  bandT = Math.min(1, bandT + sdt/2.2);
+  const bST = bandT*bandT*(3 - 2*bandT), BT = BANDS[bandTo];
+  bandCur.top = vlerp(bandSnap.top, BT.top, bST);
+  bandCur.bot = vlerp(bandSnap.bot, BT.bot, bST);
+  bandCur.starA = bandSnap.starA + (BT.starA - bandSnap.starA)*bST;
+  for(const c of CLOUDS){ c.y += sp*sdt*.00028; if(c.y > 1.15){ c.y = -.15; c.x = Math.random(); } }
+}
+
+/* 고도별 배경 장식 — 언제나 필드보다 어둡고 조용하게 */
+function drawDeco(deco, a){
+  if(!deco || a <= .02 || deco === 'deep') return;
+  if(deco === 'aurora'){
+    ctx.lineCap = 'round';
+    for(let k = 0; k < 3; k++){
+      ctx.globalAlpha = a * .07;
+      ctx.strokeStyle = k === 1 ? '#7B6CF6' : '#3AE8B0';
+      ctx.lineWidth = 46 + k*14;
+      ctx.beginPath();
+      for(let i = 0; i <= 8; i++){
+        const px = i/8*W;
+        const py = H*(.14 + k*.08) + Math.sin(elapsed*.35 + i*.9 + k*2.1)*26 + Math.sin(elapsed*.13 + i*.5)*40;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    }
+  } else if(deco === 'haze'){
+    ctx.fillStyle = '#8FA8CC';
+    for(const hz of HAZE){
+      ctx.globalAlpha = a * .045;
+      ctx.fillRect(0, (hz.y + Math.sin(elapsed*.2 + hz.ph)*.012) * H, W, 26);
+    }
+  } else if(deco === 'cloud'){
+    ctx.fillStyle = '#161E30';
+    for(const c of CLOUDS){
+      ctx.globalAlpha = a * .5;
+      const cx = c.x*W, cy = c.y*H, s = c.s;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 34*s, 0, 6.283); ctx.arc(cx + 30*s, cy + 8*s, 26*s, 0, 6.283); ctx.arc(cx - 32*s, cy + 10*s, 24*s, 0, 6.283);
+      ctx.fill();
+    }
+  } else if(deco === 'city'){
+    ctx.globalAlpha = a * .85;
+    ctx.fillStyle = '#0A0C15';
+    for(const bd of CITYW) ctx.fillRect(bd.x*W, H - bd.h, bd.w*W, bd.h);
+    ctx.fillStyle = '#FFC97E';
+    for(const bd of CITYW){
+      ctx.globalAlpha = a * (.08 + .12*(.5 + .5*Math.sin(elapsed*1.3 + bd.ph)));
+      ctx.fillRect(bd.x*W + bd.w*W*.3, H - bd.h + 6, 2, 2);
+      ctx.fillRect(bd.x*W + bd.w*W*.62, H - bd.h + 15, 2, 2);
+    }
+  } else if(deco === 'dawn'){
+    const g = ctx.createLinearGradient(0, H*.5, 0, H);
+    g.addColorStop(0, 'rgba(255,140,80,0)');
+    g.addColorStop(1, `rgba(255,150,90,${a*.11})`);
+    ctx.fillStyle = g; ctx.fillRect(0, H*.5, W, H*.5);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function updateHud(){
+  const target = score;
+  dispScore += (target - dispScore) * .25;
+  if(target - dispScore < 1) dispScore = target;
+  scoreEl.textContent = Math.round(dispScore).toLocaleString();
+  // 별자리 정복 게이지 — 화면 최상단, 이번 판 점수만큼 실시간으로 차오른다
+  const stg = STAGES[currentSky];
+  const liveProg = Math.min(stg.goal, constSaved + score);
+  const cpct = constHad ? 100 : Math.round(liveProg / stg.goal * 100);
+  $('cgfill').style.width = cpct + '%';
+  $('stprog').textContent = stg.name + (constHad ? ' ★' : ' · 정복 ' + cpct + '%');
+  if(!constHad && liveProg >= stg.goal) acquireConstellation();
+  if(mult !== lastMultShown){
+    lastMultShown = mult;
+    multEl.textContent = '×' + mult;
+    multEl.className = mult >= 50 ? 'tmax' : mult >= 35 ? 't6' : mult >= 20 ? 't5' : mult >= 10 ? 't4' : mult >= 5 ? 't3' : mult >= 2 ? 't2' : '';
+    multEl.classList.remove('pop'); void multEl.offsetWidth; multEl.classList.add('pop');
+  }
+}
+
+/* ═══════════════ 렌더 ═══════════════ */
+function rr(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function starPath(x,y,r,rot){
+  ctx.beginPath();
+  for(let i=0;i<8;i++){
+    const a = rot + i*Math.PI/4, rad = i%2 === 0 ? r : r*.4;
+    const px = x+Math.cos(a)*rad, py = y+Math.sin(a)*rad;
+    i ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+  }
+  ctx.closePath();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  let sx = 0, sy = 0;
+  if(shake > 0){ sx = (Math.random()-.5)*shake; sy = (Math.random()-.5)*shake; }
+  ctx.save(); ctx.translate(sx, sy);
+  if(zoom !== 1){
+    const zx = zc ? zc.x : W/2, zy = zc ? zc.y : H*.62;   // 죽음 중엔 사망 지점이 줌 중심
+    ctx.translate(zx, zy); ctx.scale(zoom, zoom); ctx.translate(-zx, -zy);
+  }
+
+  // 하늘의 여정 — 고도가 곧 배경
+  const skg = ctx.createLinearGradient(0, 0, 0, H);
+  skg.addColorStop(0, cssv(bandCur.top)); skg.addColorStop(1, cssv(bandCur.bot));
+  ctx.fillStyle = skg; ctx.fillRect(0, 0, W, H);
+  const bST2 = bandT*bandT*(3 - 2*bandT);
+  drawDeco(bandSnap.deco, 1 - bST2);
+  drawDeco(BANDS[bandTo].deco, bST2);
+
+  // 먼 별들 — 반짝이는 우주 (고도가 낮아질수록 옅어진다)
+  ctx.fillStyle = '#CFE7FF';
+  for(const d0 of dots){
+    ctx.globalAlpha = (.1 + .26 * (0.5 + 0.5*Math.sin(elapsed*d0.w + d0.ph))) * bandCur.starA;
+    ctx.beginPath(); ctx.arc(d0.x*W, d0.y*H, d0.r, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // 속도선 — 빠를수록 길고 진해지고, 비트에 맞춰 번쩍인다
+  const spNow = state === 'play' ? speed() : 80;
+  const bp = beatPulse();
+  const hsAll = Math.min(heat / capH(), 1);
+  ctx.strokeStyle = hsAll > .4 ? '#FF5C7A' : hsAll > .12 ? '#FFB454' : '#7DF3FF';
+  ctx.lineWidth = 1;
+  for(const l of lines){
+    ctx.globalAlpha = Math.min(.4, l.a * (1 + bp*1.3 + hsAll*.7) * (.6 + spNow/420));
+    const len = l.l * (.6 + spNow/240);
+    ctx.beginPath(); ctx.moveTo(l.x*W, l.y*H); ctx.lineTo(l.x*W, l.y*H + len); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // 열기 분위기 — 콤보가 오르면 세상이 달아오른다 (초신성은 백금빛)
+  if(state !== 'title' && (hsAll > 0 || nova > 0)){
+    const g = ctx.createLinearGradient(0,0,0,H);
+    const col = nova > 0 ? '255,215,90' : hsAll > .4 ? '255,92,122' : '255,150,60';
+    g.addColorStop(0, `rgba(${col},${.04 + hsAll*.09 + bp*hsAll*.04 + (nova > 0 ? .07 : 0)})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  }
+
+  // 블록
+  for(const row of rows){
+    for(const b of row.blocks){
+      const geo = blockGeom(row, b);
+      // 벽 = 덩어리 하나 + 금빛 후광 한 겹(스침 구간). 골드 벽은 잭팟
+      ctx.shadowColor = b.gold
+        ? `rgba(255,215,90,${.8 + b.flash*.2})`
+        : `rgba(255,180,84,${.55 + b.flash*.45 + bp*.15})`;
+      ctx.shadowBlur = BAND * (1 + b.flash*.4) * (b.gold ? 1.2 : 1);
+      ctx.fillStyle = b.gold ? '#C9992E' : (row.col || '#3A4680');
+      rr(geo.x, row.y, geo.w, BLOCK_H, 7); ctx.fill();
+      ctx.shadowBlur = 0;
+      if(b.dyn){                                        // 닫히는 문 — 안쪽 모서리가 조여들수록 달아오른다
+        const cp = 1 - (closeGap(row) - row.close.g1) / Math.max(1, row.close.g0 - row.close.g1);
+        ctx.strokeStyle = `rgba(255,120,90,${.15 + cp*.55})`;
+        ctx.lineWidth = 3;
+        const gx = b.dyn === 'L' ? geo.x + geo.w : geo.x;
+        ctx.beginPath(); ctx.moveTo(gx, row.y + 2); ctx.lineTo(gx, row.y + BLOCK_H - 2); ctx.stroke();
+      }
+      if(b.flash > 0){
+        ctx.strokeStyle = `rgba(255,225,160,${b.flash})`;
+        ctx.lineWidth = 2.5;
+        rr(geo.x, row.y, geo.w, BLOCK_H, 7); ctx.stroke();
+      }
+    }
+  }
+
+  // 별먼지 — 금빛 미끼, 위험한 라인 위에서 깜빡인다
+  if(motes.length){
+    ctx.fillStyle = '#FFD98A';
+    ctx.shadowColor = '#FFB454';
+    for(const mt of motes){
+      ctx.globalAlpha = .5 + .35 * Math.sin(elapsed*3 + mt.ph);
+      ctx.shadowBlur = 6;
+      starPath(mt.x, mt.y, 3.6, mt.ph + elapsed*.8); ctx.fill();
+    }
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  }
+
+  if(state !== 'title'){
+    // 별똥별 궤적 — 우주에 실제로 남는 빛줄기 (넓은 광층 + 밝은 심)
+    if(orb.trail.length > 1){
+      const maxed = hsAll >= .999;                 // ×25 절정 — 심지가 백금색으로 떨린다
+      const tcol = maxed ? '#FF7DA0' : hsAll > .4 ? '#FF5C7A' : hsAll > .12 ? '#FFB454' : '#9BE8FF';
+      const core = maxed ? (Math.sin(elapsed*16) > 0 ? '#FFFFFF' : '#FFE9C4') : hsAll > .12 ? '#FFF3DC' : '#EAFBFF';
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for(let pass = 0; pass < 2; pass++){
+        for(let i = 0; i < orb.trail.length-1; i++){
+          const a = 1 - i/orb.trail.length;
+          ctx.globalAlpha = a * (pass ? .5 : .16) * (.7 + hsAll*.6);
+          ctx.strokeStyle = pass ? core : tcol;
+          ctx.lineWidth = (pass ? ORB_R*.5 : ORB_R*1.5) * a * (1 + hsAll*.45);
+          ctx.beginPath();
+          ctx.moveTo(orb.trail[i].x, orb.trail[i].y);
+          ctx.lineTo(orb.trail[i+1].x, orb.trail[i+1].y);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+    // 궤적에서 흩어지는 별가루
+    ctx.fillStyle = '#FFEBB8';
+    for(const d1 of dust){
+      ctx.globalAlpha = Math.max(0, 1 - d1.t/d1.life) * .8;
+      starPath(d1.x, d1.y, d1.r, d1.rot); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if(state === 'play'){
+      const inB = sinceGraze < .25;
+      // 몸 = 히트박스 그대로, 크기 절대 고정(13px). 몸짓(기울기·늘어남)은 그리기 변형뿐 — 넓이 보존
+      const bodyR = ORB_R;
+      const lean = clamp(orb.vxs * .0009, -.32, .32);
+      const st = clamp(Math.abs(orb.vxs) * .00042, 0, .16);
+      const sq = (sinceGraze < .14 ? (1 - sinceGraze/.14) : 0) * .1;   // 스침 순간 움찔
+      ctx.save();
+      ctx.translate(orb.x, orb.y); ctx.rotate(lean);
+      ctx.scale(1 + st, Math.max(.8, 1 - st*.75 - sq));
+      if(nova > 0){                                    // 초신성 — 백열의 핵 (판정 무의미 구간의 광휘)
+        ctx.shadowColor = '#FFDF6B';
+        ctx.shadowBlur = 30 + Math.sin(elapsed*18)*8;
+        ctx.fillStyle = Math.sin(elapsed*22) > 0 ? '#FFFFFF' : '#FFF3C4';
+      } else {
+        ctx.shadowColor = hsAll > .4 ? '#FF5C7A' : '#7DF3FF';
+        ctx.shadowBlur = 10 + hsAll*12;
+        ctx.fillStyle = inB ? '#FFF3D9' : CH().col;   // 캐릭터의 몸 색
+      }
+      ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = nova > 0 ? '#FFDF6B' : inB ? '#FFB454' : 'rgba(125,243,255,.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // 파티클
+  for(const p of parts){
+    ctx.globalAlpha = 1 - p.t/p.life;
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // 별 — 점수판으로 빨려 들어간다
+  for(const st of stars){
+    ctx.globalAlpha = st.t < .3 ? 1 : Math.max(0, 1 - (st.t-.3)/.2);
+    ctx.fillStyle = '#FFD98A';
+    ctx.shadowColor = '#FFB454'; ctx.shadowBlur = 9;
+    starPath(st.x, st.y, st.r, st.rot); ctx.fill();
+  }
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+
+  // 충격파 링
+  for(const q of rings){
+    const p = q.t/q.life, r = q.r0 + (q.r1-q.r0)*(1-Math.pow(1-p,2));
+    ctx.globalAlpha = (1-p)*.8;
+    ctx.strokeStyle = q.col; ctx.lineWidth = q.lw*(1-p)+.5;
+    ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.283); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // 점수 플로터
+  ctx.textAlign = 'center';
+  for(const f of floats){
+    ctx.globalAlpha = 1 - (f.t/f.life);
+    ctx.font = `${f.size}px "Black Han Sans","Gothic A1",sans-serif`;
+    ctx.fillStyle = f.col;
+    ctx.fillText(f.txt, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // 어둠의 장막 — 스치지 않은 자의 하늘은 닫힌다
+  if(state !== 'title' && dark > 4){
+    const solidH = Math.max(0, dark - 80);
+    ctx.fillStyle = 'rgba(4,6,12,.97)';
+    if(solidH > 0) ctx.fillRect(0, 0, W, solidH);
+    const dg = ctx.createLinearGradient(0, solidH, 0, dark + 12);
+    dg.addColorStop(0, 'rgba(4,6,12,.97)');
+    dg.addColorStop(1, 'rgba(4,6,12,0)');
+    ctx.fillStyle = dg; ctx.fillRect(0, solidH, W, dark + 12 - solidH);
+    // 실루엣 절충(헌법 4조) — 어둠은 세부(금빛 후광)를 삼키지만 벽의 형태는 남긴다. "못 봐서 죽는" 일은 없다
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, W, dark + 6); ctx.clip();
+    for(const row of rows){
+      if(row.y > dark + 12) continue;
+      for(const b of row.blocks){
+        const geo = blockGeom(row, b);
+        ctx.globalAlpha = .5; ctx.fillStyle = '#141B33';
+        rr(geo.x, row.y, geo.w, BLOCK_H, 7); ctx.fill();
+        ctx.globalAlpha = .35; ctx.strokeStyle = '#2A3560'; ctx.lineWidth = 1;
+        rr(geo.x, row.y, geo.w, BLOCK_H, 7); ctx.stroke();
+      }
+    }
+    ctx.restore();
+    ctx.globalAlpha = .45; ctx.strokeStyle = '#26315C'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, dark); ctx.lineTo(W, dark); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // 아슬 순간 — 화면 가장자리 금빛 섬광
+  if(vign > 0){
+    const g = ctx.createRadialGradient(W/2, H/2, H*.25, W/2, H/2, H*.75);
+    g.addColorStop(0, 'rgba(255,180,84,0)');
+    g.addColorStop(1, `rgba(255,180,84,${vign*.5})`);
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  }
+
+  ctx.restore();
+
+  // 사망 플래시
+  if(flash > 0){
+    ctx.fillStyle = `rgba(255,255,255,${flash*.5})`;
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
+/* 타이틀에 베스트 표기 */
+if(best > 0) $('title-best').textContent = `BEST ${best.toLocaleString()} · 최고 배수 ×${bestMult}`;
+
+/* ── 로비 — 계정 요약·캐릭터·하늘 선택·게임 시작 (메인 → 로비 → 플레이 → 결과 → 로비) ── */
+function renderChars(){
+  const cp = $('charpanel'); cp.innerHTML = '';
+  const wallet = +(localStorage.getItem('aseul-dust') || 0);
+  for(const id of CHAR_ORDER){
+    const c = CHARS[id], own = !!charsOwned[id], sel = id === curChar;
+    const d = document.createElement('div');
+    d.className = 'charcard' + (own ? '' : ' lock');
+    d.innerHTML = `<span class="chdot" style="background:${c.col}"></span>` +
+      `<span class="chinfo"><b>${c.name}${sel ? ' · 선택됨' : ''}</b><span>${c.desc}</span></span>` +
+      `<span class="chact">${own ? (sel ? '' : '선택') : '별가루 ' + c.cost}</span>`;
+    d.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      if(own){                                            // 보유 → 선택
+        curChar = id;
+        try{ localStorage.setItem('aseul-char', id); }catch(_e){}
+        renderLobby();
+      } else if(wallet >= c.cost){                        // 미보유 → 별가루로 데려오기 (즉시 선택)
+        charsOwned[id] = 1; curChar = id;
+        try{
+          localStorage.setItem('aseul-dust', wallet - c.cost);
+          localStorage.setItem('aseul-chars', JSON.stringify(charsOwned));
+          localStorage.setItem('aseul-char', id);
+        }catch(_e){}
+        renderLobby();
+      } else {
+        $('lb-charname').textContent = `캐릭터 — 별가루가 ${c.cost - wallet} 부족해`;
+        setTimeout(renderLobby, 1100);
+      }
+    });
+    cp.appendChild(d);
+  }
+}
+function renderLobby(){
+  const w = +(localStorage.getItem('aseul-dust') || 0);
+  const cl = loadClear();
+  const m = STAGE_ORDER.filter(k => cl[k]).length;
+  $('lb-stats').textContent = `별가루 ${w.toLocaleString()} · 별자리 ${m}/${STAGE_ORDER.length} · BEST ${best.toLocaleString()}`;
+  const stg = STAGES[currentSky];
+  const pr = cl[currentSky] ? '★'
+    : Math.min(99, Math.round((+localStorage.getItem('aseul-const-' + currentSky) || 0) / stg.goal * 100)) + '%';
+  $('lb-skyname').textContent = `하늘 — ${stg.name} · ${pr}`;
+  const d0 = loadDay();
+  $('sky-line').textContent = d0.n
+    ? `오늘의 하늘 ${SKY_MD} · ${d0.n}판 · 오늘 1등 ${d0.hi.toLocaleString()}점`
+    : `오늘의 하늘 ${SKY_MD} — 오늘의 첫 별똥별이 되어보자`;
+  $('mood-line').textContent = `오늘의 무드 — ${MOOD.name} · ${MOOD.desc}`;
+  $('lb-charname').textContent = `캐릭터 — ${CH().name}`;
+  renderChars();
+  renderSkies();
+}
+function showLobby(){
+  state = 'lobby';
+  titleOv.classList.remove('on');
+  deathOv.classList.remove('on');
+  hud.classList.remove('on');
+  renderLobby();
+  $('lobby').classList.add('on');
+}
+$('btn-play').addEventListener('pointerdown', e => { e.stopPropagation(); ac(); startRun(); });
+$('btn-sky').addEventListener('pointerdown', e => { e.stopPropagation(); $('skies').classList.toggle('hide'); });
+$('btn-char').addEventListener('pointerdown', e => { e.stopPropagation(); $('charpanel').classList.toggle('hide'); });
+
+/* ── 밤하늘 도감 — 획득한 별자리가 실제 별 무늬로 반짝인다 ── */
+const CONST_SHAPES = {
+  noname: [[10,60],[35,20],[62,45],[88,15],[112,55]],
+  leo:    [[8,50],[30,25],[55,30],[80,15],[105,35],[95,65],[60,70]],
+  cygnus: [[60,8],[60,40],[25,32],[95,28],[60,40],[60,78]],
+  orion:  [[25,10],[85,12],[55,30],[45,46],[65,46],[20,76],[95,72]],
+  draco:  [[8,20],[30,35],[55,25],[80,40],[100,25],[112,50],[90,68]],
+};
+const CONST_POS = { noname:[215,70], leo:[120,205], cygnus:[315,235], orion:[160,390], draco:[290,510] };
+function renderSkyview(){
+  const cl = loadClear();
+  let open = true, html = '';
+  for(let i = 0; i < 46; i++)
+    html += `<circle cx="${(Math.random()*430)|0}" cy="${(Math.random()*610)|0}" r="${(Math.random()*1.2+.4).toFixed(1)}" fill="#CFE7FF" opacity="${(Math.random()*.25+.08).toFixed(2)}"/>`;
+  for(const k of STAGE_ORDER){
+    const stg = STAGES[k], pts = CONST_SHAPES[k], [ox, oy] = CONST_POS[k];
+    const got = !!cl[k], locked = !open;
+    const col = got ? '#FFDF6B' : locked ? '#232B47' : '#5A6791';
+    const pline = pts.map(([x, y]) => `${ox + x - 60},${oy + y - 45}`).join(' ');
+    html += `<polyline points="${pline}" fill="none" stroke="${col}" stroke-width="${got ? 1.4 : 1}" opacity="${got ? .85 : .5}"${got ? '' : ' stroke-dasharray="3 4"'}/>`;
+    for(const [x, y] of pts)
+      html += `<circle class="${got ? 'skv-on' : ''}" cx="${ox + x - 60}" cy="${oy + y - 45}" r="${got ? 3.2 : 2.2}" fill="${got ? '#FFDF6B' : col}"${got ? ` style="animation-delay:${(Math.random()*2).toFixed(1)}s"` : ''}/>`;
+    const pr = got ? '★' : locked ? '잠김' : Math.min(99, Math.round((+localStorage.getItem('aseul-const-' + k) || 0) / stg.goal * 100)) + '%';
+    html += `<text x="${ox}" y="${oy + 64}" text-anchor="middle" font-size="11" font-weight="700" fill="${got ? '#FFD98A' : '#68729A'}" font-family="Gothic A1,sans-serif">${stg.name} ${pr}</text>`;
+    open = got;
+  }
+  $('skv').innerHTML = html;
+}
+$('btn-skyview').addEventListener('pointerdown', e => { e.stopPropagation(); renderSkyview(); $('skyview').classList.add('on'); });
+$('skv-close').addEventListener('pointerdown', e => { e.stopPropagation(); $('skyview').classList.remove('on'); });
+
+/* 하늘 선택 칩 — 정복해야 다음 하늘이 열린다 */
+function renderSkies(){
+  const cl = loadClear();
+  const el = $('skies'); el.innerHTML = '';
+  const mk = (key, locked) => {
+    const stg = STAGES[key];
+    let tail = '';
+    if(locked) tail = ' · 잠김';
+    else if(cl[key]) tail = ' ★';
+    else {
+      const pr = Math.min(99, Math.round((+localStorage.getItem('aseul-const-' + key) || 0) / stg.goal * 100));
+      if(pr > 0) tail = ` ${pr}%`;
+    }
+    const b = document.createElement('div');
+    b.className = 'skychip' + (currentSky === key ? ' sel' : '') + (locked ? ' lock' : '');
+    b.textContent = stg.name + tail;
+    if(!locked) b.addEventListener('pointerdown', e => {
+      e.stopPropagation(); currentSky = key;
+      try{ localStorage.setItem('aseul-sky-sel', key); }catch(err){}
+      renderLobby();                                     // 하늘 이름 줄까지 함께 갱신
+    });
+    el.appendChild(b);
+  };
+  let open = true, anyOpenSel = false;
+  for(const k of STAGE_ORDER){
+    if(k === currentSky && open) anyOpenSel = true;
+    mk(k, !open); open = !!cl[k];
+  }
+  if(!anyOpenSel){ currentSky = 'noname'; renderSkies(); }   // 잠긴 하늘이 선택돼 있으면 처음으로
+}
+$('tohome').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  showLobby();
+});
+
+/* ── 절정 카드 — 절정 6초의 실제 궤적을 유성 줄기로 그린 공유 이미지 ── */
+function buildCard(){
+  const cw = 720, chh = 960;
+  const c = document.createElement('canvas'); c.width = cw; c.height = chh;
+  const g = c.getContext('2d');
+  const bg = g.createLinearGradient(0, 0, 0, chh);
+  bg.addColorStop(0, '#0D1226'); bg.addColorStop(1, '#07090F');
+  g.fillStyle = bg; g.fillRect(0, 0, cw, chh);
+  for(let i = 0; i < 80; i++){
+    g.globalAlpha = Math.random()*.45 + .08; g.fillStyle = '#CFE7FF';
+    g.beginPath(); g.arc(Math.random()*cw, Math.random()*chh, Math.random()*1.6 + .4, 0, 6.283); g.fill();
+  }
+  g.globalAlpha = 1;
+  // 절정 궤적 (peakAt-4 ~ +2) — 시간은 아래로, x는 실제 조작
+  const w0 = peakAt - 4, w1 = peakAt + 2;
+  const seg = path.filter(p => p.e >= w0 && p.e <= w1);
+  if(seg.length > 1){
+    const yTop = 168, yBot = 620, eSpan = Math.max(.1, seg[seg.length-1].e - seg[0].e);
+    const pts = seg.map(p => [80 + (p.x / W) * (cw - 160), yTop + ((p.e - seg[0].e) / eSpan) * (yBot - yTop)]);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.strokeStyle = 'rgba(255,180,84,.32)'; g.lineWidth = 26; g.shadowColor = '#FFB454'; g.shadowBlur = 34;
+    g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke();
+    g.shadowBlur = 0;
+    g.strokeStyle = '#FFF3DC'; g.lineWidth = 6;
+    g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke();
+    // 스침의 순간들 — 궤적 위의 작은 별
+    g.fillStyle = '#FFDF6B'; g.shadowColor = '#FFB454'; g.shadowBlur = 12;
+    for(const n of melody){
+      if(n.e < w0 || n.e > w1) continue;
+      let near = seg[0];
+      for(const p of seg) if(Math.abs(p.e - n.e) < Math.abs(near.e - n.e)) near = p;
+      const x = 80 + (near.x / W) * (cw - 160), y = yTop + ((n.e - seg[0].e) / eSpan) * (yBot - yTop);
+      g.beginPath(); g.arc(x, y, n.g ? 7 : n.d ? 5.5 : 4, 0, 6.283); g.fill();
+    }
+    g.shadowBlur = 0;
+  }
+  const px2 = runMinDist < 999 ? Math.max(0, Math.round(runMinDist)) : null;
+  g.textAlign = 'center';
+  g.fillStyle = '#FFB454'; g.font = '900 19px "Gothic A1",sans-serif'; g.fillText('별똥별의 여정', cw/2, 76);
+  g.fillStyle = '#EDF1FF'; g.font = '52px "Black Han Sans","Gothic A1",sans-serif'; g.fillText('아슬아슬', cw/2, 132);
+  g.font = '86px "Black Han Sans","Gothic A1",sans-serif'; g.fillText(score.toLocaleString(), cw/2, 742);
+  g.fillStyle = '#7E89B0'; g.font = '700 19px "Gothic A1",sans-serif';
+  g.fillText(`최고 배수 ×${peakMult}` + (px2 !== null ? ` · 가장 가까웠던 순간 ${px2}px` : ''), cw/2, 786);
+  if(px2 !== null){
+    g.fillText(`죽음까지 ${(runMinDist / Math.max(1, runMinSpd)).toFixed(3)}초`, cw/2, 816);
+  }
+  g.fillStyle = '#FFDF6B'; g.font = '900 25px "Gothic A1",sans-serif';
+  g.fillText(`칭호 — ${runTitle()}`, cw/2, 866);
+  g.fillStyle = '#7E89B0'; g.font = '700 16px "Gothic A1",sans-serif';
+  g.fillText(`${STAGES[currentSky].name} · ${SKY_MD}`, cw/2, 902);
+  g.fillStyle = '#3A4364'; g.font = '700 12px "Gothic A1",sans-serif';
+  g.fillText('ASEUL·ASEUL', cw/2, chh - 32);
+  return c;
+}
+let cardCanvas = null;
+$('card-btn').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  cardCanvas = buildCard();
+  $('cardimg').src = cardCanvas.toDataURL('image/png');
+  $('cardview').classList.add('on');
+});
+$('card-close').addEventListener('pointerdown', e => { e.stopPropagation(); $('cardview').classList.remove('on'); });
+$('card-share').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  if(!cardCanvas) return;
+  cardCanvas.toBlob(blob => {
+    if(!blob) return;
+    const file = new File([blob], 'aseul-card.png', { type: 'image/png' });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      navigator.share({ files: [file], title: '아슬아슬', text: '내 절정의 순간 — 아슬아슬' }).catch(() => {});
+    } else {
+      $('card-share').textContent = '공유 미지원 — 길게 눌러 저장';
+    }
+  });
+});
+
+/* 개발용 훅 — 자동 테스트에서 상태 확인/강제 조향 */
+window.ASEUL = {
+  get state(){ return state; }, get score(){ return score; }, get mult(){ return mult; },
+  get rows(){ return rows; }, get orb(){ return orb; }, get W(){ return W; },
+  get elapsed(){ return elapsed; }, get zoneIdx(){ return zoneIdx; }, get peakMult(){ return peakMult; },
+  get melodyLen(){ return melody.length; }, get motes(){ return motes.length; }, get nova(){ return nova; },
+  get heat(){ return heat; }, get dustRun(){ return dustRun; }, get dark(){ return dark; },
+  get bandTo(){ return bandTo; }, get bandT(){ return bandT; }, get phraseLen(){ return phraseQueue.length; },
+  get sky(){ return currentSky; }, get passed(){ return passed; },
+  steer(x){ if(orb) orb.tx = x; },
+  setSky(k){ if(STAGES[k]) currentSky = k; },     // 검증용
+  log(){ try{ return JSON.parse(localStorage.getItem('aseul-log') || '[]'); }catch(e){ return []; } },
+  stats(){                                        // KPI 분포 요약 — P25/50/75/90, 학습·사망 지표
+    const rl = this.log(); if(!rl.length) return null;
+    const q = (arr, p) => { const s = [...arr].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+    const scores = rl.map(r => r.s);
+    const dzCount = {}; rl.forEach(r => { dzCount[r.dz] = (dzCount[r.dz] || 0) + 1; });
+    return {
+      판수: rl.length,
+      점수: { P25: q(scores, .25), P50: q(scores, .5), P75: q(scores, .75), P90: q(scores, .9), 최고: Math.max(...scores) },
+      평균지속초: +(rl.reduce((a, r) => a + r.du, 0) / rl.length).toFixed(1),
+      첫스침중앙값초: q(rl.filter(r => r.fg !== null).map(r => r.fg), .5) ?? null,
+      두번째스침전환율: +(rl.filter(r => r.sg !== null).length / Math.max(1, rl.filter(r => r.fg !== null).length)).toFixed(2),
+      최고배수중앙값: q(rl.map(r => r.m), .5),
+      사망존분포: dzCount,
+    };
+  },
+  boost(){ heat = capH(); sinceGraze = 0; },      // 검증용: 다음 프레임 상한 도달 → 초신성 발동
+};
+})();
+</script>
