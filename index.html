@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.48</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.49</div>
 </div>
 
 <script>
@@ -640,16 +640,26 @@ const sfx = {
   death(){
     if(!AC || muted) return;
     const a = AC, t0 = a.currentTime;
+    // ① 공기 터짐 — 밴드패스(중역)는 "탁!" 하고 때리는 소리가 된다. 로우패스를 위에서 아래로
+    //    쓸어내리고 어택을 12ms 부드럽게 열어 둥근 "펑!"으로 바꿨다
     const s = a.createBufferSource(); s.buffer = noiseBuffer();
-    const bp2 = a.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 1900; bp2.Q.value = .65;
+    const lp2 = a.createBiquadFilter(); lp2.type = 'lowpass'; lp2.Q.value = .6;
+    lp2.frequency.setValueAtTime(4400, t0);
+    lp2.frequency.exponentialRampToValueAtTime(520, t0 + .28);
     const ng = a.createGain();
-    ng.gain.setValueAtTime(.5, t0); ng.gain.exponentialRampToValueAtTime(.0001, t0 + .5);
-    s.connect(bp2).connect(ng).connect(a.destination); s.start(t0); s.stop(t0 + .55);
+    ng.gain.setValueAtTime(.0001, t0);
+    ng.gain.linearRampToValueAtTime(.42, t0 + .012);                 // 부드러운 어택 = 타격감 제거
+    ng.gain.exponentialRampToValueAtTime(.0001, t0 + .34);
+    s.connect(lp2).connect(ng).connect(a.destination); s.start(t0); s.stop(t0 + .4);
+    // ② 코르크 팝 — 높은 데서 둥글게 떨어지는 "뽕". 낮고 무거운 쿵은 귀엽지 않아 쓰지 않는다
     const o = a.createOscillator(), g = a.createGain();
-    o.type = 'sine'; o.frequency.setValueAtTime(230, t0);
-    o.frequency.exponentialRampToValueAtTime(72, t0 + .16);          // 무게는 주되 끌지 않는다
-    g.gain.setValueAtTime(.32, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + .22);
-    o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + .26);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(950, t0);
+    o.frequency.exponentialRampToValueAtTime(215, t0 + .09);
+    g.gain.setValueAtTime(.0001, t0);
+    g.gain.linearRampToValueAtTime(.34, t0 + .010);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .20);
+    o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + .24);
     for(let i = 0; i < 9; i++){                                       // 흩어지는 불티
       const f = PENTA[6 + ((Math.random()*6)|0)] * (i % 2 ? 1 : 2);
       tone(f, .18 + Math.random()*.2, 'triangle', .095, .06 + i*.055);
@@ -1551,7 +1561,7 @@ function updateFx(sdt){
   flash = Math.max(0, flash - sdt*2.2);
   wmPop = Math.max(0, wmPop - sdt*5);
   const sp = state==='play' ? speed() : 60;
-  for(const l of lines){ l.y += (sp*l.v*sdt)/H; if(l.y > 1.14){ l.y = -.16; l.x = Math.random(); l.v = .3+Math.random()*.45; } }
+  for(const l of lines){ l.y += (sp*l.v*sdt)/H; if(l.y > 1.16){ l.y = -.18; l.x = Math.random(); l.v = .3+Math.random()*.45; } }
   // 가까운 별일수록 훨씬 빠르게 흐른다(z²) — 먼 별은 거의 멈춰 있어 깊이가 읽힌다
   for(const d0 of dots){
     d0.y += (sp * (.16 + d0.z*d0.z*1.05) * sdt) / H;
@@ -1700,12 +1710,14 @@ function draw(){
   for(const l of lines){
     const al = Math.min(.24, l.a * (1 + bp*1.1 + hsAll*.6) * (.55 + spNow/440));
     const len = l.l * (.55 + spNow/280) * (.55 + l.v);
-    const x = l.x*W, yt = l.y*H, yh = yt + len;         // yh = 머리(진행 방향), yt = 꼬리 끝
-    ctx.strokeStyle = `rgba(${mtc},${al*.5})`;          // 꼬리는 흐리게
+    // 머리는 위, 꼬리는 아래 — **내 별똥별과 같은 방향**을 향한다(내 꼬리도 아래로 흐른다).
+    // 화면에서 아래로 밀려나는 건 그들이 나보다 느려서일 뿐, 향하는 곳은 같다
+    const x = l.x*W, yh = l.y*H, yt = yh + len;
+    ctx.strokeStyle = `rgba(${mtc},${al*.5})`;          // 꼬리 끝은 흐리게
     ctx.lineWidth = .6 + l.v*.5;
-    ctx.beginPath(); ctx.moveTo(x, yt); ctx.lineTo(x, yh - len*.42); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, yt); ctx.lineTo(x, yh + len*.42); ctx.stroke();
     ctx.strokeStyle = `rgba(${mtc},${al})`;             // 머리 쪽으로 갈수록 진해진다
-    ctx.beginPath(); ctx.moveTo(x, yh - len*.42); ctx.lineTo(x, yh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, yh + len*.42); ctx.lineTo(x, yh); ctx.stroke();
     ctx.globalAlpha = Math.min(.9, al*2.6);             // 머리 끝 반짝임 — 별이 날아가는 느낌
     ctx.fillStyle = '#EAF6FF';
     ctx.beginPath(); ctx.arc(x, yh, .8 + l.v*1.2, 0, 6.283); ctx.fill();
