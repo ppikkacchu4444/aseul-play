@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.49</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.50</div>
 </div>
 
 <script>
@@ -645,7 +645,7 @@ const sfx = {
     const s = a.createBufferSource(); s.buffer = noiseBuffer();
     const lp2 = a.createBiquadFilter(); lp2.type = 'lowpass'; lp2.Q.value = .6;
     lp2.frequency.setValueAtTime(4400, t0);
-    lp2.frequency.exponentialRampToValueAtTime(520, t0 + .28);
+    lp2.frequency.exponentialRampToValueAtTime(760, t0 + .24);        // 바닥을 높여 가볍고 경쾌하게
     const ng = a.createGain();
     ng.gain.setValueAtTime(.0001, t0);
     ng.gain.linearRampToValueAtTime(.42, t0 + .012);                 // 부드러운 어택 = 타격감 제거
@@ -655,17 +655,24 @@ const sfx = {
     const o = a.createOscillator(), g = a.createGain();
     o.type = 'sine';
     o.frequency.setValueAtTime(950, t0);
-    o.frequency.exponentialRampToValueAtTime(215, t0 + .09);
+    o.frequency.exponentialRampToValueAtTime(275, t0 + .08);          // 너무 내려가면 무거워진다
     g.gain.setValueAtTime(.0001, t0);
     g.gain.linearRampToValueAtTime(.34, t0 + .010);
     g.gain.exponentialRampToValueAtTime(.0001, t0 + .20);
     o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + .24);
-    for(let i = 0; i < 9; i++){                                       // 흩어지는 불티
-      const f = PENTA[6 + ((Math.random()*6)|0)] * (i % 2 ? 1 : 2);
-      tone(f, .18 + Math.random()*.2, 'triangle', .095, .06 + i*.055);
+    // ③ 흩날리는 반짝임 — 짧고 높은 핑 20발을 뿌리고, 갈수록 성겨지며 사라진다.
+    //    폭죽 가루가 흩날리는 소리이지 연주가 아니다: 길이 0.05~0.12초로 짧게 끊는다
+    for(let i = 0; i < 20; i++){
+      const p = i / 20;
+      const when = .015 + Math.pow(p, 1.5) * .6 + Math.random() * .05;
+      const f = PENTA[6 + ((Math.random()*6)|0)] * (Math.random() < .5 ? 2 : 3);
+      tone(f, .05 + Math.random()*.07, 'triangle', (.085 - p*.055) * (.7 + Math.random()*.6), when);
     }
-    tone(523.25, .9, 'sine', .10, .10); tone(659.25, .9, 'sine', .085, .14);   // C–E–G–C
-    tone(783.99, 1.0, 'sine', .075, .18); tone(1046.5, 1.1, 'sine', .06, .24);
+    // ④ 위로 튀어오르는 짧은 플릭 — **화음을 '두지' 않는다**.
+    //    지속되는 장3화음(C–E–G–C)은 "딩동댕, 정답!"으로 들려서 폐기했다
+    tone(783.99, .10, 'sine', .11, .03);
+    tone(1046.5, .10, 'sine', .10, .075);
+    tone(1568.0, .13, 'sine', .085, .12);
   }
 };
 const muteBtn = $('mute');
