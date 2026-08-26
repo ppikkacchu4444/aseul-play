@@ -340,7 +340,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.42</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.43</div>
 </div>
 
 <script>
@@ -779,14 +779,32 @@ function zone(){
   return ZONE_DEFS[list[zoneIdx % list.length]];   // 모든 하늘이 무한 순환 — 코어는 어디서든 같다
 }
 
+/* ── 엄지 배려: 손이 아프면 게임이 끝난다 ──
+   큰 폰을 한 손으로 쥐면 화면 양 끝을 연달아 오가는 코스는 물리적으로 고통스럽다.
+   조작 문법(절대 위치)과 판정은 그대로 두고, **코스가 엄지의 한계를 존중하게** 만든다:
+   ①도달 범위 — 통로 중심을 화면 양 끝까지 밀지 않는다
+   ②연속 이동 — 다음 줄까지 남은 시간에 엄지가 실제로 갈 수 있는 거리 안에서만 옮긴다
+   빨라질수록 저절로 좁아지므로, 후반의 "물리적으로 불가능한 배치"까지 함께 사라진다.
+   난이도는 이동 거리가 아니라 통로 폭(정밀도)이 만든다 — 손이 아니라 실력을 요구한다 */
+const REACH = { span: 320, spd: 700, safe: .8 };   // 편한 스윕 폭(px) · 편한 엄지 속도(px/s) · 여유
+function gateCenter(gc, gapW){
+  const lo0 = gapW*.7 + gapW/2, hi0 = W - gapW*.7 - gapW/2;     // 벽이 남아야 하는 최소 여백
+  const half = Math.min(W, REACH.span) / 2;
+  const step = REACH.spd * (nextSpace / Math.max(1, speed())) * REACH.safe;
+  let lo = Math.max(lo0, W/2 - half, lastGapC - step);
+  let hi = Math.min(hi0, W/2 + half, lastGapC + step);
+  if(lo > hi){ lo = hi = clamp((lo + hi)/2, lo0, hi0); }         // 모순이면 벽 여백을 우선한다
+  return clamp(gc, lo, hi);
+}
 function gate(row, gapW, gc){
-  gc = clamp(gc, gapW*.7 + gapW/2, W - gapW*.7 - gapW/2);
+  gc = gateCenter(gc, gapW);
   row.blocks.push({ x: 0, w: gc - gapW/2 }, { x: gc + gapW/2, w: W - gc - gapW/2 });
   lastGapC = gc;
 }
 function island(row, bw, bx, amp){
   row.blocks.push({ x: bx, w: bw, baseX: bx, amp: amp || 0,
     spd: lerp(.9,1.6,rng()), ph: rng()*6.28 });
+  lastGapC = bx > W - (bx + bw) ? bx/2 : (bx + bw + W)/2;        // 넓은 쪽이 이번 줄의 통로 — 다음 줄 이동 계산의 기준
 }
 
 function spawnRow(y = -BLOCK_H - 6){
@@ -815,7 +833,7 @@ function spawnRow(y = -BLOCK_H - 6){
     gate(row, pg, ps.c * W + (rng() - .5) * 24);
     if(ps.gold) row.blocks[rng() < .5 ? 0 : 1].gold = true;
   } else if(z.type === 'closer'){                        // 닫히는 문 — 내려올수록 조여든다. 도착 시점을 예측하라
-    const c = clamp(lerp(W*.22, W*.78, rng()), gapW*.9, W - gapW*.9);
+    const c = gateCenter(lerp(W*.22, W*.78, rng()), gapW);       // 닫히는 문도 엄지 범위 안에서
     row.close = { c, g0: gapW*1.7, g1: Math.max(gapW*.62, 54), y0: y };
     row.blocks.push({ x: 0, w: 1, dyn: 'L' }, { x: 0, w: 1, dyn: 'R' });   // 실제 기하는 매 프레임 계산
     lastGapC = c;
@@ -938,8 +956,21 @@ function spawnStars(x, y, n){
       r: 3.5+Math.random()*3.5, rot: Math.random()*6.28, vr: (Math.random()-.5)*10 });
   }
 }
+/* 초신성 중 스침 — 무적이라 배수는 이미 상한이다. 대신 "부수지 않고 스쳐 지나가면" 별가루가 남는다.
+   쉬는 구간이지만, 끝까지 아슬하게 몰고 싶은 사람에게는 벌 대신 상이 있다 (룰 3줄은 그대로 — 별가루는 이미 별도 어휘) */
+function novaGraze(cx, cy, deep){
+  const n = deep ? 4 : 2;
+  dustRun += n; score += n * 5;
+  sparks(cx, cy, deep ? 12 : 7, '#FFF3C4', deep ? 1.25 : .9);
+  spawnStars(cx, cy, deep ? 4 : 2);
+  floater(cx, cy - 18, '별가루 +' + n, '#FFF3C4', deep ? 18 : 14, .8);
+  tone(deep ? 2093 : 1568, .09, 'triangle', .14);
+  tone(deep ? 2793 : 2093, .12, 'sine', .1, .04);
+  buzz(deep ? 18 : 8);
+}
 /* 스침 이벤트 — 점수가 아니라 '배수'가 오른다. 스침 +1 · 아슬 +2 · 골드 +5 */
 function grazeEvent(cx, cy, deep, b){
+  if(nova > 0){ novaGraze(cx, cy, deep); return; }   // 초신성 중엔 배수 대신 별가루 — 부수지 말고 스쳐라
   const gold = !!b.gold;
   const chain = sinceGraze < .9;   // 콤보가 '거듭되는' 중 — 룰은 그대로, 연출만 세진다
   const pierce = (elapsed - lastG.t < .28) && lastG.b !== b;   // 관통 — 서로 다른 두 벽을 한 호흡에 꿰다
@@ -1024,8 +1055,8 @@ function hitTest(dt){
       const sy = len > 0 ? cy + dy/len*R : cy;
       const isCorner = (ox < geo.x + R || ox > geo.x + geo.w - R) && (oy < row.y + R || oy > row.y + BLOCK_H - R);
 
-      if(dist >= ORB_R && dist - ORB_R < runMinDist){   // 아슬아슬 기록 — 살아있는 순간의 최고 근접
-        runMinDist = dist - ORB_R; runMinSpd = speed();
+      if(nova <= 0 && dist >= ORB_R && dist - ORB_R < runMinDist){   // 아슬아슬 기록 — 살아있는 순간의 최고 근접
+        runMinDist = dist - ORB_R; runMinSpd = speed();              // 무적 중의 근접은 아슬함이 아니다 — 초신성은 제외
       }
 
       if(dist < ORB_R){
@@ -1041,7 +1072,6 @@ function hitTest(dt){
         }
         die(sx, sy); return;
       }
-      if(nova > 0){ b.inBand = false; continue; }       // 초신성 중엔 스침 판정 없음 — 파괴가 전부
 
       if(dist < ORB_R + BAND){
         if(!b.inBand){
@@ -1762,6 +1792,16 @@ function draw(){
 
   ctx.restore();
 
+  // 초신성 꺼짐 — 마지막 2초, 조명이 나가듯 화면 전체가 점멸한다 (끝난다는 걸 몸으로 알린다)
+  if(nova > 0 && nova <= 2 && !REDUCED){
+    const k = 1 - nova/2;                                    // 0 → 1, 꺼짐에 가까울수록 빠르고 세게
+    const s = Math.sin(elapsed * (5 + k*10) * 6.283);
+    ctx.fillStyle = s > 0
+      ? `rgba(255,240,196,${(.09 + k*.15) * s})`              // 번쩍
+      : `rgba(7,9,15,${(.11 + k*.20) * -s})`;                 // 암전 (무적 중이라 시야 위험 없음)
+    ctx.fillRect(0,0,W,H);
+  }
+
   // 사망 플래시
   if(flash > 0){
     ctx.fillStyle = `rgba(255,255,255,${flash*.5})`;
@@ -2012,6 +2052,11 @@ window.ASEUL = {
   boost(){ heat = capH(); sinceGraze = 0; },      // 검증용: 다음 프레임 상한 도달 → 초신성 발동
   setHeat(h){ heat = Math.min(h, capH()); sinceGraze = 0; },   // 검증용: 열기 임의 설정
   chill(){ sinceGraze = delayNow() + .01; },      // 검증용: 즉시 냉각 상태로 (가터링·하강음 확인)
+  warp(s){ if(state === 'play') elapsed = Math.max(elapsed, s); },   // 검증용: 난이도 램프 앞으로 감기 (후반 코스·엄지 이동량 확인)
+  gapCenters(){                                   // 검증용: 현재 줄들의 통로 중심 (엄지 이동량 측정)
+    return rows.filter(r => r.blocks.length === 2 && r.blocks[0].x === 0 && !r.blocks[0].dyn)
+      .map(r => Math.round(r.blocks[0].w + (r.blocks[1].x - r.blocks[0].w) / 2));
+  },
 };
 })();
 </script>
