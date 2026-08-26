@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#07090F">
@@ -96,9 +96,12 @@
     position:absolute;inset:0;display:flex;flex-direction:column;
     align-items:center;justify-content:center;text-align:center;gap:0;
     background:rgba(7,9,15,.55);backdrop-filter:blur(3px);
-    opacity:0;pointer-events:none;transition:opacity .25s;
+    opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s,visibility .25s;
   }
-  .overlay.on{opacity:1;pointer-events:auto}
+  /* visibility가 핵심 — 부모의 pointer-events:none은 pointer-events:auto인 자식(버튼)을 막지 못한다.
+     이것 때문에 안 보이는 [다시 한 판]·[✧ 절정의 순간]·로비 버튼이 플레이 중에도 눌려서
+     화면을 클릭하면 판이 재시작되거나 절정 창이 튀어나왔다. 꺼진 화면은 통째로 없어야 한다 */
+  .overlay.on{opacity:1;visibility:visible;pointer-events:auto}
   /* 모달(절정 카드·밤하늘)은 성적표 위에 뜬다 — DOM 순서상 #death가 덮어 카드가 닫히지 않던 버그 */
   #cardview,#skyview{z-index:6}
   .kicker{font-size:12px;font-weight:900;letter-spacing:.34em;color:var(--spark);margin-bottom:14px}
@@ -337,7 +340,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.41</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.42</div>
 </div>
 
 <script>
@@ -673,6 +676,13 @@ function pointerX(e){
   return (e.clientX - r.left) * (W / r.width);
 }
 function modalOpen(){ return $('cardview').classList.contains('on') || $('skyview').classList.contains('on'); }
+/* 꺼진 화면의 잔존 버튼 차단 — CSS visibility와 이중 방어.
+   캡처 단계에서 먼저 삼켜, 버튼 자신의 핸들러(재시작·절정 카드·로비)까지 아예 도달하지 못하게 한다.
+   페이드아웃 0.25초 동안 남는 클릭 창도 여기서 막힌다 */
+stage.addEventListener('pointerdown', e => {
+  const ov = e.target && e.target.closest ? e.target.closest('.overlay') : null;
+  if(ov && !ov.classList.contains('on')){ e.stopPropagation(); e.preventDefault(); }
+}, true);
 stage.addEventListener('pointerdown', e => {
   ac();
   if(modalOpen()) return;                                // 모달(카드·밤하늘)이 열려 있으면 필드는 잠긴다
@@ -725,6 +735,7 @@ function startRun(){
   deathOv.classList.remove('on');
   $('lobby').classList.remove('on');
   $('cardview').classList.remove('on'); $('skyview').classList.remove('on');   // 모달을 끌고 들어가지 않는다
+  deathOv.classList.remove('s1','s2','s3');    // 성적표 단계 클래스도 정리 — 남으면 꺼진 버튼이 되살아난다
   hud.classList.add('on');
   bestHud.textContent = 'BEST ' + best.toLocaleString();
   if(tut) floater(W/2, H*.52, '벽 옆의 금빛 별을 따라가 봐', '#FFD98A', 16, 2.8);   // 온보딩 — 첫 안내
