@@ -347,7 +347,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.45</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.46</div>
 </div>
 
 <script>
@@ -643,8 +643,10 @@ let best = +(localStorage.getItem('aseul3-best') || 0);
 let bestMult = +(localStorage.getItem('aseul3-bmult') || 0);
 
 for(let i=0;i<48;i++) lines.push({x:Math.random(), y:Math.random(), l:16+Math.random()*34, a:.04+Math.random()*.09});
-const dots = [];                                   // 먼 우주의 별들
-for(let i=0;i<60;i++) dots.push({x:Math.random(), y:Math.random(), r:.6+Math.random()*1.4, ph:Math.random()*6.28, w:1+Math.random()*2});
+/* 우주의 별들 — z는 깊이(0 = 아득히 먼 곳, 1 = 코앞). 층마다 다른 속도로 흘러 시차를 만든다:
+   배경이 고정돼 있으면 아무리 빨라도 '떨어지는 중'이라는 느낌이 안 든다 */
+const dots = [];
+for(let i=0;i<74;i++) dots.push({x:Math.random(), y:Math.random(), z:Math.random(), ph:Math.random()*6.28, w:1+Math.random()*2});
 
 function reset(){
   const stg = STAGES[currentSky];
@@ -1292,6 +1294,9 @@ function frame(now){
   const sdt = dt * timeScale;
 
   if(state === 'play' || state === 'dying') update(sdt, dt);
+  else if(state === 'title' || state === 'lobby'){ elapsed += dt; updateFx(dt); }
+  // ↑ 메뉴에서도 하늘은 흐르고 별은 반짝인다. 여기서 update()를 안 돌리던 탓에
+  //   타이틀·로비의 배경이 통째로 정지해 있었다 (elapsed는 판 시작 시 reset에서 0으로 돌아간다)
   draw();
 }
 requestAnimationFrame(frame);
@@ -1470,7 +1475,11 @@ function updateFx(sdt){
   wmPop = Math.max(0, wmPop - sdt*5);
   const sp = state==='play' ? speed() : 60;
   for(const l of lines){ l.y += (sp*.45*sdt)/H; if(l.y > 1.1) { l.y = -.1; l.x = Math.random(); } }
-  for(const d0 of dots){ d0.y += (sp*.1*sdt)/H; if(d0.y > 1.02){ d0.y = -.02; d0.x = Math.random(); } }
+  // 가까운 별일수록 훨씬 빠르게 흐른다(z²) — 먼 별은 거의 멈춰 있어 깊이가 읽힌다
+  for(const d0 of dots){
+    d0.y += (sp * (.16 + d0.z*d0.z*1.05) * sdt) / H;
+    if(d0.y > 1.04){ d0.y = -.04; d0.x = Math.random(); d0.z = Math.random(); }
+  }
   for(const d1 of dust){ d1.t += sdt; d1.x += d1.vx*sdt; d1.y += (d1.vy + sp*.55)*sdt; d1.rot += d1.vr*sdt; }
   dust = dust.filter(d1 => d1.t < d1.life);
   // 하늘의 여정 — 고도 배경 블렌드 & 구름 패럴랙스
@@ -1587,17 +1596,22 @@ function draw(){
   drawDeco(bandSnap.deco, 1 - bST2);
   drawDeco(BANDS[bandTo].deco, bST2);
 
-  // 먼 별들 — 반짝이는 우주 (고도가 낮아질수록 옅어진다)
+  const spNow = state === 'play' ? speed() : 80;
+  const bp = beatPulse();
+
+  // 별들 — 깊이마다 다른 속도로 흐른다. 가까운 별일수록 크고 밝고 빠르며, 빠를 땐 빛줄기로 늘어난다
+  // (고도가 낮아질수록 전체가 옅어진다 — 도시의 불빛·새벽)
   ctx.fillStyle = '#CFE7FF';
   for(const d0 of dots){
-    ctx.globalAlpha = (.1 + .26 * (0.5 + 0.5*Math.sin(elapsed*d0.w + d0.ph))) * bandCur.starA;
-    ctx.beginPath(); ctx.arc(d0.x*W, d0.y*H, d0.r, 0, 6.283); ctx.fill();
+    const tw = .5 + .5*Math.sin(elapsed*d0.w + d0.ph);
+    ctx.globalAlpha = (.08 + .28*tw) * (.4 + d0.z*.8) * bandCur.starA;
+    const r = .5 + d0.z*1.7, st = d0.z*d0.z * spNow * .016;
+    if(st > 2.5) ctx.fillRect(d0.x*W - r*.5, d0.y*H, r, st);   // 빠른 근경 = 짧은 빛줄기
+    else { ctx.beginPath(); ctx.arc(d0.x*W, d0.y*H, r, 0, 6.283); ctx.fill(); }
   }
   ctx.globalAlpha = 1;
 
   // 속도선 — 빠를수록 길고 진해지고, 비트에 맞춰 번쩍인다
-  const spNow = state === 'play' ? speed() : 80;
-  const bp = beatPulse();
   const hsAll = Math.min(heat / capH(), 1);
   ctx.strokeStyle = hsAll > .4 ? '#FF5C7A' : hsAll > .12 ? '#FFB454' : '#7DF3FF';
   ctx.lineWidth = 1;
@@ -1798,8 +1812,31 @@ function draw(){
 
   ctx.restore();
 
-  // 초신성 게이지 — 남은 시간이 '금빛 액자'로 필드를 감싸고 위에서부터 좌우 대칭으로 타들어간다.
-  // 시야 한복판을 비우고 주변시로 읽히게 두는 게 핵심(헌법 4조) — 텍스트 예고만으로는 안 읽혔다.
+  // 초신성 — 액자 안쪽이 금빛에 잠긴다. 가운데는 비우고 가장자리만 물들여 시야를 지킨다(헌법 4조).
+  // 불이 잦아들수록 글로우도 함께 식는다
+  if(nova > 0){
+    const gp = clamp(nova / novaMax, 0, 1);
+    const gg = ctx.createRadialGradient(W/2, H*.55, Math.min(W,H)*.20, W/2, H*.55, Math.max(W,H)*.74);
+    gg.addColorStop(0, 'rgba(255,201,86,0)');
+    gg.addColorStop(.55, `rgba(255,201,86,${(.05 + .05*gp).toFixed(3)})`);
+    gg.addColorStop(1, `rgba(255,186,64,${(.11 + .13*gp).toFixed(3)})`);
+    ctx.fillStyle = gg; ctx.fillRect(0, 0, W, H);
+  }
+
+  // 초신성 꺼짐 — 마지막 2초, 조명이 나가듯 화면 전체가 6번 크게 점멸한다.
+  // 고주파 사인은 프레임에 뭉개져 안 읽혔다 → 셀 수 있는 박자로 바꾸고 갈수록 세게
+  if(nova > 0 && nova <= 2 && !REDUCED){
+    const t = (2 - nova) / 2;                                // 0 → 1
+    const f = (t * 6) % 1;                                   // 펄스 6번, 각 펄스 안의 위상 (셀 수 있되 다급하게)
+    const amp = .30 + t * .28;                               // 마지막이 가장 세다
+    ctx.fillStyle = f < .32
+      ? `rgba(255,246,220,${amp * (1 - f/.32) * .95})`        // 번쩍
+      : `rgba(6,8,14,${amp * Math.sin((f-.32)/.68 * Math.PI) * .9})`;   // 암전 (무적 중이라 시야 위험 없음)
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // 초신성 게이지 — 남은 시간이 '금빛 액자'로 필드를 감싸고 상단 중앙에서 좌우 대칭으로 타들어간다.
+  // 점멸 '위에' 그린다 — 암전이 화면을 삼켜도 남은 시간만은 계속 읽혀야 한다
   if(nova > 0){
     const p = clamp(nova / novaMax, 0, 1), ins = 3;
     const seg = (W/2 - ins) + (H - ins*2) + (W/2 - ins);      // 한쪽 경로 길이(상단 중앙 → 모서리 → 하단 중앙)
@@ -1818,18 +1855,6 @@ function draw(){
     ctx.moveTo(W/2, ins); ctx.lineTo(ins, ins); ctx.lineTo(ins, H - ins); ctx.lineTo(W/2, H - ins);
     ctx.stroke();
     ctx.restore();
-  }
-
-  // 초신성 꺼짐 — 마지막 2초, 조명이 나가듯 화면 전체가 6번 크게 점멸한다.
-  // 고주파 사인은 프레임에 뭉개져 안 읽혔다 → 셀 수 있는 박자(0.5초마다 섬광→암전)로 바꾸고 갈수록 세게
-  if(nova > 0 && nova <= 2 && !REDUCED){
-    const t = (2 - nova) / 2;                                // 0 → 1
-    const f = (t * 6) % 1;                                   // 펄스 6번, 각 펄스 안의 위상 (셀 수 있되 다급하게)
-    const amp = .30 + t * .28;                               // 마지막이 가장 세다
-    ctx.fillStyle = f < .32
-      ? `rgba(255,246,220,${amp * (1 - f/.32) * .95})`        // 번쩍
-      : `rgba(6,8,14,${amp * Math.sin((f-.32)/.68 * Math.PI) * .9})`;   // 암전 (무적 중이라 시야 위험 없음)
-    ctx.fillRect(0,0,W,H);
   }
 
   // 사망 플래시
