@@ -170,8 +170,40 @@
   #death.s2 .dbtn,#death.s2 #settle,#death.s2 #d-day{opacity:1;transform:none;pointer-events:auto}
   #death.s3 #retry,#death.s3 .anywhere{opacity:1;transform:none}
   #death.s3 #retry,#death.s3 #tohome{pointer-events:auto}
-  /* ── 로비 ── */
-  #lobby{gap:0}
+  /* ── 로비 — 하늘 이름이 제목, 캐릭터가 주인공. 재화는 상단 바에 아이콘으로 ── */
+  #lobby{gap:0;justify-content:flex-start;padding:14px 16px 18px}
+  #lb-top{display:flex;align-items:center;gap:6px;width:100%;pointer-events:auto}
+  .cur{
+    display:flex;align-items:center;gap:5px;
+    background:rgba(18,23,41,.82);border:1px solid #1D2542;border-radius:99px;
+    padding:5px 11px;font-size:11px;font-weight:700;color:var(--dim);
+    font-variant-numeric:tabular-nums;white-space:nowrap;
+  }
+  .cur b{color:var(--bone);font-weight:900;font-size:12px}
+  .cur i{font-style:normal;font-size:12px;line-height:1}
+  .cur.dust i{color:#FFD98A} .cur.con i{color:#FFDF6B}
+  #lb-top .lbbtn{margin-left:auto}
+  #lb-title{
+    margin-top:24px;
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-weight:400;
+    font-size:34px;line-height:1.12;text-wrap:balance;
+    text-shadow:0 0 32px rgba(125,243,255,.3);
+  }
+  #lb-sub{margin-top:5px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+  #lb-hero{
+    margin-top:6px;width:170px;height:170px;flex:none;
+    filter:drop-shadow(0 6px 30px rgba(255,190,70,.34));
+    animation:heroFloat 3.6s ease-in-out infinite;
+  }
+  #lb-hero img{width:100%;height:100%;object-fit:contain;display:block}
+  @keyframes heroFloat{50%{transform:translateY(-10px)}}
+  #lb-charname{font-size:14px;font-weight:900;color:#FFD98A;letter-spacing:.02em}
+  #lb-picks{display:flex;gap:8px;margin-top:12px}
+  #charpanel:not(.hide),#skies:not(.hide){
+    width:300px;margin-top:10px;padding:6px 14px 10px;
+    background:rgba(18,23,41,.86);border:1px solid #1D2542;border-radius:14px;
+  }
+  @media (prefers-reduced-motion: reduce){ #lb-hero{animation:none} }
   .lbcard{
     width:282px;background:rgba(18,23,41,.78);border:1px solid #1D2542;border-radius:16px;
     padding:12px 16px;margin-top:10px;text-align:left;pointer-events:auto;
@@ -281,22 +313,24 @@
     </div>
 
     <div id="lobby" class="overlay">
-      <div class="kicker">로비</div>
-      <div class="lbcard">
-        <div class="lbrow"><span class="lbname">별똥별 여행자</span><button class="lbbtn" id="btn-skyview">밤하늘</button></div>
-        <div class="lbstat" id="lb-stats">별가루 0 · 별자리 0/5 · BEST 0</div>
+      <div id="lb-top">
+        <span class="cur dust"><i>✦</i><b id="cur-dust">0</b></span>
+        <span class="cur con"><i>★</i><b id="cur-const">0/5</b></span>
+        <span class="cur best">BEST&nbsp;<b id="cur-best">0</b></span>
+        <button class="lbbtn" id="btn-skyview">밤하늘</button>
       </div>
-      <div class="lbcard">
-        <div class="lbrow"><span id="lb-charname">캐릭터 — 기본별</span><button class="lbbtn" id="btn-char">캐릭터 선택</button></div>
-        <div id="charpanel" class="hide"></div>
+      <div id="lb-title">이름없는 별자리</div>
+      <div id="lb-sub">정복 0%</div>
+      <div id="lb-hero"><img id="lb-char" alt=""></div>
+      <div id="lb-charname">기본별</div>
+      <div id="lb-picks">
+        <button class="lbbtn" id="btn-char">캐릭터 선택</button>
+        <button class="lbbtn" id="btn-sky">하늘 선택</button>
       </div>
-      <div class="lbcard">
-        <div class="lbrow"><span id="lb-skyname">하늘 — 이름없는 별자리</span><button class="lbbtn" id="btn-sky">하늘 선택</button></div>
-        <div id="skies" class="hide"></div>
-      </div>
+      <div id="charpanel" class="hide"></div>
+      <div id="skies" class="hide"></div>
       <button id="btn-play">게임 시작</button>
-      <div class="bestline" id="sky-line" style="margin-top:14px;color:#8FA0CC"></div>
-      <div class="bestline" id="mood-line" style="margin-top:4px;color:#C9A96A"></div>
+      <div class="bestline" id="mood-line" style="margin-top:10px;color:#C9A96A"></div>
     </div>
 
     <div id="cardview" class="overlay">
@@ -347,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.46</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.47</div>
 </div>
 
 <script>
@@ -638,15 +672,23 @@ let rowsSpawned, zoneIdx, lastGapC, zigDir, forkSafeLeft;
 let phraseQueue = [];          // 진행 중인 프레이즈의 남은 줄들
 let melody, peakAt;            // 절정 멜로디 — 스침 음표의 기록
 let sinceGraze, timeScale, shake, flash, deadAt, lockUntil = 0;
+let launch = 0;                        // 발진 연출 잔여 초 — 로비의 앞모습이 돌아서서 날아가기까지
+const LAUNCH_T = .7;
 let wmPop = 0, coolWarned = false, deathSkip = false, novaWarned = false;   // 세계 배수 팝 · 냉각 예고 · 성적표 스킵 · 초신성 꺼짐 예고
 let best = +(localStorage.getItem('aseul3-best') || 0);
 let bestMult = +(localStorage.getItem('aseul3-bmult') || 0);
 
 for(let i=0;i<48;i++) lines.push({x:Math.random(), y:Math.random(), l:16+Math.random()*34, a:.04+Math.random()*.09});
 /* 우주의 별들 — z는 깊이(0 = 아득히 먼 곳, 1 = 코앞). 층마다 다른 속도로 흘러 시차를 만든다:
-   배경이 고정돼 있으면 아무리 빨라도 '떨어지는 중'이라는 느낌이 안 든다 */
+   배경이 고정돼 있으면 아무리 빨라도 '떨어지는 중'이라는 느낌이 안 든다.
+   은은하게 깔되 반짝임은 뾰족하게 — 평소엔 거의 안 보이다가 순간 빛난다.
+   색은 차가운 계열로만 쓴다 — 금빛 별 모양은 '별가루(주울 수 있는 것)'의 전용 언어라 절대 침범하지 않는다 */
+const STAR_COLS = ['#EAF3FF', '#CFE3FF', '#AFC8FF', '#E7D9FF', '#BFEAFF'];   // 흰빛~푸른빛~옅은 보랏빛
 const dots = [];
-for(let i=0;i<74;i++) dots.push({x:Math.random(), y:Math.random(), z:Math.random(), ph:Math.random()*6.28, w:1+Math.random()*2});
+for(let i=0;i<96;i++) dots.push({
+  x:Math.random(), y:Math.random(), z:Math.random(), ph:Math.random()*6.28,
+  w:.5+Math.random()*1.9, c:STAR_COLS[(Math.random()*STAR_COLS.length)|0]
+});
 
 function reset(){
   const stg = STAGES[currentSky];
@@ -668,7 +710,7 @@ function reset(){
   phraseQueue = [];
   melody = []; peakAt = 0;
   sinceGraze = 99; timeScale = 1; shake = 0; flash = 0; zoom = 1; vign = 0;
-  wmPop = 0; coolWarned = false; novaWarned = false;
+  wmPop = 0; coolWarned = false; novaWarned = false; launch = LAUNCH_T;
   orb = { x: W/2, tx: W/2, y: H*.74, trail: [], px: W/2, vxs: 0 };
   lastMultShown = -1;
   constSaved = +(localStorage.getItem('aseul-const-' + currentSky) || 0);
@@ -1379,8 +1421,9 @@ function update(sdt, rawDt){
     }
   }
 
-  // 히트/그레이즈
-  hitTest(sdt);
+  // 히트/그레이즈 — 발진 연출 동안은 판정을 열지 않는다(첫 줄이 닿기까지 2초 이상 남아 손해 없음)
+  if(launch > 0) launch = Math.max(0, launch - rawDt);
+  else hitTest(sdt);
   if(state !== 'play') return;
 
   // 초신성 타이머 — 다 태우면 재로부터 다시. 그동안 하늘에서 별가루가 쏟아진다
@@ -1599,24 +1642,30 @@ function draw(){
   const spNow = state === 'play' ? speed() : 80;
   const bp = beatPulse();
 
-  // 별들 — 깊이마다 다른 속도로 흐른다. 가까운 별일수록 크고 밝고 빠르며, 빠를 땐 빛줄기로 늘어난다
-  // (고도가 낮아질수록 전체가 옅어진다 — 도시의 불빛·새벽)
-  ctx.fillStyle = '#CFE7FF';
+  // 별들 — 깊이마다 다른 속도로 흐른다. 은은하게 깔리되 반짝임은 뾰족하게(^3 곡선),
+  // 근경은 가느다란 빛줄기로 늘어난다. 색은 차가운 계열만 — 금빛 별 모양은 별가루의 언어다
   for(const d0 of dots){
-    const tw = .5 + .5*Math.sin(elapsed*d0.w + d0.ph);
-    ctx.globalAlpha = (.08 + .28*tw) * (.4 + d0.z*.8) * bandCur.starA;
-    const r = .5 + d0.z*1.7, st = d0.z*d0.z * spNow * .016;
-    if(st > 2.5) ctx.fillRect(d0.x*W - r*.5, d0.y*H, r, st);   // 빠른 근경 = 짧은 빛줄기
+    const tw = Math.pow(.5 + .5*Math.sin(elapsed*d0.w + d0.ph), 3);     // 대부분 잠잠, 가끔 확 빛난다
+    const a = (.05 + .40*tw) * (.32 + d0.z*.62) * bandCur.starA;
+    if(a < .012) continue;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = d0.c;
+    const r = .35 + d0.z*.95, st = d0.z*d0.z * spNow * .015;
+    if(st > 2.2) ctx.fillRect(d0.x*W - r*.5, d0.y*H, Math.max(.6, r), st);   // 빠른 근경 = 가는 빛줄기
     else { ctx.beginPath(); ctx.arc(d0.x*W, d0.y*H, r, 0, 6.283); ctx.fill(); }
+    if(tw > .82 && d0.z > .55){                                          // 가장 밝게 타는 순간엔 옅은 후광
+      ctx.globalAlpha = a * .35;
+      ctx.beginPath(); ctx.arc(d0.x*W, d0.y*H + st*.5, r + 1.8, 0, 6.283); ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
 
   // 속도선 — 빠를수록 길고 진해지고, 비트에 맞춰 번쩍인다
   const hsAll = Math.min(heat / capH(), 1);
   ctx.strokeStyle = hsAll > .4 ? '#FF5C7A' : hsAll > .12 ? '#FFB454' : '#7DF3FF';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = .7;                                   // 별 비는 얇고 흐리게 — 은은한 밤하늘이 먼저다
   for(const l of lines){
-    ctx.globalAlpha = Math.min(.4, l.a * (1 + bp*1.3 + hsAll*.7) * (.6 + spNow/420));
+    ctx.globalAlpha = Math.min(.21, l.a * (1 + bp*1.3 + hsAll*.7) * (.6 + spNow/420));
     const len = l.l * (.6 + spNow/240);
     ctx.beginPath(); ctx.moveTo(l.x*W, l.y*H); ctx.lineTo(l.x*W, l.y*H + len); ctx.stroke();
   }
@@ -1694,8 +1743,8 @@ function draw(){
         gut = 1 - gg * .45 * (.5 + .5*Math.sin(elapsed*22));
       }
     }
-    // 별똥별 궤적 — 우주에 실제로 남는 빛줄기 (넓은 광층 + 밝은 심)
-    if(orb.trail.length > 1){
+    // 별똥별 궤적 — 우주에 실제로 남는 빛줄기 (넓은 광층 + 밝은 심). 발진 중엔 아직 꼬리가 없다
+    if(orb.trail.length > 1 && launch <= 0){
       const maxed = hsAll >= .999;                 // 자기 상한 절정 — 심지가 백금색으로 떨린다
       const tcol = ashen ? '#7C86AC' : maxed ? '#FF7DA0' : hsAll > .4 ? '#FF5C7A' : hsAll > .12 ? '#FFB454' : '#9BE8FF';
       const core = ashen ? '#C3CCE4' : maxed ? (Math.sin(elapsed*16) > 0 ? '#FFFFFF' : '#FFE9C4') : hsAll > .12 ? '#FFF3DC' : '#EAFBFF';
@@ -1729,9 +1778,19 @@ function draw(){
       const lean = clamp(orb.vxs * .0009, -.32, .32);
       const st = clamp(Math.abs(orb.vxs) * .00042, 0, .16);
       const sq = (sinceGraze < .14 ? (1 - sinceGraze/.14) : 0) * .1;   // 스침 순간 움찔
+      // 발진 — 로비에서 이쪽을 보던 큰 별이 몸을 돌려 작아지며 제자리로 날아든다
+      const lq = launch > 0 ? 1 - launch/LAUNCH_T : 1;
+      const le = lq*lq*(3 - 2*lq);                                     // smoothstep
       ctx.save();
-      ctx.translate(orb.x, orb.y); ctx.rotate(lean);
-      ctx.scale(1 + st, Math.max(.8, 1 - st*.75 - sq));
+      if(launch > 0){
+        const sc = 6.5 + (1 - 6.5) * le, y0 = H*.273;   // 로비 히어로(170px, 중심 0.273H)에서 그대로 이어받는다
+        ctx.translate(orb.x, y0 + (orb.y - y0) * le);
+        ctx.rotate((1 - le) * -.42 + lean * le);
+        ctx.scale(sc, sc);
+      } else {
+        ctx.translate(orb.x, orb.y); ctx.rotate(lean);
+        ctx.scale(1 + st, Math.max(.8, 1 - st*.75 - sq));
+      }
       if(nova > 0){                                    // 초신성 — 백열의 핵. 마지막 2초는 광휘가 잦아들고 더 빠르게 파닥인다
         const nf = Math.min(1, nova / 2);
         ctx.shadowColor = '#FFDF6B';
@@ -1743,9 +1802,11 @@ function draw(){
       if(charImgOk){                                   // 별똥별은 카메라를 등지고 난다 — 빠르게 꺾으면 옆으로 돌아선다
         const turning = Math.abs(orb.vxs) > 320;
         const iw = 26;                                 // 판정 링(지름 26px) 안에 꽉 차게
+        let fr = turning ? FR_SIDE : FR_BACK, flip = turning && orb.vxs > 0;
+        if(launch > 0){ fr = lq < .32 ? FR_FRONT : lq < .60 ? FR_SIDE : FR_BACK; flip = false; }  // 앞 → 옆 → 뒤
         ctx.save();
-        if(turning && orb.vxs > 0) ctx.scale(-1, 1);   // 옆모습 원본은 왼쪽을 본다
-        ctx.drawImage(CHAR_IMG, (turning ? FR_SIDE : FR_BACK)*FR, 0, FR, FR, -iw/2, -iw/2, iw, iw);
+        if(flip) ctx.scale(-1, 1);                     // 옆모습 원본은 왼쪽을 본다
+        ctx.drawImage(CHAR_IMG, fr*FR, 0, FR, FR, -iw/2, -iw/2, iw, iw);
         ctx.restore();
       } else {                                         // 폴백 — 기존 원형 몸
         ctx.fillStyle = nova > 0 ? (Math.sin(elapsed*(nova < 2 ? 36 : 22)) > 0 ? '#FFFFFF' : '#FFF3C4') : inB ? '#FFF3D9' : CH().col;
@@ -1758,10 +1819,12 @@ function draw(){
         ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.fill();
         ctx.globalAlpha = 1;
       }
-      // 판정 링 — 스침의 경계가 캐릭터를 감싼다 (13px 불변)
+      // 판정 링 — 스침의 경계가 캐릭터를 감싼다 (13px 불변). 발진 중엔 자리를 잡으며 서서히 켜진다
+      ctx.globalAlpha = launch > 0 ? clamp((lq - .45) / .45, 0, 1) : 1;
       ctx.strokeStyle = nova > 0 ? '#FFDF6B' : inB ? '#FFB454' : 'rgba(125,243,255,.85)';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.stroke();
+      ctx.globalAlpha = 1;
       ctx.restore();
     }
   }
@@ -1895,7 +1958,7 @@ function renderChars(){
         }catch(_e){}
         renderLobby();
       } else {
-        $('lb-charname').textContent = `캐릭터 — 별가루가 ${c.cost - wallet} 부족해`;
+        $('lb-charname').textContent = `별가루가 ${c.cost - wallet} 부족해`;
         setTimeout(renderLobby, 1100);
       }
     });
@@ -1906,17 +1969,20 @@ function renderLobby(){
   const w = +(localStorage.getItem('aseul-dust') || 0);
   const cl = loadClear();
   const m = STAGE_ORDER.filter(k => cl[k]).length;
-  $('lb-stats').textContent = `별가루 ${w.toLocaleString()} · 별자리 ${m}/${STAGE_ORDER.length} · BEST ${best.toLocaleString()}`;
   const stg = STAGES[currentSky];
-  const pr = cl[currentSky] ? '★'
-    : Math.min(99, Math.round((+localStorage.getItem('aseul-const-' + currentSky) || 0) / stg.goal * 100)) + '%';
-  $('lb-skyname').textContent = `하늘 — ${stg.name} · ${pr}`;
+  $('cur-dust').textContent = w.toLocaleString();               // 재화는 상단 바에 아이콘으로
+  $('cur-const').textContent = m + '/' + STAGE_ORDER.length;
+  $('cur-best').textContent = best.toLocaleString();
+  $('lb-title').textContent = stg.name;                          // 하늘 이름이 이 화면의 제목이다
+  const pr = cl[currentSky] ? '정복 완료 ★'
+    : '정복 ' + Math.min(99, Math.round((+localStorage.getItem('aseul-const-' + currentSky) || 0) / stg.goal * 100)) + '%';
   const d0 = loadDay();
-  $('sky-line').textContent = d0.n
-    ? `오늘의 하늘 ${SKY_MD} · ${d0.n}판 · 오늘 1등 ${d0.hi.toLocaleString()}점`
-    : `오늘의 하늘 ${SKY_MD} — 오늘의 첫 별똥별이 되어보자`;
+  $('lb-sub').textContent = pr + ' · ' + (stg.daily
+    ? (d0.n ? `오늘의 하늘 ${SKY_MD} · 오늘 1등 ${d0.hi.toLocaleString()}점` : `오늘의 하늘 ${SKY_MD} — 오늘의 첫 별똥별이 되어보자`)
+    : `이 하늘 최고 ${(+localStorage.getItem('aseul-stbest-' + currentSky) || 0).toLocaleString()}점`);
   $('mood-line').textContent = `오늘의 무드 — ${MOOD.name} · ${MOOD.desc}`;
-  $('lb-charname').textContent = `캐릭터 — ${CH().name}`;
+  $('lb-charname').textContent = CH().name;
+  if(charFace) $('lb-char').src = charFace;                      // 로비에서는 앞모습으로 눈을 맞춘다
   renderChars();
   renderSkies();
 }
