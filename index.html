@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.50</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.51</div>
 </div>
 
 <script>
@@ -574,7 +574,9 @@ const CHORDS = [
 ];
 const ARP_ORDER = [0,2,1,3,2,0,3,1];
 const BEAT = { next:0, n:0, timer:null, lastKick:0, spb:.6 };
-function bpmNow(){ return 104 + (Math.min(heat, capH()) / capH()) * 43; }   // 104→147, 자기 상한 비율 기준
+/* BPM 104→147 (자기 상한 비율). 초신성 동안은 여기서 한 단계 더 올라간다 —
+   동사가 하나뿐인 게임이라 손맛·눈·귀 세 채널을 동시에 최대로 밀어야 절정이 절정으로 읽힌다 */
+function bpmNow(){ return (104 + (Math.min(heat, capH()) / capH()) * 43) * (nova > 0 ? 1.2 : 1); }
 function startMusic(){
   if(!ac() || BEAT.timer) return;
   BEAT.next = AC.currentTime + .06; BEAT.n = 0;
@@ -584,13 +586,18 @@ function startMusic(){
       const spb = 60/bpmNow(); BEAT.spb = spb;
       const i = BEAT.n % 8;                        // 8분음표 단위, 1마디 = 8
       const ch = CHORDS[(BEAT.n >> 3) % CHORDS.length];
-      if(i === 0 || i === 4){ kick(BEAT.next); BEAT.lastKick = BEAT.next; }
-      if(i % 2 === 1) bassN(BEAT.next, ch.bass);   // 오프비트 베이스 = 통통 그루브
-      pluck(BEAT.next, ch.arp[ARP_ORDER[i]], heat >= 8 ? .075 : .055);
-      if(heat >= 24) pluck(BEAT.next, ch.arp[ARP_ORDER[i]]*2, .04);  // 고콤보: 한 옥타브 위 반짝이
+      const nv = nova > 0;                         // 초신성 — 곡이 한 단계 위로 올라선다
+      // 킥: 평소 2박 → 초신성 4박(네 발로 구르는 질주)
+      if(nv ? i % 2 === 0 : (i === 0 || i === 4)){ kick(BEAT.next); BEAT.lastKick = BEAT.next; }
+      // 베이스: 평소 오프비트 통통 → 초신성 매 8분음표로 밀어붙인다
+      if(nv || i % 2 === 1) bassN(BEAT.next, ch.bass);
+      pluck(BEAT.next, ch.arp[ARP_ORDER[i]], (heat >= 8 ? .075 : .055) * (nv ? 1.3 : 1));
+      if(heat >= 24 || nv) pluck(BEAT.next, ch.arp[ARP_ORDER[i]]*2, nv ? .06 : .04);  // 한 옥타브 위 반짝이
+      if(nv) pluck(BEAT.next + spb/4, ch.arp[ARP_ORDER[(i+2)%8]]*2, .05);             // 16분 리드 라인
       hat(BEAT.next, i % 2 ? .06 : .03);
-      if(heat >= 36) hat(BEAT.next + spb/4, .07);   // 절정 직전: 더블타임 고스트 햇
+      if(heat >= 36 || nv) hat(BEAT.next + spb/4, nv ? .09 : .07);   // 더블타임 고스트 햇
       if(heat >= 12 && i === 4) hat(BEAT.next, .15); // 콤보 붙으면 백비트 강조
+      if(nv && i === 0) hat(BEAT.next, .2);          // 마디 머리 오픈 햇
       BEAT.next += spb/2; BEAT.n++;
     }
   }, 30);
@@ -1538,7 +1545,10 @@ function update(sdt, rawDt){
         floater(W/2, H*.52, '벽을 뚫는다!', '#FFDF6B', 20, 1.6);
         rings.push({x:orb.x, y:orb.y, r0:14, r1:W*.9, col:'#FFFFFF', lw:5, life:.6, t:0});
         if(!REDUCED){ shake = 12; zoom = 1.08; }
-        if(AC && !muted){ kick(AC.currentTime); kick(AC.currentTime + .16); hat(AC.currentTime + .08, .25); }
+        if(AC && !muted){                              // 진입 — 킥 두 방 + 위로 치솟는 런
+          kick(AC.currentTime); kick(AC.currentTime + .16); hat(AC.currentTime + .08, .25);
+          for(let k = 0; k < 8; k++) tone(PENTA[Math.min(4 + k, 11)] * 2, .11, 'square', .07, k * .042);
+        }
         buzz([40, 60, 40]);
       }
     }
@@ -2224,6 +2234,7 @@ window.ASEUL = {
   get bandTo(){ return bandTo; }, get bandT(){ return bandT; }, get phraseLen(){ return phraseQueue.length; },
   get sky(){ return currentSky; }, get passed(){ return passed; },
   get grazes(){ return grazes; }, get deeps(){ return deepCount; }, get golds(){ return goldCount; },
+  get bpm(){ return +bpmNow().toFixed(1); },      // 검증용: 초신성 템포 상승 확인
   steer(x){ if(orb) orb.tx = x; },
   setSky(k){ if(STAGES[k]) currentSky = k; },     // 검증용
   log(){ try{ return JSON.parse(localStorage.getItem('aseul-log') || '[]'); }catch(e){ return []; } },
