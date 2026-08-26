@@ -34,16 +34,23 @@
     align-items:center;justify-content:center;gap:10px;
     background:radial-gradient(120% 90% at 50% 0%, #0D1226 0%, var(--ink) 62%);
   }
+  /* 필드는 화면을 꽉 채우지 않는다 — 큰 폰(갤럭시 울트라급)에서 화면이 커질수록 엄지 스윕과
+     반응 거리가 같이 커져 손이 아프다. 논리 픽셀 상한을 두어 **기기가 커져도 필드 크기가 같게** 한다.
+     덤으로 기기별 난이도 편차가 줄어 기록 레이스가 공정해진다 (작은 폰은 화면에 맞춰 그대로) */
   #stage{
-    position:relative;width:min(430px,100vw);
-    height:min(100dvh, 100dvh);flex:1;max-height:100dvh;
+    position:relative;
+    width:min(380px,100vw);
+    height:min(100dvh,780px);
+    flex:none;
     background:var(--stage);
+    border-radius:16px;
+    box-shadow:0 0 0 1px rgba(28,36,64,.9);
     touch-action:none;overflow:hidden;
   }
   @media (min-width:520px) and (min-height:700px){
     #wrap{padding:18px 0}
     #stage{
-      flex:initial;height:min(820px, calc(100dvh - 64px));
+      height:min(820px, calc(100dvh - 64px));
       border-radius:22px;
       box-shadow:0 0 0 1px #1C2440, 0 30px 80px rgba(0,0,0,.6), 0 0 90px rgba(125,243,255,.05);
     }
@@ -340,7 +347,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.43</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.44</div>
 </div>
 
 <script>
@@ -371,8 +378,8 @@ const BAND    = 26;      // 그레이즈 판정 폭(px) — 이 안에 들어오
 const BLOCK_H = 26;
 const WALL_R  = 11;      // 벽 모서리 라운드 — 그림과 충돌 판정이 같은 값을 쓴다 ("보이는 대로 죽는다")
 const T = {
-  speed0: 235, speed1: 610, rampSec: 70,   // 낙하 속도 곡선 (v0.24 램프 완화)
-  gap0: 4.3,  gap1: 2.35,                  // 통로 폭 (지름 배수) — 기본 하늘은 순하게
+  speed0: 235, speed1: 610, rampSec: 64,   // 낙하 속도 곡선 (v0.43 엄지 배려로 이동이 순해진 만큼 램프를 당김)
+  gap0: 4.3,  gap1: 2.15,                  // 통로 폭 (지름 배수) — 난이도는 이동 거리가 아니라 '정밀도'로 만든다(헌법 15조)
   space0: 225, space1: 152,                // 줄 간격(px)
   heatCap: 49,                             // 최대 배수 = 1 + heatCap = ×50
   decayDelay: 1.4,                         // 안 스치고 버틸 수 있는 유예(초)
@@ -956,21 +963,24 @@ function spawnStars(x, y, n){
       r: 3.5+Math.random()*3.5, rot: Math.random()*6.28, vr: (Math.random()-.5)*10 });
   }
 }
-/* 초신성 중 스침 — 무적이라 배수는 이미 상한이다. 대신 "부수지 않고 스쳐 지나가면" 별가루가 남는다.
-   쉬는 구간이지만, 끝까지 아슬하게 몰고 싶은 사람에게는 벌 대신 상이 있다 (룰 3줄은 그대로 — 별가루는 이미 별도 어휘) */
-function novaGraze(cx, cy, deep){
-  const n = deep ? 4 : 2;
-  dustRun += n; score += n * 5;
-  sparks(cx, cy, deep ? 12 : 7, '#FFF3C4', deep ? 1.25 : .9);
-  spawnStars(cx, cy, deep ? 4 : 2);
-  floater(cx, cy - 18, '별가루 +' + n, '#FFF3C4', deep ? 18 : 14, .8);
-  tone(deep ? 2093 : 1568, .09, 'triangle', .14);
-  tone(deep ? 2793 : 2093, .12, 'sine', .1, .04);
-  buzz(deep ? 18 : 8);
+/* 초신성 중 스침 — 무적이라 배수는 이미 상한이니, 오르는 대신 **곧바로 점수로 떨어진다**.
+   스침 = 10×배수(줄 통과와 같은 값) · 아슬 = 20×배수. 부수면 아무것도 안 나온다 — 파괴는 기본, 스침은 실력.
+   초신성은 쉬는 구간이지만 점수가 와다다 쏟아지는 구간이기도 해야 한다: 상한에 도달한 보상은 눈에 보여야 한다 */
+function novaGraze(cx, cy, deep, b){
+  const gain = (deep ? 20 : 10) * mult;
+  score += gain;
+  grazes++; if(deep) deepCount++;
+  sparks(cx, cy, deep ? 16 : 10, '#FFDF6B', deep ? 1.4 : 1);
+  spawnStars(cx, cy, deep ? 6 : 3);
+  floater(cx, cy - 20, '+' + gain, '#FFDF6B', deep ? 30 : 23, .85);   // 점수는 숫자만 (배수 플로터와 구분)
+  rings.push({x:cx, y:cy, r0:6, r1: deep ? 76 : 54, col:'#FFF3C4', lw: deep ? 4 : 3, life:.32, t:0});
+  sfx.graze(Math.floor(heat), deep, !!(b && b.gold), true);          // 절정의 스침음 그대로 — 상한이라 고음역이 쏟아진다
+  if(melody.length < 900) melody.push({ e: elapsed, h: Math.floor(heat), d: deep, g: false });
+  buzz(deep ? 22 : 10);
 }
 /* 스침 이벤트 — 점수가 아니라 '배수'가 오른다. 스침 +1 · 아슬 +2 · 골드 +5 */
 function grazeEvent(cx, cy, deep, b){
-  if(nova > 0){ novaGraze(cx, cy, deep); return; }   // 초신성 중엔 배수 대신 별가루 — 부수지 말고 스쳐라
+  if(nova > 0){ novaGraze(cx, cy, deep, b); return; }   // 초신성 중엔 배수 대신 즉시 점수 — 부수지 말고 스쳐라
   const gold = !!b.gold;
   const chain = sinceGraze < .9;   // 콤보가 '거듭되는' 중 — 룰은 그대로, 연출만 세진다
   const pierce = (elapsed - lastG.t < .28) && lastG.b !== b;   // 관통 — 서로 다른 두 벽을 한 호흡에 꿰다
@@ -1792,13 +1802,15 @@ function draw(){
 
   ctx.restore();
 
-  // 초신성 꺼짐 — 마지막 2초, 조명이 나가듯 화면 전체가 점멸한다 (끝난다는 걸 몸으로 알린다)
+  // 초신성 꺼짐 — 마지막 2초, 조명이 나가듯 화면 전체가 4번 크게 점멸한다.
+  // 고주파 사인은 프레임에 뭉개져 안 읽혔다 → 셀 수 있는 박자(0.5초마다 섬광→암전)로 바꾸고 갈수록 세게
   if(nova > 0 && nova <= 2 && !REDUCED){
-    const k = 1 - nova/2;                                    // 0 → 1, 꺼짐에 가까울수록 빠르고 세게
-    const s = Math.sin(elapsed * (5 + k*10) * 6.283);
-    ctx.fillStyle = s > 0
-      ? `rgba(255,240,196,${(.09 + k*.15) * s})`              // 번쩍
-      : `rgba(7,9,15,${(.11 + k*.20) * -s})`;                 // 암전 (무적 중이라 시야 위험 없음)
+    const t = (2 - nova) / 2;                                // 0 → 1
+    const f = (t * 4) % 1;                                   // 펄스 4번, 각 펄스 안의 위상
+    const amp = .30 + t * .28;                               // 마지막이 가장 세다
+    ctx.fillStyle = f < .32
+      ? `rgba(255,246,220,${amp * (1 - f/.32) * .95})`        // 번쩍
+      : `rgba(6,8,14,${amp * Math.sin((f-.32)/.68 * Math.PI) * .9})`;   // 암전 (무적 중이라 시야 위험 없음)
     ctx.fillRect(0,0,W,H);
   }
 
