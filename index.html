@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.51</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.52</div>
 </div>
 
 <script>
@@ -408,7 +408,8 @@ addEventListener('resize', resize); resize();
 
 /* ═══════════════ 튜닝 값 (게임의 심장) ═══════════════ */
 const ORB_R   = 13;      // 플레이어 반지름
-const BAND    = 26;      // 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침'
+const BAND    = 32;      // 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침' (v0.52: 26→32, 보상을 후하게)
+const DEEP    = 14;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0.52: 11→14). 죽음 판정 ORB_R 13px은 절대 불변
 const BLOCK_H = 26;
 const WALL_R  = 11;      // 벽 모서리 라운드 — 그림과 충돌 판정이 같은 값을 쓴다 ("보이는 대로 죽는다")
 const T = {
@@ -432,7 +433,7 @@ const DKEY = 'aseul-day-' + SEED;          // 오늘의 기록 레이스 (시도
 
 /* ── 오늘의 무드: 날짜가 고르는 오늘만의 변주. 항상 포지티브 — 손맛을 깎는 무드는 만들지 않는다(11조) ── */
 const MOODS = [
-  { id:'dust',   name:'별먼지의 날', desc:'별먼지가 두 배로 뿌려진다' },
+  { id:'dust',   name:'별가루의 날', desc:'별가루가 두 배로 뿌려진다' },
   { id:'gold',   name:'금빛의 날',   desc:'골드 벽이 두 배로 나타난다' },
   { id:'phrase', name:'안무의 날',   desc:'작곡된 구간이 더 자주 나온다' },
   { id:'nova',   name:'초신성의 날', desc:'초신성이 8초간 이어진다' },
@@ -691,7 +692,7 @@ function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} 
 /* ═══════════════ 상태 ═══════════════ */
 let state = 'title';           // title | play | dying | dead
 let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
-let motes = [], nova = 0, novaMax = 6;   // 별먼지(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
+let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
 let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
 let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
 let bandSnap, bandTo, bandT, bandCur;   // 하늘의 여정 — 고도 배경 블렌드
@@ -707,6 +708,7 @@ let path = [], lastPathT = 0;           // 절정 카드용 경량 궤적 (0.05�
 let firstGrazeT = null, secondGrazeT = null, deathZone = '';   // 검증 로거 — 문법 학습·사망 원인 추적
 let constSaved, constHad, constGotRun;   // 현재 별자리: 누적 점수 / 이미 획득 / 이번 판에 획득
 let rowsSpawned, zoneIdx, lastGapC, zigDir, forkSafeLeft;
+let moteGap;                   // 별가루 배치 간격 카운터 — 마지막 무리 이후 지난 줄 수
 let phraseQueue = [];          // 진행 중인 프레이즈의 남은 줄들
 let melody, peakAt;            // 절정 멜로디 — 스침 음표의 기록
 let sinceGraze, timeScale, shake, flash, deadAt, lockUntil = 0;
@@ -750,7 +752,7 @@ function reset(){
   tut = +(localStorage.getItem('aseul-runs') || 0) < 2;
   path = []; lastPathT = 0;
   firstGrazeT = null; secondGrazeT = null; deathZone = '';
-  rowsSpawned = 0; zoneIdx = 0; lastGapC = W/2; zigDir = 1; forkSafeLeft = true;
+  rowsSpawned = 0; zoneIdx = 0; lastGapC = W/2; zigDir = 1; forkSafeLeft = true; moteGap = 99;
   phraseQueue = [];
   melody = []; peakAt = 0;
   sinceGraze = 99; timeScale = 1; shake = 0; flash = 0; zoom = 1; vign = 0;
@@ -957,7 +959,7 @@ function spawnRow(y = -BLOCK_H - 6){
       const ri = forkSafeLeft ? (gSide < .5 ? 1 : 2) : (gSide < .5 ? 0 : 1);
       if(row.blocks[ri]) row.blocks[ri].gold = true;
     }
-    if(rng() < .6){                                      // 아슬로 한가운데로 이어지는 별먼지 점선
+    if(rng() < .6){                                      // 아슬로 한가운데로 이어지는 별가루 점선
       const rcx = forkSafeLeft ? rc : lc;
       motes.push({ x: rcx + (rng() - .5)*14, y: y - 26 - rng()*14, ph: rng()*6.28 },
                  { x: rcx + (rng() - .5)*14, y: y - 88 - rng()*14, ph: rng()*6.28 });
@@ -985,25 +987,31 @@ function spawnRow(y = -BLOCK_H - 6){
   if(!gateRow && rowsSpawned >= 3 && row.blocks.length && rng() < (MOOD.id === 'gold' ? .16 : .08)){  // 골드 벽 잭팟 (금빛의 날 두 배)
     row.blocks[(rng()*row.blocks.length)|0].gold = true;
   }
-  // 별먼지 — 위험한 라인을 따라 금빛 미끼를 뿌린다 (벽 모서리 20px 안쪽 = 그레이즈 라인)
-  // 일렬 정렬은 부자연스럽다 — 손으로 흩뿌린 듯 개수·간격·좌우를 조금씩 흐트러뜨린다
+  /* ── 별가루 배치 규칙 (v0.52 — 한 줄로 말할 수 있어야 한다) ──
+     **"MOTE_GAP줄마다 한 무리(2~3개)가 위험한 라인 위에 놓이고, 별의 문 앞에는 항상 3개."**
+     확률(줄당 38%)로 뿌리면 운 나쁘면 한참 안 나오고 운 좋으면 몰려 나와서
+     "언제 뭐가 나오는지" 규칙이 서지 않았다. **간격 카운터**로 바꿔 공급을 균일하게 만든다 —
+     목표는 부자 되는 느낌이 아니라 "계속 먹을 게 나오는구나" 수준의 꾸준함. */
+  moteGap++;
+  const gapNeed = (tut && rowsSpawned < 14) ? 2 : (MOOD.id === 'dust' ? 2 : 4);   // 온보딩·별가루의 날은 촘촘히
   if(gateRow){
-    for(let k = 0; k < 3; k++)
+    for(let k = 0; k < 3; k++)                             // 별의 문 = 관문 보상, 항상 3개
       motes.push({ x: lastGapC + (rng() - .5)*18, y: y - 34 - k*42 - rng()*16, ph: rng()*6.28 });
-  } else if(rowsSpawned >= 3){
-    const mRoll = rng(), mPick = rng(), mSide = rng() < .5;
+    moteGap = 0;
+  } else if(rowsSpawned >= 3 && moteGap >= gapNeed){
+    const mPick = rng(), mSide = rng() < .5;
     const cbs = row.blocks.filter(b => !b.amp && !b.dyn);   // 움직이는 벽·닫히는 문에는 안 뿌린다
-    const mRate = MOOD.id === 'dust' ? .8 : .38;            // 별먼지의 날 — 두 배 살포
-    if(((tut && rowsSpawned < 14) || mRoll < mRate) && cbs.length){   // 온보딩 — 첫 존은 빵부스러기가 끊기지 않는다
+    if(cbs.length){
       const b = cbs[(mPick * cbs.length)|0];
       let mx;
       if(b.x <= 1) mx = b.x + b.w + 20;
       else if(b.x + b.w >= W - 1) mx = b.x - 20;
       else mx = mSide ? b.x - 20 : b.x + b.w + 20;
       if(mx > 10 && mx < W - 10){
-        const n = 2 + (rng()*2|0) + (MOOD.id === 'dust' ? 1 : 0);   // 2~3개 (별먼지의 날 +1)
+        const n = 2 + (rng() < .5 ? 1 : 0);                 // 한 무리 = 2~3개
         for(let k = 0; k < n; k++)
           motes.push({ x: mx + (rng() - .5)*16, y: y - k*38 - rng()*18, ph: rng()*6.28 });
+        moteGap = 0;
       }
     }
   }
@@ -1131,7 +1139,7 @@ function hitTest(dt){
       row.blocks.forEach(b => {
         if(b.pending){                                  // 범위를 벗어나며 판정 확정
           b.pending = false; b.judged = true;
-          grazeEvent(b.lastCx || orb.x, b.lastCy || orb.y, b.minDist < ORB_R + 11, b);
+          grazeEvent(b.lastCx || orb.x, b.lastCy || orb.y, b.minDist < ORB_R + DEEP, b);
         }
         b.inBand = false;
       });
@@ -1181,14 +1189,14 @@ function hitTest(dt){
           b.lastCx = sx; b.lastCy = sy;
           if(elapsed >= b.judgeAt){                     // 판정 확정: 스침이냐 아슬이냐
             b.pending = false; b.judged = true; b.flash = 1;
-            grazeEvent(sx, sy, b.minDist < ORB_R + 11, b);
+            grazeEvent(sx, sy, b.minDist < ORB_R + DEEP, b);
           }
         }
       } else {
         b.inBand = false;
         if(b.pending){                                  // 밴드를 떠나는 순간 조기 확정
           b.pending = false; b.judged = true; b.flash = 1;
-          grazeEvent(b.lastCx || sx, b.lastCy || sy, b.minDist < ORB_R + 11, b);
+          grazeEvent(b.lastCx || sx, b.lastCy || sy, b.minDist < ORB_R + DEEP, b);
         }
       }
     }
@@ -1246,7 +1254,7 @@ function runTitle(){
   if(pierceCount >= 5) return '바늘귀의 재봉사';
   if(deepCount >= 10 && deepCount * 2 >= grazes) return '외줄 위의 별';
   if(goldCount >= 4) return '금빛 사냥꾼';
-  if(dustRun >= 25) return '별먼지 수집가';
+  if(dustRun >= 25) return '별가루 수집가';
   if(grazes <= 3 && passed >= 15) return '신중한 비행사';
   if(peakMult >= 30) return '타오르는 꼬리';
   if(passed >= 30) return '긴 여정의 별';
@@ -1463,7 +1471,7 @@ function update(sdt, rawDt){
       t: 0, life: .45+Math.random()*.3, r: (1.6+Math.random()*2.4)*(1+hs*.4), rot: Math.random()*6.28, vr: (Math.random()-.5)*8 });
   }
 
-  // 별먼지 — 흐르고, 스치면 먹는다 (픽업은 후하게, 죽음은 엄격하게)
+  // 별가루 — 흐르고, 스치면 먹는다 (픽업은 후하게, 죽음은 엄격하게)
   for(let i = motes.length - 1; i >= 0; i--){
     const mt = motes[i];
     mt.y += spd * sdt;
@@ -1500,20 +1508,26 @@ function update(sdt, rawDt){
     if(nova <= 0){
       nova = 0; heat = CH().heat0; sinceGraze = 99;
       mult = 1 + Math.floor(heat); wmPop = .45;        // 직접 동기화 — 하강 블립 연쇄 없이 조용히 재로
-      // 번아웃 웨이브 — 마지막 불꽃이 눈앞의 벽을 태워, 꺼진 직후의 재진입 유예를 세계로 준다
+      /* 번아웃 웨이브 — 마지막 불꽃이 눈앞의 벽을 태워, 꺼진 직후의 재진입 유예를 **세계로** 준다.
+         v0.52: 반경 130px 고정이던 것을 **반응 시간 기준**으로 고쳤다. 종료 시 속도가 ~600px/s인데
+         130px는 0.22초 — 사람의 반응 시간(~0.25초)보다 짧아서 "꺼지자마자 죽는" 보고가 나왔다.
+         또한 위험은 **위에서만** 내려오므로 위쪽을 넓게, 옆·아래는 좁게 태운다(다가오는 것만 치운다). */
+      const wUp = Math.max(230, speed() * .55), wSide = 150;
       for(const row of rows){
-        if(Math.abs(row.y + BLOCK_H/2 - orb.y) > 170) continue;
+        if(Math.abs(row.y + BLOCK_H/2 - orb.y) > wUp + 60) continue;
+        const above = row.y + BLOCK_H < orb.y;              // 아직 도달하지 않은(위쪽) 벽인가
+        const reach = above ? wUp : wSide;
         for(let i = row.blocks.length - 1; i >= 0; i--){
           const b2 = row.blocks[i], geo2 = blockGeom(row, b2);
           const R2 = Math.min(WALL_R, geo2.w * .5);
           const nx = clamp(orb.x, geo2.x + R2, geo2.x + geo2.w - R2), ny = clamp(orb.y, row.y + R2, row.y + BLOCK_H - R2);
-          if(Math.hypot(orb.x - nx, orb.y - ny) - R2 < 130){
+          if(Math.hypot(orb.x - nx, orb.y - ny) - R2 < reach){
             row.blocks.splice(i, 1);
             sparks(nx, ny, 10, '#FFDF6B', 1.1);
           }
         }
       }
-      rings.push({x: orb.x, y: orb.y, r0: 16, r1: 170, col: '#FFDF6B', lw: 4, life: .5, t: 0});
+      rings.push({x: orb.x, y: orb.y, r0: 16, r1: wUp * 1.15, col: '#FFDF6B', lw: 4, life: .55, t: 0});
       floater(W/2, H*.42, '다 태웠다 — 다시, 아슬하게', '#9BE8FF', 16, 1.4);
       tone(784, .3, 'sine', .15); tone(392, .4, 'sine', .12, .1);
     }
@@ -1791,7 +1805,7 @@ function draw(){
     }
   }
 
-  // 별먼지 — 금빛 미끼, 위험한 라인 위에서 깜빡인다
+  // 별가루 — 금빛 미끼, 위험한 라인 위에서 깜빡인다
   // 크고 입체적으로 — 후광 + 금빛 본체 + 흰 코어 + 하이라이트 점.
   // "먹는 것"임이 한눈에 읽혀야 한다: 배경 별(차가운 색 점)과 절대 헷갈리지 않는 금빛 별 모양
   if(motes.length){
@@ -1856,7 +1870,7 @@ function draw(){
       const inB = sinceGraze < .25;
       // 몸 = 히트박스 그대로, 크기 절대 고정(13px). 몸짓(기울기·늘어남)은 그리기 변형뿐 — 넓이 보존
       const bodyR = ORB_R;
-      const lean = clamp(orb.vxs * .0009, -.32, .32);
+      const lean = clamp(orb.vxs * .0013, -.46, .46);   // 뱅킹 — 꺾을수록 더 눕는다 (v0.52 강화)
       const st = clamp(Math.abs(orb.vxs) * .00042, 0, .16);
       const sq = (sinceGraze < .14 ? (1 - sinceGraze/.14) : 0) * .1;   // 스침 순간 움찔
       // 발진 — 로비에서 이쪽을 보던 큰 별이 몸을 돌려 작아지며 제자리로 날아든다
@@ -1880,13 +1894,18 @@ function draw(){
         ctx.shadowColor = hsAll > .4 ? '#FF5C7A' : '#7DF3FF';
         ctx.shadowBlur = 10 + hsAll*12;
       }
-      if(charImgOk){                                   // 별똥별은 카메라를 등지고 난다 — 빠르게 꺾으면 옆으로 돌아선다
-        const turning = Math.abs(orb.vxs) > 320;
+      if(charImgOk){
+        /* 별똥별은 카메라를 등지고 난다. 옆으로 꺾을 때는 **몸을 굴려서(roll)** 돌아선다 —
+           뒤↔옆을 딱 끊어 바꾸면 종잇장이 뒤집히는 느낌이라, 뒷모습을 가로로 눌러
+           회전 중간을 만들고 그 끝에서 옆모습으로 넘긴다. 3/4 뷰 스프라이트가 생기면 여기에 끼운다 */
+        const roll = clamp((Math.abs(orb.vxs) - 110) / 280, 0, 1);   // 0 = 정면(뒤), 1 = 완전히 옆
+        const side = roll > .58;
         const iw = 26;                                 // 판정 링(지름 26px) 안에 꽉 차게
-        let fr = turning ? FR_SIDE : FR_BACK, flip = turning && orb.vxs > 0;
-        if(launch > 0){ fr = lq < .32 ? FR_FRONT : lq < .60 ? FR_SIDE : FR_BACK; flip = false; }  // 앞 → 옆 → 뒤
+        let fr = side ? FR_SIDE : FR_BACK;
+        let flip = orb.vxs > 0, rsx = side ? 1 : 1 - roll * .78;     // 돌수록 납작해진다
+        if(launch > 0){ fr = lq < .32 ? FR_FRONT : lq < .60 ? FR_SIDE : FR_BACK; flip = false; rsx = 1; }
         ctx.save();
-        if(flip) ctx.scale(-1, 1);                     // 옆모습 원본은 왼쪽을 본다
+        ctx.scale(flip ? -rsx : rsx, 1);               // 옆모습 원본은 왼쪽을 본다
         ctx.drawImage(CHAR_IMG, fr*FR, 0, FR, FR, -iw/2, -iw/2, iw, iw);
         ctx.restore();
       } else {                                         // 폴백 — 기존 원형 몸
