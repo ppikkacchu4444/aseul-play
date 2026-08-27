@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.57</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.58</div>
 </div>
 
 <script>
@@ -698,6 +698,7 @@ function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} 
 /* ═══════════════ 상태 ═══════════════ */
 let state = 'title';           // title | play | dying | dead
 let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
+let glints = [];               // 스침 섬광 — 폭발과 구분되는 '긁힘'의 언어
 let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
 let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
 let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
@@ -745,7 +746,7 @@ for(let i=0;i<138;i++) dots.push({          // 하얗고 희미한 별은 많을
 
 function reset(){
   const stg = STAGES[currentSky];
-  rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0;
+  rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0; glints = [];
   motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
@@ -1043,11 +1044,17 @@ function spawnRow(y = -BLOCK_H - 6){
 }
 
 /* ═══════════════ 파티클 & 플로터 ═══════════════ */
-function sparks(x, y, n, col, pow=1){
+function sparks(x, y, n, col, pow=1, biasY=0){
   for(let i=0;i<n;i++){
     const a = Math.random()*6.283, s = (60+Math.random()*190)*pow;
-    parts.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: .4+Math.random()*.35, t: 0, r: 1.4+Math.random()*2.2, col });
+    parts.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s + biasY, life: .4+Math.random()*.35, t: 0, r: 1.4+Math.random()*2.2, col });
   }
+}
+/* 섬광(glint) — 스침 전용 언어. 초신성 벽 파괴는 사방으로 터지는 '폭발'이고,
+   스침은 표면을 긁고 지나간 '섬광'이다: 십자로 뻗었다 사라지는 한 점.
+   같은 사건처럼 보이지 않아야 무엇을 잘했는지가 구분된다 */
+function glint(x, y, r, col, life = .26){
+  glints.push({ x, y, r, col, life, t: 0 });
 }
 function floater(x, y, txt, col, size=15, life=.8){
   // 겹침 방지 — 방금 생긴 플로터와 자리가 겹치면 위로 쌓는다 (점수와 배수 텍스트가 안 겹치게)
@@ -1101,8 +1108,12 @@ function grazeEvent(cx, cy, deep, b){
   if(pierce) pierceCount++;
   const m = 1 + Math.floor(heat);
   const col = gold ? '#FFDF6B' : deep ? '#FF5C7A' : '#FFB454';
-  sparks(cx, cy, (deep ? 14 : 8) + (chain ? 5 : 0), col, (deep ? 1.25 : 1) + (chain ? .15 : 0));
-  spawnStars(cx, cy, Math.min((deep ? 5 : 3) + (gold ? 5 : 0), 8));
+  /* 피드백의 크기는 잘한 정도에 비례해야 한다.
+     일반 스침은 "체크" 한 번 — 섬광 하나와 불티 몇 점이면 충분하다.
+     매번 화려하면 아슬·골드가 특별해지지 않고, 초신성 벽 파괴와도 구분이 안 된다.
+     불티는 아래로 흘리며 튄다 — 긁고 지나간 방향이 남는다 */
+  glint(cx, cy, gold ? 26 : deep ? 22 : 14, gold ? '#FFE9A0' : deep ? '#FFD2E2' : '#FFE2B8', deep || gold ? .3 : .22);
+  sparks(cx, cy, gold ? 9 : deep ? 6 : 3, col, deep ? .85 : .6, 90);
   // 배수 이벤트는 '이유 + 증가량'으로 표기 — 초신성 중엔 같은 이유에 점수가 붙는다
   const why = gold ? '골드' : deep ? '아슬' : '스침';
   floater(cx, cy - 16, nv ? why + ' +' + pay(base) : why + ' +' + base, col,
@@ -1115,10 +1126,9 @@ function grazeEvent(cx, cy, deep, b){
   }
   if(melody.length < 900) melody.push({ e: elapsed, h: Math.floor(heat), d: deep, g: gold });   // 이 판의 악보
   buzz(deep ? 25 : 10);
-  rings.push({x:cx, y:cy, r0:6, r1: deep ? 64 : 46, col: deep ? '#FFEDF0' : '#FFD98A', lw: deep ? 4 : 3, life:.35, t:0});
-  if(b.cornerHit){                               // 모서리 글린트 — 모서리를 감아 돈 스침은 그 자리가 하얗게 반짝인다
-    rings.push({x:cx, y:cy, r0:2, r1:34, col:'#FFFFFF', lw:2.5, life:.28, t:0});
-    stars.push({x:cx, y:cy, vx:0, vy:0, t:0, life:.4, r:9, rot:Math.random()*6.28, vr:7, col:'#FFFFFF'});
+  // 링(충격파)은 관통·초신성처럼 '터지는' 사건에만 남긴다 — 스침은 링을 쓰지 않는다
+  if(b.cornerHit){                               // 모서리를 감아 돈 스침은 그 자리가 하얗게 반짝인다
+    glint(cx, cy, 30, '#FFFFFF', .26);
     tone(2093,.07,'sine',.09,.02);
   }
   if(!REDUCED){
@@ -1593,6 +1603,8 @@ function updateFx(sdt){
   stars = stars.filter(s => s.t < s.life);
   for(const q of rings) q.t += sdt;
   rings = rings.filter(q => q.t < q.life);
+  for(const g of glints){ g.t += sdt; g.y += (state === 'play' ? speed() : 0) * sdt * .35; }   // 살짝 흘러간다
+  glints = glints.filter(g => g.t < g.life);
   if(state !== 'dying') zoom += (1 - zoom) * Math.min(1, sdt*6);   // 죽음 중엔 dying 루프가 줌을 몬다
   vign = Math.max(0, vign - sdt*2.2);
   for(const row of rows) for(const b of row.blocks) b.flash = Math.max(0, b.flash - sdt*2.4);
@@ -1816,18 +1828,11 @@ function draw(){
       ctx.fillStyle = b.gold ? '#C9992E' : (row.col || '#3A4680');
       rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
       ctx.shadowBlur = 0;
-      if(glow > .012){                                   // 달아오른 안쪽 모서리 — 스침이 일어나는 바로 그 선
-        const inner = orb.x > geo.x + geo.w ? geo.x + geo.w : (orb.x < geo.x ? geo.x : null);
-        ctx.fillStyle = `rgba(255,190,110,${(glow*.3).toFixed(3)})`;
+      // 달아오르는 건 벽의 '몸'뿐 — 모서리에 선을 그으면 조준선처럼 읽혀서
+      // "저기 붙여야 하나?"가 된다. 벽은 먼저 위험으로 읽혀야 하고, 붙는 건 플레이어의 선택이다
+      if(glow > .012){
+        ctx.fillStyle = `rgba(255,190,110,${(glow*.34).toFixed(3)})`;
         rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
-        if(inner !== null){
-          ctx.strokeStyle = `rgba(255,242,206,${(glow*.95).toFixed(3)})`;
-          ctx.lineWidth = 1.8 + glow*3.2;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(inner, row.y + R*.55); ctx.lineTo(inner, row.y + BLOCK_H - R*.55);
-          ctx.stroke();
-        }
       }
       if(b.dyn){                                        // 닫히는 문 — 안쪽 모서리가 조여들수록 달아오른다
         const cp = 1 - (closeGap(row) - row.close.g1) / Math.max(1, row.close.g0 - row.close.g1);
@@ -1836,11 +1841,11 @@ function draw(){
         const gx = b.dyn === 'L' ? geo.x + geo.w : geo.x;
         ctx.beginPath(); ctx.moveTo(gx, row.y + 2); ctx.lineTo(gx, row.y + BLOCK_H - 2); ctx.stroke();
       }
-      if(b.flash > 0){                                   // 스친 순간 — 벽이 하얗게 달아올랐다 식는다
-        ctx.fillStyle = `rgba(255,246,214,${(b.flash*.35).toFixed(3)})`;
+      if(b.flash > 0){                                   // 스친 순간 — 벽이 잠깐 달아올랐다 식는다 (테두리는 얇게)
+        ctx.fillStyle = `rgba(255,246,214,${(b.flash*.3).toFixed(3)})`;
         rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
-        ctx.strokeStyle = `rgba(255,252,236,${b.flash})`;
-        ctx.lineWidth = 2.5 + b.flash*2;
+        ctx.strokeStyle = `rgba(255,250,230,${(b.flash*.75).toFixed(3)})`;
+        ctx.lineWidth = 1.2;
         rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.stroke();
       }
     }
@@ -1994,6 +1999,23 @@ function draw(){
     starPath(st.x, st.y, st.r, st.rot); ctx.fill();
   }
   ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+
+  // 스침 섬광 — 십자로 뻗었다 사라진다 (폭발이 아니라 긁힘)
+  for(const g of glints){
+    const p = g.t / g.life, e = 1 - p;
+    const len = g.r * (.45 + p * .75), a = e * e;
+    ctx.strokeStyle = g.col; ctx.lineCap = 'round';
+    ctx.globalAlpha = a * .9;
+    ctx.lineWidth = 1 + e * 1.6;
+    ctx.beginPath();
+    ctx.moveTo(g.x - len, g.y); ctx.lineTo(g.x + len, g.y);
+    ctx.moveTo(g.x, g.y - len * .62); ctx.lineTo(g.x, g.y + len * .62);
+    ctx.stroke();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = g.col;
+    ctx.beginPath(); ctx.arc(g.x, g.y, 1 + e * 1.8, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 
   // 충격파 링
   for(const q of rings){
