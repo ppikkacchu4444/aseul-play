@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.71</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.72</div>
 </div>
 
 <script>
@@ -2315,13 +2315,16 @@ function draw(){
          읽혀서 '보이는 대로 죽는다'가 무너진다. 커지는 건 어디까지나 **스치는 거리**이므로
          링과 다른 색·다른 질감(단단한 선 vs 부드러운 띠)으로 갈라 둔다 */
       if(neb > 0 && state === 'play'){
-        /* 반지름은 실제 판정 폭 그대로, 알파는 남은 양에 비례 — 부푼 만큼만 보이고
-           효과가 0이 되는 순간 자국도 없이 사라진다(평상 밴드는 원래 안 보이는 것이다) */
-        const q = nebQ(), nr = ORB_R + bandNow(), pul = .5 + .5*Math.sin(elapsed*9);
-        ctx.globalAlpha = (.18 + .12*pul) * q;
+        /* 반지름은 실제 판정 폭 그대로(보이는 것 = 판정).
+           ⚠ 알파를 남은 양(q)에 비례시키면 **줄어드는 마지막 30%가 투명해진 채로 사라져서**
+           "원래 크기로 돌아오는 과정"이 안 보인다 — 크기가 줄다가 그냥 없어진 것처럼 읽힌다.
+           그래서 알파는 끝까지 그대로 두고, 제자리에 **닿은 뒤에만** 짧게(0.35초) 지운다 */
+        const nr = ORB_R + bandNow(), pul = .5 + .5*Math.sin(elapsed*9);
+        const av = neb > .35 ? 1 : neb / .35;
+        ctx.globalAlpha = (.18 + .12*pul) * av;
         ctx.fillStyle = '#7DF3FF';
         ctx.beginPath(); ctx.arc(0, 0, nr, 0, 6.283); ctx.fill();
-        ctx.globalAlpha = (.5 + .3*pul) * q;
+        ctx.globalAlpha = (.5 + .3*pul) * av;
         ctx.strokeStyle = '#9BF6FF'; ctx.lineWidth = 1.4;
         ctx.beginPath(); ctx.arc(0, 0, nr, 0, 6.283); ctx.stroke();
         ctx.globalAlpha = 1;
