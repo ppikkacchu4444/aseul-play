@@ -1,0 +1,2325 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#07090F">
+<meta property="og:title" content="아슬아슬">
+<meta property="og:description" content="피하지 말고, 죽기 직전까지 붙어라 — 별똥별 그레이즈 레이스">
+<title>아슬아슬</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gothic+A1:wght@400;700;900&display=swap">
+<style>
+  /* ── 아슬아슬 : 단일 테마(다크 아케이드) 커밋. 모든 색은 명시적으로 칠한다 ── */
+  :root{
+    --ink:#07090F;        /* page ground */
+    --stage:#0B0F1D;      /* play field */
+    --panel:#121729;
+    --bone:#EDF1FF;
+    --dim:#68729A;
+    --orb:#7DF3FF;
+    --spark:#FFB454;      /* graze amber */
+    --hot:#FF5C7A;        /* fever */
+    --block:#222B4C;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--ink);
+    color:var(--bone);
+    font-family:"Gothic A1",-apple-system,"Malgun Gothic",sans-serif;
+    -webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    overflow:hidden;
+  }
+  #wrap{
+    height:100dvh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:10px;
+    background:radial-gradient(120% 90% at 50% 0%, #0D1226 0%, var(--ink) 62%);
+  }
+  /* 필드는 화면을 꽉 채우지 않는다 — 큰 폰(갤럭시 울트라급)에서 화면이 커질수록 엄지 스윕과
+     반응 거리가 같이 커져 손이 아프다. 논리 픽셀 상한을 두어 **기기가 커져도 필드 크기가 같게** 한다.
+     덤으로 기기별 난이도 편차가 줄어 기록 레이스가 공정해진다 (작은 폰은 화면에 맞춰 그대로) */
+  #stage{
+    position:relative;
+    width:min(380px,100vw);
+    height:min(100dvh,780px);
+    flex:none;
+    background:var(--stage);
+    border-radius:16px;
+    box-shadow:0 0 0 1px rgba(28,36,64,.9);
+    touch-action:none;overflow:hidden;
+  }
+  @media (min-width:520px) and (min-height:700px){
+    #wrap{padding:18px 0}
+    #stage{
+      height:min(820px, calc(100dvh - 64px));
+      border-radius:22px;
+      box-shadow:0 0 0 1px #1C2440, 0 30px 80px rgba(0,0,0,.6), 0 0 90px rgba(125,243,255,.05);
+    }
+    #foot{display:block}
+  }
+  #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* ── HUD ── */
+  #hud{position:absolute;inset:0;pointer-events:none;display:none}
+  #hud.on{display:block}
+  #score{
+    position:absolute;top:18px;left:0;right:0;text-align:center;
+    font-family:"Black Han Sans","Gothic A1",sans-serif;
+    font-size:46px;line-height:1;letter-spacing:1px;
+    font-variant-numeric:tabular-nums;
+    text-shadow:0 2px 24px rgba(125,243,255,.25);
+  }
+  #mult{
+    position:absolute;top:72px;left:50%;transform:translateX(-50%);
+    font-family:"Black Han Sans","Gothic A1",sans-serif;
+    font-size:27px;padding:3px 18px 4px;border-radius:99px;
+    color:var(--dim);background:rgba(255,255,255,.04);
+    transition:color .15s, background .15s, text-shadow .15s;
+    font-variant-numeric:tabular-nums;
+  }
+  #mult.t2{color:var(--spark);background:rgba(255,180,84,.10)}
+  #mult.t3{color:#FF8E4F;background:rgba(255,142,79,.13);text-shadow:0 0 18px rgba(255,142,79,.5)}
+  #mult.t4{color:var(--hot);background:rgba(255,92,122,.16);text-shadow:0 0 22px rgba(255,92,122,.7);animation:feverPulse 1.05s infinite}
+  #mult.t5{color:#FF3D64;background:rgba(255,61,100,.21);text-shadow:0 0 26px rgba(255,61,100,.85);animation:feverPulse .8s infinite}
+  #mult.t6{color:#FFD9E4;background:rgba(255,92,140,.22);text-shadow:0 0 28px rgba(255,110,150,.95);animation:feverPulse .65s infinite}
+  #mult.tmax{color:#FFDF6B;background:rgba(255,223,107,.18);text-shadow:0 0 30px rgba(255,200,60,.95);animation:feverPulse .55s infinite}
+  @keyframes feverPulse{50%{transform:translateX(-50%) scale(1.1)}}
+  #mult.pop{animation:pop .18s}
+  @keyframes pop{40%{transform:translateX(-50%) scale(1.65)}}
+  #score.bump{animation:sbump .18s}
+  @keyframes sbump{40%{transform:scale(1.1)}}
+  #best-hud{
+    position:absolute;top:20px;left:16px;font-size:11px;font-weight:700;
+    color:var(--dim);letter-spacing:.12em;font-variant-numeric:tabular-nums;
+  }
+  #mute{
+    position:absolute;top:12px;right:12px;pointer-events:auto;
+    width:38px;height:38px;border-radius:12px;border:1px solid #222B4C;
+    background:rgba(18,23,41,.7);color:var(--dim);font-size:16px;
+    cursor:pointer;
+  }
+
+  /* ── 오버레이 공통 ── */
+  .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;gap:0;
+    background:rgba(7,9,15,.55);backdrop-filter:blur(3px);
+    opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s,visibility .25s;
+  }
+  /* visibility가 핵심 — 부모의 pointer-events:none은 pointer-events:auto인 자식(버튼)을 막지 못한다.
+     이것 때문에 안 보이는 [다시 한 판]·[✧ 절정의 순간]·로비 버튼이 플레이 중에도 눌려서
+     화면을 클릭하면 판이 재시작되거나 절정 창이 튀어나왔다. 꺼진 화면은 통째로 없어야 한다 */
+  .overlay.on{opacity:1;visibility:visible;pointer-events:auto}
+  /* 모달(절정 카드·밤하늘)은 성적표 위에 뜬다 — DOM 순서상 #death가 덮어 카드가 닫히지 않던 버그 */
+  #cardview,#skyview{z-index:6}
+  .kicker{font-size:12px;font-weight:900;letter-spacing:.34em;color:var(--spark);margin-bottom:14px}
+  h1{
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-weight:400;
+    font-size:64px;line-height:1.02;text-wrap:balance;
+    text-shadow:0 0 34px rgba(125,243,255,.35);
+  }
+  .rule-line{margin-top:16px;font-size:15px;font-weight:700;color:var(--bone)}
+  .rule-sub{margin-top:9px;font-size:13px;line-height:1.75;color:var(--dim)}
+  .rule-sub b{color:var(--spark);font-weight:900}
+  .tap{
+    margin-top:34px;font-size:13px;font-weight:900;letter-spacing:.22em;
+    color:var(--orb);animation:blink 1.4s infinite;
+  }
+  @keyframes blink{50%{opacity:.25}}
+  .bestline{margin-top:12px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+
+  /* ── 사망 화면 ── */
+  #verdict{font-size:13px;font-weight:700;color:var(--dim);margin-bottom:10px;letter-spacing:.02em}
+  #d-score{
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-size:78px;line-height:1;
+    font-variant-numeric:tabular-nums;text-shadow:0 4px 40px rgba(255,180,84,.3);
+  }
+  #newbest{
+    display:none;margin-top:10px;font-size:13px;font-weight:900;letter-spacing:.24em;
+    color:var(--spark);text-shadow:0 0 16px rgba(255,180,84,.8);
+  }
+  #newbest.on{display:block;animation:blink 1s infinite}
+  #chips{display:flex;gap:8px;margin-top:18px}
+  #chips2{display:flex;gap:8px;margin-top:8px}
+  #d-badge{
+    margin-top:14px;font-size:12px;font-weight:900;letter-spacing:.12em;
+    color:#FFDF6B;background:rgba(255,223,107,.09);border:1px solid #8A6A2A;
+    border-radius:99px;padding:5px 15px;
+  }
+  #d-close{margin-top:10px;font-size:13px;color:var(--hot);font-variant-numeric:tabular-nums}
+  #d-close b{color:#FFDF6B;font-weight:900;font-size:15px}
+  .chip{
+    font-size:12px;font-weight:700;color:var(--dim);
+    background:var(--panel);border:1px solid #1D2542;
+    padding:7px 12px;border-radius:99px;font-variant-numeric:tabular-nums;
+  }
+  .chip em{font-style:normal;color:var(--bone);font-weight:900}
+  #retry{
+    margin-top:32px;pointer-events:auto;cursor:pointer;
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-size:22px;
+    color:#161006;background:linear-gradient(180deg,#FFC97E,var(--spark));
+    border:none;border-radius:16px;padding:14px 46px 15px;
+    box-shadow:0 10px 30px rgba(255,180,84,.28), inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  #retry:active{transform:scale(.96)}
+  .anywhere{margin-top:14px;font-size:11px;letter-spacing:.18em;color:var(--dim)}
+  /* ── 성적표 리듬 — 점수 먼저, 그다음 기록 → 정산 → 버튼 순서로 읽힌다. 버튼은 뜨기 전엔 눌리지 않는다 ── */
+  #death #newbest,#death #d-badge,#death #d-close,#death #chips,#death #chips2,
+  #death .dbtn,#death #settle,#death #d-day,
+  #death #retry,#death .anywhere{opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s;pointer-events:none}
+  #death.s1 #newbest,#death.s1 #d-badge,#death.s1 #d-close,#death.s1 #chips,#death.s1 #chips2{opacity:1;transform:none}
+  #death.s2 .dbtn,#death.s2 #settle,#death.s2 #d-day{opacity:1;transform:none;pointer-events:auto}
+  #death.s3 #retry,#death.s3 .anywhere{opacity:1;transform:none}
+  #death.s3 #retry,#death.s3 #tohome{pointer-events:auto}
+  /* ── 로비 — 하늘 이름이 제목, 캐릭터가 주인공. 재화는 상단 바에 아이콘으로 ── */
+  #lobby{gap:0;justify-content:flex-start;padding:14px 16px 18px}
+  #lb-top{display:flex;align-items:center;gap:6px;width:100%;pointer-events:auto}
+  .cur{
+    display:flex;align-items:center;gap:5px;
+    background:rgba(18,23,41,.82);border:1px solid #1D2542;border-radius:99px;
+    padding:5px 11px;font-size:11px;font-weight:700;color:var(--dim);
+    font-variant-numeric:tabular-nums;white-space:nowrap;
+  }
+  .cur b{color:var(--bone);font-weight:900;font-size:12px}
+  .cur i{font-style:normal;font-size:12px;line-height:1}
+  .cur.dust i{color:#FFD98A} .cur.con i{color:#FFDF6B}
+  #lb-top .lbbtn{margin-left:auto}
+  #lb-title{
+    margin-top:24px;
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-weight:400;
+    font-size:34px;line-height:1.12;text-wrap:balance;
+    text-shadow:0 0 32px rgba(125,243,255,.3);
+  }
+  #lb-sub{margin-top:5px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+  #lb-hero{
+    margin-top:6px;width:170px;height:170px;flex:none;
+    filter:drop-shadow(0 6px 30px rgba(255,190,70,.34));
+    animation:heroFloat 3.6s ease-in-out infinite;
+  }
+  #lb-hero img{width:100%;height:100%;object-fit:contain;display:block}
+  @keyframes heroFloat{50%{transform:translateY(-10px)}}
+  #lb-charname{font-size:14px;font-weight:900;color:#FFD98A;letter-spacing:.02em}
+  #lb-picks{display:flex;gap:8px;margin-top:12px}
+  #charpanel:not(.hide),#skies:not(.hide){
+    width:300px;margin-top:10px;padding:6px 14px 10px;
+    background:rgba(18,23,41,.86);border:1px solid #1D2542;border-radius:14px;
+  }
+  @media (prefers-reduced-motion: reduce){ #lb-hero{animation:none} }
+  .lbcard{
+    width:282px;background:rgba(18,23,41,.78);border:1px solid #1D2542;border-radius:16px;
+    padding:12px 16px;margin-top:10px;text-align:left;pointer-events:auto;
+  }
+  .lbname{font-family:"Black Han Sans","Gothic A1",sans-serif;font-size:16px;color:var(--bone)}
+  .lbstat{margin-top:4px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .lbrow{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;color:var(--bone)}
+  .lbbtn{
+    pointer-events:auto;cursor:pointer;font-family:"Gothic A1",sans-serif;font-size:11px;font-weight:700;
+    color:var(--orb);background:rgba(125,243,255,.07);border:1px solid #1C3A4A;border-radius:99px;padding:5px 12px;
+  }
+  #btn-play{
+    margin-top:22px;pointer-events:auto;cursor:pointer;
+    font-family:"Black Han Sans","Gothic A1",sans-serif;font-size:20px;
+    color:#161006;background:linear-gradient(180deg,#FFC97E,var(--spark));
+    border:none;border-radius:16px;padding:13px 60px 14px;
+    box-shadow:0 10px 30px rgba(255,180,84,.28), inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  #btn-play:active{transform:scale(.96)}
+  .hide{display:none !important}
+  .charcard{display:flex;gap:9px;font-size:11px;color:var(--dim);padding:8px 2px 2px;border-top:1px solid #1A2140;margin-top:7px;cursor:pointer;align-items:flex-start}
+  .charcard b{color:var(--bone)}
+  .charcard.lock{opacity:.55}
+  .chdot{width:12px;height:12px;border-radius:50%;box-shadow:0 0 8px rgba(255,255,255,.35);flex:none;margin-top:2px}
+  /* 로비에서는 별이 이쪽을 본다 — 앞모습 초상 (필드에선 등을 보이고 날아간다) */
+  .chdot.face{width:26px;height:26px;border-radius:0;box-shadow:none;background:center/contain no-repeat;margin-top:0}
+  .chinfo{display:flex;flex-direction:column;gap:2px;flex:1}
+  .chact{color:#FFD98A;font-weight:900;flex:none;font-size:10px;margin-top:3px}
+  @keyframes skTw{50%{opacity:.35}}
+  .skv-on{animation:skTw 2.4s infinite}
+
+  /* ── 하늘 선택 칩 & 스테이지 진행 ── */
+  #skies{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin-top:10px;max-width:310px}
+  .skychip{
+    pointer-events:auto;cursor:pointer;font-family:"Gothic A1",sans-serif;
+    font-size:11px;font-weight:700;color:var(--dim);
+    background:rgba(255,255,255,.04);border:1px solid #222B4C;border-radius:99px;
+    padding:6px 12px;
+  }
+  .skychip.sel{color:#FFD98A;border-color:#8A6A2A;background:rgba(255,180,84,.08)}
+  .skychip.lock{opacity:.38;cursor:default}
+  #stprog{
+    position:absolute;top:38px;left:16px;font-size:11px;font-weight:700;
+    color:var(--dim);letter-spacing:.08em;font-variant-numeric:tabular-nums;
+  }
+  #cgauge{
+    position:absolute;top:0;left:0;right:0;height:3px;
+    background:rgba(255,255,255,.06);
+  }
+  #cgfill{
+    height:100%;width:0%;
+    background:linear-gradient(90deg,#FFB454,#FFDF6B);
+    box-shadow:0 0 8px rgba(255,223,107,.55);
+    transition:width .35s ease-out;
+  }
+  #tohome{pointer-events:auto;cursor:pointer;margin-top:10px;color:#8FA0CC}
+  /* ── 죽음 정산 — 이 판의 모든 것이 밤하늘의 재료가 된다 ── */
+  #settle{margin-top:18px;width:232px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+  #settle .srow{display:flex;justify-content:space-between;margin-bottom:5px}
+  #settle .srow b{color:#FFD98A;font-weight:900}
+  #gaugewrap{height:6px;border-radius:99px;background:#1A2140;overflow:hidden;margin:7px 0 5px}
+  #gauge{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg,#FFB454,#FFDF6B);box-shadow:0 0 10px rgba(255,223,107,.6)}
+  #gauge.anim{transition:width .8s cubic-bezier(.2,.8,.3,1)}
+  #s-next{font-size:11px;letter-spacing:.06em;text-align:center;color:var(--dim)}
+  #s-born{display:none;margin-top:7px;text-align:center;font-size:13px;font-weight:900;letter-spacing:.14em;color:#FFDF6B;text-shadow:0 0 16px rgba(255,223,107,.8)}
+  #s-born.on{display:block;animation:blink 1s infinite}
+  #d-day{margin-top:16px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+  #d-day b{color:var(--spark);font-weight:900}
+  .dbtn{
+    display:inline-block;pointer-events:auto;cursor:pointer;
+    font-family:"Gothic A1",sans-serif;font-size:12px;font-weight:700;
+    color:#FFD98A;background:rgba(255,180,84,.07);
+    border:1px solid #5A4A22;border-radius:99px;padding:8px 18px;
+  }
+  .dbtn:active,.lbbtn:active{transform:scale(.96)}
+
+  #foot{display:none;font-size:11px;letter-spacing:.14em;color:#3A4364}
+  @media (prefers-reduced-motion: reduce){
+    .tap,#mult.t4,#mult.t5,#mult.t6,#mult.tmax,#newbest.on{animation:none}
+  }
+</style>
+
+<div id="wrap">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+
+    <div id="hud">
+      <div id="cgauge"><div id="cgfill"></div></div>
+      <div id="best-hud">BEST 0</div>
+      <div id="stprog"></div>
+      <div id="score">0</div>
+      <div id="mult">×1</div>
+    </div>
+    <button id="mute" title="소리 켜기/끄기">♪</button>
+
+    <div id="title" class="overlay on">
+      <div class="kicker">별똥별의 여정</div>
+      <h1>아슬<br>아슬</h1>
+      <div class="rule-line">스치면 배수 UP! 통과하면 10 × 배수!</div>
+      <div class="rule-sub">
+        엄지로 좌우 — 벽에 <b>닿으면 끝</b><br>
+        벽을 <b>스칠수록 배수</b>가 오르고, 줄을 <b>넘을 때마다 10 × 배수</b>를 번다<br>
+        안 스치면 <b>배수가 식는다</b> — 높을수록 빨리
+      </div>
+      <div class="tap">화면을 탭해서 시작</div>
+      <div class="bestline" id="title-best"></div>
+    </div>
+
+    <div id="lobby" class="overlay">
+      <div id="lb-top">
+        <span class="cur dust"><i>✦</i><b id="cur-dust">0</b></span>
+        <span class="cur con"><i>★</i><b id="cur-const">0/5</b></span>
+        <span class="cur best">BEST&nbsp;<b id="cur-best">0</b></span>
+        <button class="lbbtn" id="btn-skyview">밤하늘</button>
+      </div>
+      <div id="lb-title">이름없는 별자리</div>
+      <div id="lb-sub">정복 0%</div>
+      <div id="lb-hero"><img id="lb-char" alt=""></div>
+      <div id="lb-charname">기본별</div>
+      <div id="lb-picks">
+        <button class="lbbtn" id="btn-char">캐릭터 선택</button>
+        <button class="lbbtn" id="btn-sky">하늘 선택</button>
+      </div>
+      <div id="charpanel" class="hide"></div>
+      <div id="skies" class="hide"></div>
+      <button id="btn-play">게임 시작</button>
+      <div class="bestline" id="mood-line" style="margin-top:10px;color:#C9A96A"></div>
+    </div>
+
+    <div id="cardview" class="overlay">
+      <div class="kicker">절정 카드</div>
+      <img id="cardimg" alt="절정 카드" style="width:76%;max-width:330px;border-radius:14px;border:1px solid #1D2542;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+      <div class="anywhere" style="margin-top:10px">이미지를 길게 눌러 저장할 수 있어</div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button id="card-melody" class="lbbtn">♪ 다시 듣기</button>
+        <button id="card-share" class="lbbtn">공유하기</button>
+        <button id="card-close" class="lbbtn">닫기</button>
+      </div>
+    </div>
+
+    <div id="skyview" class="overlay">
+      <div class="kicker">나의 밤하늘</div>
+      <svg id="skv" viewBox="0 0 430 620" style="width:100%;max-width:400px;height:auto;pointer-events:none"></svg>
+      <button id="skv-close" class="lbbtn" style="margin-top:12px;pointer-events:auto">로비로</button>
+    </div>
+
+    <div id="death" class="overlay">
+      <div id="verdict">너무 안전했다</div>
+      <div id="d-score">0</div>
+      <div id="newbest">★ 신기록 ★</div>
+      <div id="d-badge"></div>
+      <div id="d-close"></div>
+      <div id="chips">
+        <div class="chip">최고 <em id="c-mult">×1</em></div>
+        <div class="chip">스침 <em id="c-graze">0</em>회</div>
+        <div class="chip">통과 <em id="c-pass">0</em>줄</div>
+      </div>
+      <div id="chips2">
+        <div class="chip">근접 <em id="c-close">–</em></div>
+        <div class="chip">연속 <em id="c-chain">0</em></div>
+        <div class="chip">관통 <em id="c-pierce">0</em></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button id="peak-btn" class="dbtn">✧ 절정의 순간</button>
+      </div>
+      <div id="settle">
+        <div class="srow"><span>별가루 <b id="s-dust">+0</b></span><span id="s-dust-t">총 0</span></div>
+        <div class="srow" id="s-row2"><span>별자리 <b id="s-emb">+0</b></span><span id="s-emb-d"></span></div>
+        <div id="gaugewrap"><div id="gauge"></div></div>
+        <div id="s-next"></div>
+        <div id="s-born">★ 새 별이 태어났다 ★</div>
+      </div>
+      <div id="d-day"></div>
+      <button id="retry">다시 한 판</button>
+      <div id="tohome" class="anywhere">로비로</div>
+    </div>
+  </div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.53 · <span id="foot-mode"></span></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+/* ═══════════════ 기본 셋업 ═══════════════ */
+const stage = document.getElementById('stage');
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+const hud = $('hud'), scoreEl = $('score'), multEl = $('mult'), bestHud = $('best-hud');
+const titleOv = $('title'), deathOv = $('death');
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  const r = stage.getBoundingClientRect();
+  W = r.width; H = r.height;
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+/* ═══════════════ 튜닝 값 (게임의 심장) ═══════════════ */
+const ORB_R   = 13;      // 플레이어 반지름
+/* ── [실험] 낙하 방향 — ?fall=1 이면 별이 아래로 떨어진다 ──
+   세계 이동 방향(DIR)과 플레이어 고도(ORB_Y)만 뒤집는 최소 실험. 감각 비교용이다 */
+const FALL = /[?&]fall=1/.test(location.search);
+const DIR = FALL ? -1 : 1;              // 세계가 흐르는 방향 (아래로 +1 / 위로 -1)
+const ORB_YR = FALL ? .26 : .74;        // 플레이어 고도 비율
+const BAND    = 32;      // 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침' (v0.52: 26→32, 보상을 후하게)
+const DEEP    = 14;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0.52: 11→14). 죽음 판정 ORB_R 13px은 절대 불변
+const BLOCK_H = 26;
+const WALL_R  = 11;      // 벽 모서리 라운드 — 그림과 충돌 판정이 같은 값을 쓴다 ("보이는 대로 죽는다")
+const T = {
+  speed0: 235, speed1: 610, rampSec: 64,   // 낙하 속도 곡선 (v0.43 엄지 배려로 이동이 순해진 만큼 램프를 당김)
+  gap0: 4.3,  gap1: 2.15,                  // 통로 폭 (지름 배수) — 난이도는 이동 거리가 아니라 '정밀도'로 만든다(헌법 15조)
+  space0: 225, space1: 152,                // 줄 간격(px)
+  heatCap: 49,                             // 최대 배수 = 1 + heatCap = ×50
+  decayDelay: 1.4,                         // 안 스치고 버틸 수 있는 유예(초)
+  decayRate: 1.0, decayHeat: .13,          // 냉각 = 초당 1 + 0.13×열기 — 높을수록 빨리 식는다
+};
+
+/* ═══════════════ 오늘의 하늘 (데일리 시드) ═══════════════
+   같은 날 = 같은 코스. 기록 레이스의 트랙을 하루 단위로 고정한다.
+   (v0.11-12의 유성/라이벌 고스트는 제거 — 레이스는 집중이 전부, 필드에 상시 오브젝트를 더하지 않는다) */
+function mulberry32(a){ return function(){ a|=0; a = a+0x6D2B79F5|0; let t = Math.imul(a^a>>>15, 1|a); t = t+Math.imul(t^t>>>7, 61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const SKY_DATE = new Date();
+const SEED = SKY_DATE.getFullYear()*10000 + (SKY_DATE.getMonth()+1)*100 + SKY_DATE.getDate();
+const SKY_MD = (SKY_DATE.getMonth()+1) + '/' + SKY_DATE.getDate();
+let rng = mulberry32(SEED);                // 코스 배치 전용 난수 — 판마다 리셋해 같은 하늘을 다시 만든다
+const DKEY = 'aseul-day-' + SEED;          // 오늘의 기록 레이스 (시도 수·오늘 1등) — 경쟁 정보는 북엔드에서만 보여준다
+
+/* ── 오늘의 무드: 날짜가 고르는 오늘만의 변주. 항상 포지티브 — 손맛을 깎는 무드는 만들지 않는다(11조) ── */
+const MOODS = [
+  { id:'dust',   name:'별가루의 날', desc:'별가루가 두 배로 뿌려진다' },
+  { id:'gold',   name:'금빛의 날',   desc:'골드 벽이 두 배로 나타난다' },
+  { id:'phrase', name:'안무의 날',   desc:'작곡된 구간이 더 자주 나온다' },
+  { id:'nova',   name:'초신성의 날', desc:'초신성이 8초간 이어진다' },
+  { id:'calm',   name:'고요의 날',   desc:'배수가 느긋하게 식는다' },
+];
+const MOOD = MOODS[SEED % MOODS.length];
+const delayNow = () => T.decayDelay + (MOOD.id === 'calm' ? .6 : 0);
+function loadDay(){ try{ return JSON.parse(localStorage.getItem(DKEY)) || {n:0, hi:0}; }catch(e){ return {n:0, hi:0}; } }
+
+/* ── 하늘의 여정: 존이 곧 고도 — 배경은 조용히, 필드는 선명히 ── */
+const BANDS = [
+  { top:[5,7,15],   bot:[11,15,29], deco:'deep',   starA:1 },     // 별의 바다 (심우주)
+  { top:[6,16,24],  bot:[11,21,36], deco:'aurora', starA:.9 },    // 오로라
+  { top:[7,11,22],  bot:[16,22,39], deco:'haze',   starA:.7 },    // 성층권
+  { top:[10,14,25], bot:[20,27,44], deco:'cloud',  starA:.5 },    // 구름바다
+  { top:[8,10,20],  bot:[23,21,38], deco:'city',   starA:.35 },   // 도시의 불빛
+  { top:[10,13,26], bot:[38,32,58], deco:'dawn',   starA:.25 },   // 새벽
+];
+const vlerp = (a,b,t) => [0,1,2].map(i => Math.round(a[i] + (b[i]-a[i])*t));
+const cssv = v => `rgb(${v[0]},${v[1]},${v[2]})`;
+/* ── 스테이지 = 별자리: 선형으로 이어진 하늘들. 코어는 어디서든 무한 런 —
+   "무한 레벨에서 점수를 최대한 올려라". 판마다 낸 점수가 그 별자리의 게이지에 쌓이고,
+   게이지를 다 채우면 별자리를 획득, 다음 하늘이 열린다 (한 판에 못 채운다) ── */
+const STAGES = {
+  // 모든 하늘은 데일리 시드 — 매일 새 코스. 스테이지 간 차이는 테마·기믹뿐, 레벨 생성 문법은 동일.
+  // so = 시드 오프셋 (같은 날에도 하늘마다 다른 코스가 나오게)
+  noname: { name:'이름없는 별자리', daily: true,                        so:0, goal:20000 },
+  leo:    { name:'사자자리',        zones:['basic','fork','fork'],     band:1, so:1, goal:60000 },
+  cygnus: { name:'백조자리',        zones:['basic','mover','mover'],   band:3, so:2, goal:140000 },
+  orion:  { name:'오리온자리',      zones:['basic','narrow','narrow'], band:4, so:3, goal:300000 },
+  draco:  { name:'용자리',          zones:['basic','closer','closer'], band:5, so:4, goal:600000 },
+};
+const STAGE_ORDER = ['noname', 'leo', 'cygnus', 'orion', 'draco'];
+
+/* ── 캐릭터 = 별: 규칙 한 줄 비틀기. 초신성은 '자기 상한 도달'로 일반화 ── */
+const CHARS = {
+  basic: { name:'기본별', desc:'모든 여정의 시작',                 cost:0,   graze:1, deep:2, heatCap:49, heat0:0, decayMul:1, col:'#EAFBFF' },
+  ember: { name:'잿불별', desc:'×5에서 시작, 초신성이 ×30에서 터진다 — 대신 상한도 ×30', cost:200, graze:1, deep:2, heatCap:29, heat0:4, decayMul:1, col:'#FFD9B8' },
+  comet: { name:'혜성',   desc:'스침 +2 — 대신 두 배로 빨리 식는다 (초신성 ×50)',        cost:500, graze:2, deep:3, heatCap:49, heat0:0, decayMul:2, col:'#CFE3FF' },
+};
+const CHAR_ORDER = ['basic', 'ember', 'comet'];
+
+/* 캐릭터 아트 — 3면 스프라이트(앞·뒤·옆) 한 장. 별똥별은 카메라를 등지고 날아간다:
+   기본은 뒷모습, 빠르게 꺾으면 옆모습이 진행 방향으로 돈다. 앞모습은 로비에서 눈을 맞춘다.
+   판정 원(13px)은 캐릭터를 감싸는 링으로 존치 — 원 = 판정의 경계(불변), 캐릭터 = 정체성 */
+const CHAR_IMG = new Image();
+const FR = 128, FR_FRONT = 0, FR_BACK = 1, FR_SIDE = 2;   // 스프라이트 한 칸 128px
+let charImgOk = false, charFace = '';
+CHAR_IMG.onload = () => {
+  charImgOk = true;
+  try{                                            // 로비 초상 — 앞모습 한 칸만 잘라 둔다
+    const fc = document.createElement('canvas'); fc.width = fc.height = FR;
+    fc.getContext('2d').drawImage(CHAR_IMG, FR_FRONT*FR, 0, FR, FR, 0, 0, FR, FR);
+    charFace = fc.toDataURL('image/png');
+    if(state === 'lobby') renderChars();
+  }catch(e){}
+};
+CHAR_IMG.src = 'data:image/png;base64,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';
+let charsOwned = { basic: 1 };
+try{ charsOwned = Object.assign({ basic: 1 }, JSON.parse(localStorage.getItem('aseul-chars') || '{}')); }catch(e){}
+let curChar = localStorage.getItem('aseul-char') || 'basic';
+if(!CHARS[curChar] || !charsOwned[curChar]) curChar = 'basic';
+const CH = () => CHARS[curChar];
+const capH = () => CH().heatCap;
+let currentSky = 'noname';
+{
+  const sel = localStorage.getItem('aseul-sky-sel');
+  if(sel && STAGES[sel]) currentSky = sel;   // 해금 검증은 renderSkies에서 — 잠긴 하늘이면 아래에서 되돌린다
+}
+function loadClear(){ try{ return JSON.parse(localStorage.getItem('aseul-clear')) || {}; }catch(e){ return {}; } }
+
+const CLOUDS = []; for(let i=0;i<7;i++) CLOUDS.push({ x: Math.random(), y: Math.random(), s: .5+Math.random()*.9 });
+const CITYW = []; for(let i=0;i<26;i++) CITYW.push({ x: Math.random()*.96, h: 18+Math.random()*46, w: .02+Math.random()*.045, ph: Math.random()*6.28 });
+const HAZE = []; for(let i=0;i<4;i++) HAZE.push({ y: .12+i*.2+Math.random()*.05, ph: Math.random()*6.28 });
+
+/* ═══════════════ 사운드 (WebAudio 신스, 에셋 0) ═══════════════ */
+let AC = null, muted = localStorage.getItem('aseul-muted') === '1';
+const PENTA = [523,587,659,784,880,1046,1174,1318,1568,1760,2093,2349];
+let lastMaxIdx = -1;   // 절정 스침음이 같은 음을 연달아 내지 않게
+function ac(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC && AC.state==='suspended') AC.resume(); return AC; }
+function tone(freq, dur, type, gain, when=0){
+  const a = AC; if(!a || muted) return;
+  const o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime + when;
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(a.destination);
+  o.start(t0); o.stop(t0 + dur + .02);
+}
+let noiseBuf = null;
+function noiseBuffer(){
+  if(!noiseBuf){
+    noiseBuf = AC.createBuffer(1, AC.sampleRate*.3|0, AC.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  }
+  return noiseBuf;
+}
+function kick(t){
+  if(muted) return;
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(150,t);
+  o.frequency.exponentialRampToValueAtTime(46,t+.12);
+  g.gain.setValueAtTime(.4,t); g.gain.exponentialRampToValueAtTime(.0001,t+.2);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t+.25);
+}
+function hat(t,g0){
+  if(muted) return;
+  const s=AC.createBufferSource(); s.buffer=noiseBuffer();
+  const f=AC.createBiquadFilter(); f.type='highpass'; f.frequency.value=6500;
+  const g=AC.createGain(); g.gain.setValueAtTime(g0,t);
+  g.gain.exponentialRampToValueAtTime(.0001,t+.05);
+  s.connect(f).connect(g).connect(AC.destination); s.start(t); s.stop(t+.08);
+}
+function pluck(t, f, g){
+  if(muted) return;
+  const o=AC.createOscillator(), gn=AC.createGain();
+  o.type='square'; o.frequency.value=f;
+  gn.gain.setValueAtTime(g, t);
+  gn.gain.exponentialRampToValueAtTime(.0001, t+.13);
+  o.connect(gn).connect(AC.destination); o.start(t); o.stop(t+.16);
+}
+function bassN(t, f){
+  if(muted) return;
+  const o=AC.createOscillator(), gn=AC.createGain();
+  o.type='triangle'; o.frequency.value=f;
+  gn.gain.setValueAtTime(.24, t);
+  gn.gain.exponentialRampToValueAtTime(.0001, t+.16);
+  o.connect(gn).connect(AC.destination); o.start(t); o.stop(t+.2);
+}
+/* 그루브 엔진 — 밝은 코드 진행(C–G–Am–F) 위에 통통 튀는 베이스와 뿅뿅 아르페지오.
+   BPM은 열기를 따라 104→147, 스침 음계(C 펜타토닉)와 같은 조성이라 저절로 화음이 된다 */
+const CHORDS = [
+  { bass:130.81, arp:[523.25, 659.25, 783.99, 1046.5] },   // C
+  { bass:98.00,  arp:[493.88, 587.33, 783.99, 987.77] },   // G
+  { bass:110.00, arp:[440.00, 523.25, 659.25, 880.00] },   // Am
+  { bass:87.31,  arp:[440.00, 523.25, 698.46, 880.00] },   // F
+];
+const ARP_ORDER = [0,2,1,3,2,0,3,1];
+const BEAT = { next:0, n:0, timer:null, lastKick:0, spb:.6 };
+/* BPM 104→147 (자기 상한 비율). 초신성 동안은 여기서 한 단계 더 올라간다 —
+   동사가 하나뿐인 게임이라 손맛·눈·귀 세 채널을 동시에 최대로 밀어야 절정이 절정으로 읽힌다 */
+function bpmNow(){ return (104 + (Math.min(heat, capH()) / capH()) * 43) * (nova > 0 ? 1.2 : 1); }
+function startMusic(){
+  if(!ac() || BEAT.timer) return;
+  BEAT.next = AC.currentTime + .06; BEAT.n = 0;
+  BEAT.timer = setInterval(() => {
+    if(BEAT.next < AC.currentTime - .25) BEAT.next = AC.currentTime + .05;
+    while(BEAT.next < AC.currentTime + .13){
+      const spb = 60/bpmNow(); BEAT.spb = spb;
+      const i = BEAT.n % 8;                        // 8분음표 단위, 1마디 = 8
+      const ch = CHORDS[(BEAT.n >> 3) % CHORDS.length];
+      const nv = nova > 0;                         // 초신성 — 곡이 한 단계 위로 올라선다
+      // 킥: 평소 2박 → 초신성 4박(네 발로 구르는 질주)
+      if(nv ? i % 2 === 0 : (i === 0 || i === 4)){ kick(BEAT.next); BEAT.lastKick = BEAT.next; }
+      // 베이스: 평소 오프비트 통통 → 초신성 매 8분음표로 밀어붙인다
+      if(nv || i % 2 === 1) bassN(BEAT.next, ch.bass);
+      pluck(BEAT.next, ch.arp[ARP_ORDER[i]], (heat >= 8 ? .075 : .055) * (nv ? 1.3 : 1));
+      if(heat >= 24 || nv) pluck(BEAT.next, ch.arp[ARP_ORDER[i]]*2, nv ? .06 : .04);  // 한 옥타브 위 반짝이
+      if(nv) pluck(BEAT.next + spb/4, ch.arp[ARP_ORDER[(i+2)%8]]*2, .05);             // 16분 리드 라인
+      hat(BEAT.next, i % 2 ? .06 : .03);
+      if(heat >= 36 || nv) hat(BEAT.next + spb/4, nv ? .09 : .07);   // 더블타임 고스트 햇
+      if(heat >= 12 && i === 4) hat(BEAT.next, .15); // 콤보 붙으면 백비트 강조
+      if(nv && i === 0) hat(BEAT.next, .2);          // 마디 머리 오픈 햇
+      BEAT.next += spb/2; BEAT.n++;
+    }
+  }, 30);
+}
+function stopMusic(){ if(BEAT.timer){ clearInterval(BEAT.timer); BEAT.timer = null; } }
+function beatPulse(){
+  if(!AC || !BEAT.timer) return 0;
+  const p = (AC.currentTime - BEAT.lastKick) / (BEAT.spb || .6);
+  return (p>=0 && p<1) ? Math.max(0, 1 - p*2.6) : 0;
+}
+const sfx = {
+  graze(h, deep, gold, chain){
+    let idx = Math.min(11, Math.floor(Math.sqrt(h / capH()) * 11.99));  // 음계 사다리를 자기 등반 전체에 펼친다
+    if(h >= capH()){                              // 최고 화력: 고음역 6개 랜덤, 직전 음 반복 금지
+      do { idx = 6 + (Math.random()*6|0); } while(idx === lastMaxIdx);
+      lastMaxIdx = idx;
+    }
+    const f = PENTA[idx];
+    tone(f,.13,'triangle', deep ? .4 : .3);
+    tone(f*2,.09,'sine', deep ? .17 : .1);
+    if(h >= 24) tone(f*1.5,.07,'sine',.055,.03);  // 콤보 중반부터 반짝임 한 겹
+    if(h >= capH()) tone(f*1.5,.1,'sine',.1,.05); // 절정 반짝임 레이어
+    if(chain && AC && !muted) hat(AC.currentTime+.03,.11);  // 연속 스침 체인 틱
+    if(AC && !muted && (deep || h>=5)) hat(AC.currentTime, deep ? .22 : .14);
+    if(gold && AC && !muted){                     // 코인 아르페지오
+      tone(987.77,.09,'square',.16);
+      tone(1318.5,.09,'square',.16,.07);
+      tone(1568,.16,'square',.18,.14);
+    }
+  },
+  pass(m){                                        // 통과음 — 배수가 높을수록 풍성해진다
+    const f = PENTA[Math.min((m/3)|0, 7)] * .5;
+    tone(f,.07,'triangle',.13);
+    if(m >= 5)  tone(f*1.5,.08,'triangle',.1,.02);
+    if(m >= 15) tone(f*2,.1,'triangle',.11,.05);
+    if(m >= 25) tone(f*3,.12,'sine',.1,.08);
+    if(m >= 40) tone(f*4,.12,'sine',.08,.11);
+  },
+  cool(h){                                        // 식는 소리 — 오르던 음계 사다리를 거꾸로 한 칸씩 내려온다
+    const idx = Math.min(11, Math.floor(Math.sqrt(Math.max(h, 0) / capH()) * 11.99));
+    tone(PENTA[idx]*.5, .09, 'sine', .06);
+    tone(PENTA[idx]*.25, .14, 'sine', .045, .02);
+  },
+  milestone(){ tone(784,.18,'triangle',.32); tone(1174,.26,'triangle',.26,.06); if(AC && !muted) kick(AC.currentTime); },
+  /* 죽음이 아니라 터지는 순간 — 폭죽. 하강 톱니("퉁")는 답답하고 실패로 들려서 폐기했다.
+     ①밝은 파열 ②짧은 무게감 ③흩어지는 불티 ④뒤에서 열리는 장3화음(희망) */
+  death(){
+    if(!AC || muted) return;
+    const a = AC, t0 = a.currentTime;
+    // ① 공기 터짐 — 밴드패스(중역)는 "탁!" 하고 때리는 소리가 된다. 로우패스를 위에서 아래로
+    //    쓸어내리고 어택을 12ms 부드럽게 열어 둥근 "펑!"으로 바꿨다
+    const s = a.createBufferSource(); s.buffer = noiseBuffer();
+    const lp2 = a.createBiquadFilter(); lp2.type = 'lowpass'; lp2.Q.value = .6;
+    lp2.frequency.setValueAtTime(4400, t0);
+    lp2.frequency.exponentialRampToValueAtTime(760, t0 + .24);        // 바닥을 높여 가볍고 경쾌하게
+    const ng = a.createGain();
+    ng.gain.setValueAtTime(.0001, t0);
+    ng.gain.linearRampToValueAtTime(.42, t0 + .012);                 // 부드러운 어택 = 타격감 제거
+    ng.gain.exponentialRampToValueAtTime(.0001, t0 + .34);
+    s.connect(lp2).connect(ng).connect(a.destination); s.start(t0); s.stop(t0 + .4);
+    // ② 코르크 팝 — 높은 데서 둥글게 떨어지는 "뽕". 낮고 무거운 쿵은 귀엽지 않아 쓰지 않는다
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(950, t0);
+    o.frequency.exponentialRampToValueAtTime(275, t0 + .08);          // 너무 내려가면 무거워진다
+    g.gain.setValueAtTime(.0001, t0);
+    g.gain.linearRampToValueAtTime(.34, t0 + .010);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .20);
+    o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + .24);
+    // ③ 흩날리는 반짝임 — 짧고 높은 핑 20발을 뿌리고, 갈수록 성겨지며 사라진다.
+    //    폭죽 가루가 흩날리는 소리이지 연주가 아니다: 길이 0.05~0.12초로 짧게 끊는다
+    for(let i = 0; i < 20; i++){
+      const p = i / 20;
+      const when = .015 + Math.pow(p, 1.5) * .6 + Math.random() * .05;
+      const f = PENTA[6 + ((Math.random()*6)|0)] * (Math.random() < .5 ? 2 : 3);
+      tone(f, .05 + Math.random()*.07, 'triangle', (.085 - p*.055) * (.7 + Math.random()*.6), when);
+    }
+    // ④ 위로 튀어오르는 짧은 플릭 — **화음을 '두지' 않는다**.
+    //    지속되는 장3화음(C–E–G–C)은 "딩동댕, 정답!"으로 들려서 폐기했다
+    tone(783.99, .10, 'sine', .11, .03);
+    tone(1046.5, .10, 'sine', .10, .075);
+    tone(1568.0, .13, 'sine', .085, .12);
+  }
+};
+const muteBtn = $('mute');
+function drawMute(){ muteBtn.textContent = muted ? '∅' : '♪'; muteBtn.style.color = muted ? '#3A4364' : 'var(--dim)'; }
+muteBtn.addEventListener('pointerdown', e => { e.stopPropagation(); muted = !muted; localStorage.setItem('aseul-muted', muted?'1':'0'); drawMute(); });
+drawMute();
+function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
+
+/* ═══════════════ 상태 ═══════════════ */
+let state = 'title';           // title | play | dying | dead
+let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
+let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
+let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
+let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
+let bandSnap, bandTo, bandT, bandCur;   // 하늘의 여정 — 고도 배경 블렌드
+let dust = [], dustT = 0;
+let lastMultShown = -1, zoom = 1, vign = 0;
+let orb, elapsed, distAcc, nextSpace, score, dispScore, heat, mult, peakMult, grazes, passed;
+let dustRun;                   // 이번 판에 주운 별가루 — 죽음 정산에서 지갑으로
+let runMinDist, runMinSpd;     // 아슬아슬 기록 — 이번 판 최고 근접(가장자리 기준 px)과 그 순간의 속도
+let maxChain, curChain, deepCount, goldCount, pierceCount, novaCount;
+let zc = null;                 // 죽음 하이라이트 — 줌 중심점
+let tut = false;               // 역발상 온보딩 — 첫 두 판, "벽 옆이 살 길"을 몸으로
+let path = [], lastPathT = 0;           // 절정 카드용 경량 궤적 (0.05초당 x 1점)
+let firstGrazeT = null, secondGrazeT = null, deathZone = '';   // 검증 로거 — 문법 학습·사망 원인 추적
+let constSaved, constHad, constGotRun;   // 현재 별자리: 누적 점수 / 이미 획득 / 이번 판에 획득
+let rowsSpawned, zoneIdx, lastGapC, zigDir, forkSafeLeft;
+let moteGap;                   // 별가루 배치 간격 카운터 — 마지막 무리 이후 지난 줄 수
+let handHint;                  // 첫 판 조작 안내(반투명 손) — 실제로 손을 대면 사라진다
+let phraseQueue = [];          // 진행 중인 프레이즈의 남은 줄들
+let melody, peakAt;            // 절정 멜로디 — 스침 음표의 기록
+let sinceGraze, timeScale, shake, flash, deadAt, lockUntil = 0;
+let launch = 0;                        // 발진 연출 잔여 초 — 로비의 앞모습이 돌아서서 날아가기까지
+const LAUNCH_T = .7;
+let wmPop = 0, coolWarned = false, deathSkip = false, novaWarned = false;   // 세계 배수 팝 · 냉각 예고 · 성적표 스킵 · 초신성 꺼짐 예고
+let best = +(localStorage.getItem('aseul3-best') || 0);
+let bestMult = +(localStorage.getItem('aseul3-bmult') || 0);
+
+/* 유성우 — 나와 같은 방향으로 함께 흐르지만 **언제나 나보다 느리다**(v < 1).
+   내 별똥별이 그 사이를 앞질러 나가는 그림이라, 속도는 숫자가 아니라 추월로 느껴진다.
+   진행 방향(아래)이 머리 — 머리 끝이 반짝이고 꼬리가 위로 끌린다 */
+for(let i=0;i<54;i++) lines.push({
+  x:Math.random(), y:Math.random(), l:14+Math.random()*40,
+  a:.05+Math.random()*.10, v:.3+Math.random()*.45
+});
+/* 우주의 별들 — z는 깊이(0 = 아득히 먼 곳, 1 = 코앞). 층마다 다른 속도로 흘러 시차를 만든다:
+   배경이 고정돼 있으면 아무리 빨라도 '떨어지는 중'이라는 느낌이 안 든다.
+   은은하게 깔되 반짝임은 뾰족하게 — 평소엔 거의 안 보이다가 순간 빛난다.
+   색은 차가운 계열로만 쓴다 — 금빛 별 모양은 '별가루(주울 수 있는 것)'의 전용 언어라 절대 침범하지 않는다 */
+const STAR_COLS = ['#EAF3FF', '#CFE3FF', '#AFC8FF', '#E7D9FF', '#BFEAFF'];   // 흰빛~푸른빛~옅은 보랏빛
+const dots = [];
+for(let i=0;i<138;i++) dots.push({          // 하얗고 희미한 별은 많을수록 밤하늘이 깊어진다
+  x:Math.random(), y:Math.random(), z:Math.random(), ph:Math.random()*6.28,
+  w:.5+Math.random()*1.9, c:STAR_COLS[(Math.random()*STAR_COLS.length)|0]
+});
+
+function reset(){
+  const stg = STAGES[currentSky];
+  rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0;
+  motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
+  const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
+  bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
+  bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
+  elapsed = 0; distAcc = 0; nextSpace = 0;
+  score = 0; dispScore = 0; grazes = 0; passed = 0;
+  heat = CH().heat0; mult = 1 + Math.floor(heat); peakMult = mult;   // 잿불별은 ×5에서 출발
+  dustRun = 0;
+  runMinDist = 999; runMinSpd = 1; maxChain = 0; curChain = 0;
+  deepCount = 0; goldCount = 0; pierceCount = 0; novaCount = 0; zc = null;
+  tut = +(localStorage.getItem('aseul-runs') || 0) < 2;
+  handHint = tut;
+  path = []; lastPathT = 0;
+  firstGrazeT = null; secondGrazeT = null; deathZone = '';
+  rowsSpawned = 0; zoneIdx = 0; lastGapC = W/2; zigDir = 1; forkSafeLeft = true; moteGap = 99;
+  phraseQueue = [];
+  melody = []; peakAt = 0;
+  sinceGraze = 99; timeScale = 1; shake = 0; flash = 0; zoom = 1; vign = 0;
+  wmPop = 0; coolWarned = false; novaWarned = false; launch = LAUNCH_T;
+  orb = { x: W/2, tx: W/2, y: H*ORB_YR, trail: [], px: W/2, vxs: 0 };
+  lastMultShown = -1;
+  constSaved = +(localStorage.getItem('aseul-const-' + currentSky) || 0);
+  constHad = !!loadClear()[currentSky];
+  constGotRun = false;
+  rng = mulberry32(SEED + (stg.so || 0) * 7919);   // 모든 하늘이 날짜 시드 — 매일 새 코스, 하늘마다 다른 코스
+}
+reset();
+
+/* ═══════════════ 입력 ═══════════════ */
+let keyL=false, keyR=false;
+function pointerX(e){
+  const r = stage.getBoundingClientRect();
+  return (e.clientX - r.left) * (W / r.width);
+}
+function modalOpen(){ return $('cardview').classList.contains('on') || $('skyview').classList.contains('on'); }
+/* 꺼진 화면의 잔존 버튼 차단 — CSS visibility와 이중 방어.
+   캡처 단계에서 먼저 삼켜, 버튼 자신의 핸들러(재시작·절정 카드·로비)까지 아예 도달하지 못하게 한다.
+   페이드아웃 0.25초 동안 남는 클릭 창도 여기서 막힌다 */
+stage.addEventListener('pointerdown', e => {
+  const ov = e.target && e.target.closest ? e.target.closest('.overlay') : null;
+  if(ov && !ov.classList.contains('on')){ e.stopPropagation(); e.preventDefault(); }
+}, true);
+stage.addEventListener('pointerdown', e => {
+  ac();
+  if(modalOpen()) return;                                // 모달(카드·밤하늘)이 열려 있으면 필드는 잠긴다
+  if(state === 'title'){ showLobby(); return; }          // 메인 → 로비
+  if(state === 'lobby') return;                          // 로비는 버튼으로만
+  if(state === 'dead'){                                  // 재시작은 버튼으로만 — 탭 재시작은 오조작으로 판을 날린다
+    deathSkip = true;                                    // 이른 탭 = 성적표 즉시 공개
+    return;
+  }
+  if(state === 'play'){ orb.tx = pointerX(e); handHint = false; }   // 손을 대는 순간 안내는 끝난다
+});
+stage.addEventListener('pointermove', e => { if(state==='play' && !modalOpen()) orb.tx = pointerX(e); });
+stage.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+addEventListener('keydown', e => {
+  if(e.key==='ArrowLeft') keyL = true;
+  if(e.key==='ArrowRight') keyR = true;
+  if((e.key===' '||e.key==='Enter')){
+    if(state==='title') showLobby();
+    else if(state==='lobby') startRun();
+    else if(state==='dead' && performance.now()>lockUntil) startRun();
+  }
+});
+addEventListener('keyup', e => {
+  if(e.key==='ArrowLeft') keyL = false;
+  if(e.key==='ArrowRight') keyR = false;
+});
+$('retry').addEventListener('pointerdown', e => { e.stopPropagation(); ac(); startRun(); });
+function melodyReady(){ return melody.filter(n => n.e >= peakAt - 6 && n.e <= peakAt + 2).length >= 4; }
+function playPeakMelody(){                                              // 별똥별이 남긴 노래 — 절정 8초 재생
+  if(!ac()) return;
+  const win = melody.filter(n => n.e >= peakAt - 6 && n.e <= peakAt + 2);
+  if(!win.length) return;
+  const t0 = win[0].e;
+  for(const n of win){
+    const when = (n.e - t0) * .8;                                       // 살짝 조여서 노래처럼
+    let idx = Math.min(11, Math.floor(Math.sqrt(n.h / capH()) * 11.99));
+    if(n.h >= capH()) idx = 6 + (Math.random()*6|0);
+    const f = PENTA[idx];
+    tone(f, .14, 'triangle', n.d ? .34 : .26, when);
+    tone(f*2, .1, 'sine', .1, when);
+    if(n.g){ tone(987.77,.09,'square',.13,when); tone(1318.5,.09,'square',.13,when+.07); tone(1568,.14,'square',.15,when+.14); }
+  }
+}
+
+function startRun(){
+  reset();
+  state = 'play';
+  startMusic();
+  titleOv.classList.remove('on');
+  deathOv.classList.remove('on');
+  $('lobby').classList.remove('on');
+  $('cardview').classList.remove('on'); $('skyview').classList.remove('on');   // 모달을 끌고 들어가지 않는다
+  deathOv.classList.remove('s1','s2','s3');    // 성적표 단계 클래스도 정리 — 남으면 꺼진 버튼이 되살아난다
+  hud.classList.add('on');
+  bestHud.textContent = 'BEST ' + best.toLocaleString();
+  if(tut) floater(W/2, H*.52, '벽 옆의 금빛 별을 따라가 봐', '#FFD98A', 16, 2.8);   // 온보딩 — 첫 안내
+}
+
+/* ═══════════════ 패턴 생성 ═══════════════ */
+const lerp = (a,b,t) => a + (b-a)*t;
+const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+function diff(){ return clamp(elapsed / T.rampSec, 0, 1); }
+function speed(){
+  return (lerp(T.speed0, T.speed1, diff()) + Math.max(0, elapsed - T.rampSec) * 1.1) * zone().spdMul
+    * (1 + Math.min(heat, capH()) / capH() * .12)         // 폭주 — 뜨거울수록 세계가 빨라진다 (최대 +12%)
+    * (nova > 0 ? 1.25 : 1);                              // 초신성 — 질주
+}
+
+/* ── ZONE 시스템: 13줄마다 페이지가 넘어가듯 테마가 바뀐다 ── */
+/* 존 사전 — 기본 하늘은 순한 3존 순환, 특성 기믹 4종은 스테이지 하늘 전용 */
+const ZONE_DEFS = {
+  basic:  { name:'워밍업',    col:'#3A4680', type:'basic',  gapMul:1.0,  spdMul:1.0 },
+  zigzag: { name:'지그재그',  col:'#2E5F6E', type:'zigzag', gapMul:1.0,  spdMul:1.0 },
+  island: { name:'별 소나기', col:'#6E5230', type:'island', gapMul:1.12, spdMul:1.0 },
+  fork:   { name:'갈림길',    col:'#3F6045', type:'fork',   gapMul:1.0,  spdMul:.97 },
+  mover:  { name:'무빙워크',  col:'#4A3E86', type:'mover',  gapMul:1.06, spdMul:1.0 },
+  narrow: { name:'좁은 골목', col:'#5C3550', type:'narrow', gapMul:.88,  spdMul:.94 },
+  closer: { name:'닫히는 문', col:'#6E3A3A', type:'closer', gapMul:1.0,  spdMul:.96 },
+};
+const BASE_ROTATION = ['basic', 'zigzag', 'island'];
+
+/* ── 코스의 작곡: 손으로 짠 프레이즈 — 같은 조작이 놓이는 맥락을 안무한다 ──
+   g = 통로 폭(지름 배수), c = 통로 중심(화면 비율). 랜덤 나열이 못 만드는 긴장의 드라마 */
+const PHRASES = [
+  { name:'조임',      rows:[ {g:2.2,c:.5}, {g:1.7,c:.5}, {g:1.35,c:.5}, {g:1.0,c:.5}, {g:.75,c:.5}, {g:2.0,c:.5} ] },
+  { name:'외길',      rows:[ {g:.85,c:.3}, {g:.85,c:.33}, {g:.85,c:.36}, {g:.85,c:.39}, {g:.85,c:.42} ] },
+  { name:'파도',      rows:[ {g:1.1,c:.2}, {g:1.1,c:.45}, {g:1.1,c:.7}, {g:1.1,c:.45}, {g:1.1,c:.2} ] },
+  { name:'바늘 계단', rows:[ {g:.72,c:.35}, {g:1.8,c:.6}, {g:.72,c:.65}, {g:1.8,c:.4}, {g:.72,c:.5} ] },
+  { name:'골드 유혹', rows:[ {g:1.4,c:.3,gold:1}, {g:1.2,c:.42,gold:1}, {g:1.0,c:.54,gold:1}, {g:.8,c:.64,gold:1} ] },
+];
+const ROWS_PER_ZONE = 13;
+function zone(){
+  const list = STAGES[currentSky].zones || BASE_ROTATION;
+  return ZONE_DEFS[list[zoneIdx % list.length]];   // 모든 하늘이 무한 순환 — 코어는 어디서든 같다
+}
+
+/* ── 엄지 배려: 손이 아프면 게임이 끝난다 ──
+   큰 폰을 한 손으로 쥐면 화면 양 끝을 연달아 오가는 코스는 물리적으로 고통스럽다.
+   조작 문법(절대 위치)과 판정은 그대로 두고, **코스가 엄지의 한계를 존중하게** 만든다:
+   ①도달 범위 — 통로 중심을 화면 양 끝까지 밀지 않는다
+   ②연속 이동 — 다음 줄까지 남은 시간에 엄지가 실제로 갈 수 있는 거리 안에서만 옮긴다
+   빨라질수록 저절로 좁아지므로, 후반의 "물리적으로 불가능한 배치"까지 함께 사라진다.
+   난이도는 이동 거리가 아니라 통로 폭(정밀도)이 만든다 — 손이 아니라 실력을 요구한다 */
+const REACH = { span: 320, spd: 700, safe: .8 };   // 편한 스윕 폭(px) · 편한 엄지 속도(px/s) · 여유
+function gateCenter(gc, gapW){
+  const lo0 = gapW*.7 + gapW/2, hi0 = W - gapW*.7 - gapW/2;     // 벽이 남아야 하는 최소 여백
+  const half = Math.min(W, REACH.span) / 2;
+  const step = REACH.spd * (nextSpace / Math.max(1, speed())) * REACH.safe;
+  let lo = Math.max(lo0, W/2 - half, lastGapC - step);
+  let hi = Math.min(hi0, W/2 + half, lastGapC + step);
+  if(lo > hi){ lo = hi = clamp((lo + hi)/2, lo0, hi0); }         // 모순이면 벽 여백을 우선한다
+  return clamp(gc, lo, hi);
+}
+function gate(row, gapW, gc){
+  gc = gateCenter(gc, gapW);
+  row.blocks.push({ x: 0, w: gc - gapW/2 }, { x: gc + gapW/2, w: W - gc - gapW/2 });
+  lastGapC = gc;
+}
+function island(row, bw, bx, amp){
+  row.blocks.push({ x: bx, w: bw, baseX: bx, amp: amp || 0,
+    spd: lerp(.9,1.6,rng()), ph: rng()*6.28 });
+  lastGapC = bx > W - (bx + bw) ? bx/2 : (bx + bw + W)/2;        // 넓은 쪽이 이번 줄의 통로 — 다음 줄 이동 계산의 기준
+}
+
+function spawnRow(y = FALL ? H + 6 : -BLOCK_H - 6){
+  const d = diff(), z = zone();
+  const gapW = lerp(T.gap0, T.gap1, d) * ORB_R * 2 * z.gapMul;
+  const row = { y, blocks: [], scored: false, col: z.col };
+  const r = rng();                                       // 배치 난수는 전부 rng — 오늘 안에서 코스가 고정된다
+  const gateRow = (rowsSpawned + 1) % ROWS_PER_ZONE === 0;
+
+  // 프레이즈 시작 판정 — 조용한 존들에서 가끔, 작곡된 5~6줄이 끼어든다
+  if(!gateRow && !phraseQueue.length && rowsSpawned >= 6 &&
+     (z.type === 'basic' || z.type === 'zigzag') && rng() < (MOOD.id === 'phrase' ? .36 : .18)){
+    phraseQueue = PHRASES[(rng() * PHRASES.length)|0].rows.slice();
+  }
+
+  if(gateRow){                                           // 별의 문 — 존의 마지막 줄은 순금 바늘구멍
+    phraseQueue.length = 0;                              // 문 앞에서 프레이즈는 끝난다
+    const gw = Math.max(gapW * .85, ORB_R * 2 * 1.9);
+    gate(row, gw, lerp(W*.3, W*.7, rng()));
+    row.blocks.forEach(b => b.gold = true);
+  } else if(rowsSpawned < 3){                            // 첫 3줄은 넓은 게이트
+    gate(row, gapW*1.25, lerp(W*.3, W*.7, rng()));
+  } else if(phraseQueue.length){                         // 작곡된 프레이즈 진행 중
+    const ps = phraseQueue.shift();
+    const pg = Math.max(gapW * ps.g, 54);                // 폭은 현재 난이도에 상대적 — 초반은 순하고 후반은 조인다
+    gate(row, pg, ps.c * W + (rng() - .5) * 24);
+    if(ps.gold) row.blocks[rng() < .5 ? 0 : 1].gold = true;
+  } else if(z.type === 'closer'){                        // 닫히는 문 — 내려올수록 조여든다. 도착 시점을 예측하라
+    const c = gateCenter(lerp(W*.22, W*.78, rng()), gapW);       // 닫히는 문도 엄지 범위 안에서
+    row.close = { c, g0: gapW*1.7, g1: Math.max(gapW*.62, 54), y0: y };
+    row.blocks.push({ x: 0, w: 1, dyn: 'L' }, { x: 0, w: 1, dyn: 'R' });   // 실제 기하는 매 프레임 계산
+    lastGapC = c;
+  } else if(z.type === 'zigzag'){                        // 좌우로 꺾이는 통로
+    zigDir = -zigDir;
+    gate(row, gapW, lastGapC + zigDir * lerp(110, 190, rng()));
+  } else if(z.type === 'mover'){                         // 움직이는 벽 위주
+    if(r < .6){
+      const bw = clamp(W - 2.2*gapW, 60, W*.5);
+      island(row, bw, lerp(gapW*.8, W - gapW*.8 - bw, rng()), lerp(26,52,rng()));
+    } else gate(row, gapW, lerp(gapW, W - gapW, rng()));
+  } else if(z.type === 'fork'){                          // 갈림길: 넓은 안전로 vs 좁고 금빛인 아슬로 — 선택은 손가락 위치 그 자체
+    const side = (W - 46) / 2;                           // 46px 중앙 분리대 기준 좌우 반쪽
+    const safeG = Math.min(gapW * 1.25, side * .78);
+    const riskG = Math.max(gapW * .6, 58);
+    const wob = (rng() - .5) * 34, gRoll = rng(), gSide = rng();   // 난수 소비 수를 줄마다 고정
+    const lgw = forkSafeLeft ? safeG : riskG;
+    const rgw = forkSafeLeft ? riskG : safeG;
+    const lc = clamp(side*.5 + wob, lgw*.55 + 10, side - lgw*.55);
+    const rc = clamp(side + 46 + side*.5 + wob, side + 46 + rgw*.55, W - rgw*.55 - 10);
+    row.blocks.push(
+      { x: 0, w: lc - lgw/2 },
+      { x: lc + lgw/2, w: (rc - rgw/2) - (lc + lgw/2) },
+      { x: rc + rgw/2, w: W - rc - rgw/2 });
+    if(gRoll < .4){                                      // 아슬로는 금빛으로 빛난다 — 룰은 세계에 그린다
+      const ri = forkSafeLeft ? (gSide < .5 ? 1 : 2) : (gSide < .5 ? 0 : 1);
+      if(row.blocks[ri]) row.blocks[ri].gold = true;
+    }
+    if(rng() < .6){                                      // 아슬로 한가운데로 이어지는 별가루 점선
+      const rcx = forkSafeLeft ? rc : lc;
+      motes.push({ x: rcx + (rng() - .5)*14, y: y - DIR*(26 + rng()*14), ph: rng()*6.28 },
+                 { x: rcx + (rng() - .5)*14, y: y - DIR*(88 + rng()*14), ph: rng()*6.28 });
+    }
+  } else if(z.type === 'narrow'){                        // 좁지만 살짝 느린 골목
+    gate(row, gapW, lerp(gapW, W - gapW, rng()));
+  } else if(z.type === 'island'){                        // 떠 있는 섬들 = 그레이즈 파티
+    if(r < .5){
+      const bw = W * lerp(.14,.2,rng());
+      island(row, bw, W*.5 - bw - gapW*.55, 0);
+      island(row, bw, W*.5 + gapW*.55, 0);
+    } else {
+      const bw = clamp(W - 2*gapW, 60, W*.55);
+      island(row, bw, lerp(gapW*.7, W - gapW*.7 - bw, rng()), 0);
+    }
+  } else {                                               // basic: 게이트+섬 혼합
+    if(r < .55) gate(row, gapW, lerp(gapW, W - gapW, rng()));
+    else {
+      const bw = clamp(W - 2*gapW, 60, W*.55);
+      const mv = rng() < .3;                             // 난수 소비 순서를 판마다 같게 유지
+      island(row, bw, lerp(gapW*.7, W - gapW*.7 - bw, rng()), d > .4 && mv ? 30 : 0);
+    }
+  }
+  row.blocks = row.blocks.filter(b => b.dyn || b.w > 8);
+  if(!gateRow && rowsSpawned >= 3 && row.blocks.length && rng() < (MOOD.id === 'gold' ? .16 : .08)){  // 골드 벽 잭팟 (금빛의 날 두 배)
+    row.blocks[(rng()*row.blocks.length)|0].gold = true;
+  }
+  /* ── 별가루 배치 규칙 (v0.52 — 한 줄로 말할 수 있어야 한다) ──
+     **"MOTE_GAP줄마다 한 무리(2~3개)가 위험한 라인 위에 놓이고, 별의 문 앞에는 항상 3개."**
+     확률(줄당 38%)로 뿌리면 운 나쁘면 한참 안 나오고 운 좋으면 몰려 나와서
+     "언제 뭐가 나오는지" 규칙이 서지 않았다. **간격 카운터**로 바꿔 공급을 균일하게 만든다 —
+     목표는 부자 되는 느낌이 아니라 "계속 먹을 게 나오는구나" 수준의 꾸준함. */
+  moteGap++;
+  const gapNeed = (tut && rowsSpawned < 14) ? 2 : (MOOD.id === 'dust' ? 2 : 4);   // 온보딩·별가루의 날은 촘촘히
+  if(gateRow){
+    for(let k = 0; k < 3; k++)                             // 별의 문 = 관문 보상, 항상 3개
+      motes.push({ x: lastGapC + (rng() - .5)*18, y: y - DIR*(34 + k*42 + rng()*16), ph: rng()*6.28 });
+    moteGap = 0;
+  } else if(rowsSpawned >= 3 && moteGap >= gapNeed){
+    const mPick = rng(), mSide = rng() < .5;
+    const cbs = row.blocks.filter(b => !b.amp && !b.dyn);   // 움직이는 벽·닫히는 문에는 안 뿌린다
+    if(cbs.length){
+      const b = cbs[(mPick * cbs.length)|0];
+      let mx;
+      if(b.x <= 1) mx = b.x + b.w + 20;
+      else if(b.x + b.w >= W - 1) mx = b.x - 20;
+      else mx = mSide ? b.x - 20 : b.x + b.w + 20;
+      if(mx > 10 && mx < W - 10){
+        const n = 2 + (rng() < .5 ? 1 : 0);                 // 한 무리 = 2~3개
+        for(let k = 0; k < n; k++)
+          motes.push({ x: mx + (rng() - .5)*16, y: y - DIR*(k*38 + rng()*18), ph: rng()*6.28 });
+        moteGap = 0;
+      }
+    }
+  }
+  row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; b.cornerHit = false; });
+  rows.push(row);
+
+  rowsSpawned++;
+  if(rowsSpawned % ROWS_PER_ZONE === 0){                 // 페이지 넘김
+    zoneIdx++;
+    const nz = zone();
+    if(nz.type === 'fork') forkSafeLeft = rng() < .5;    // 이번 갈림길의 안전측 결정
+    if(STAGES[currentSky].band === undefined){           // 1스테이지만 고도가 계속 내려간다 — 이후 별자리는 제 색 고정
+      bandSnap = { top: bandCur.top, bot: bandCur.bot, starA: bandCur.starA, deco: BANDS[bandTo].deco };
+      bandTo = zoneIdx % BANDS.length; bandT = 0;
+    }
+    floater(W/2, H*.36, 'ZONE ' + (zoneIdx+1) + ' · ' + nz.name, '#7DF3FF', 26, 1.5);
+    rings.push({x:W/2, y:H*.5, r0:20, r1:W*.7, col:'#7DF3FF', lw:3, life:.6, t:0});
+    nextSpace += 250;                                    // 한 박자 쉼표
+    if(AC && !muted){ hat(AC.currentTime,.12); hat(AC.currentTime+.09,.12); hat(AC.currentTime+.18,.18); kick(AC.currentTime+.27); }
+  }
+}
+
+/* ═══════════════ 파티클 & 플로터 ═══════════════ */
+function sparks(x, y, n, col, pow=1){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*6.283, s = (60+Math.random()*190)*pow;
+    parts.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: .4+Math.random()*.35, t: 0, r: 1.4+Math.random()*2.2, col });
+  }
+}
+function floater(x, y, txt, col, size=15, life=.8){
+  // 겹침 방지 — 방금 생긴 플로터와 자리가 겹치면 위로 쌓는다 (점수와 배수 텍스트가 안 겹치게)
+  let moved = true, guard = 0;
+  while(moved && guard++ < 5){
+    moved = false;
+    for(const f of floats){
+      if(f.t < .45 && Math.abs(f.x - x) < 72 && Math.abs(f.y - y) < 21){ y = f.y - 22; moved = true; }
+    }
+  }
+  floats.push({ x, y, txt, col, size, t: 0, life });
+}
+function spawnStars(x, y, n){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*6.283, s = 70+Math.random()*150;
+    stars.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, t: 0, life: .5,
+      r: 3.5+Math.random()*3.5, rot: Math.random()*6.28, vr: (Math.random()-.5)*10 });
+  }
+}
+/* 초신성 중 스침 — 무적이라 배수는 이미 상한이니, 오르는 대신 **곧바로 점수로 떨어진다**.
+   스침 = 10×배수(줄 통과와 같은 값) · 아슬 = 20×배수. 부수면 아무것도 안 나온다 — 파괴는 기본, 스침은 실력.
+   초신성은 쉬는 구간이지만 점수가 와다다 쏟아지는 구간이기도 해야 한다: 상한에 도달한 보상은 눈에 보여야 한다 */
+/* 스침 이벤트 — 점수가 아니라 '배수'가 오른다. 스침 +1 · 아슬 +2 · 골드 +5
+   초신성 중에는 **같은 룰이 그대로 굴러가되 출구만 다르다**: 배수가 오를 자리가 없으니
+   '오를 만큼'이 즉시 점수로 떨어진다 (증가분 × 10 × 배수 = 그 배수로 줄을 통과한 값).
+   스침 +1 → 10×배수 · 아슬 +2 → 20×배수 · 골드 +5 → 50×배수 · 관통 +2 → 20×배수 추가.
+   플로터·소리·판정은 평소와 완전히 동일 — 무엇을 해서 얼마를 벌었는지가 똑같이 읽혀야 한다 */
+function grazeEvent(cx, cy, deep, b){
+  const gold = !!b.gold;
+  const chain = sinceGraze < .9;   // 콤보가 '거듭되는' 중 — 룰은 그대로, 연출만 세진다
+  const pierce = (elapsed - lastG.t < .28) && lastG.b !== b;   // 관통 — 서로 다른 두 벽을 한 호흡에 꿰다
+  lastG = { t: elapsed, b };
+  const nv = nova > 0;                                          // 초신성 = 배수 대신 점수로 나가는 구간
+  // 배수 공식(어린이 암산 가능): 스침/아슬은 캐릭터 값 · 골드 +5(고정) · 관통 +2 · 상한은 캐릭터별
+  const base = gold ? 5 : deep ? CH().deep : CH().graze;
+  const pay = n => (n * 10 * mult).toLocaleString();            // 배수 증가분 → 점수 환산
+  if(nv) score += (base + (pierce ? 2 : 0)) * 10 * mult;
+  else heat = Math.min(heat + base + (pierce ? 2 : 0), capH());
+  if(pierce){
+    floater(orb.x, orb.y - 58, nv ? '관통 +' + pay(2) : '관통 +2', '#CFF6FF', 20, .9);
+    rings.push({x: orb.x, y: orb.y, r0: 8, r1: 96, col: '#CFF6FF', lw: 4, life: .4, t: 0});
+    tone(880, .07, 'square', .14); tone(1760, .12, 'sine', .14, .05);
+    buzz(20);
+  }
+  grazes++; sinceGraze = 0; coolWarned = false;
+  if(firstGrazeT === null) firstGrazeT = elapsed;       // 문법 학습 지표: 첫 스침 → 두 번째 스침 전환
+  else if(secondGrazeT === null) secondGrazeT = elapsed;
+  curChain = chain ? curChain + 1 : 1; maxChain = Math.max(maxChain, curChain);   // 연속 스침 기록
+  if(deep) deepCount++;
+  if(gold) goldCount++;
+  if(pierce) pierceCount++;
+  const m = 1 + Math.floor(heat);
+  const col = gold ? '#FFDF6B' : deep ? '#FF5C7A' : '#FFB454';
+  sparks(cx, cy, (deep ? 14 : 8) + (chain ? 5 : 0), col, (deep ? 1.25 : 1) + (chain ? .15 : 0));
+  spawnStars(cx, cy, Math.min((deep ? 5 : 3) + (gold ? 5 : 0), 8));
+  // 배수 이벤트는 '이유 + 증가량'으로 표기 — 초신성 중엔 같은 이유에 점수가 붙는다
+  const why = gold ? '골드' : deep ? '아슬' : '스침';
+  floater(cx, cy - 16, nv ? why + ' +' + pay(base) : why + ' +' + base, col,
+    (deep || gold ? 19 : 14) + (chain ? 2 : 0) + (nv ? 6 : 0), deep || gold ? .95 : .7);
+  sfx.graze(Math.floor(heat), deep, gold, chain);
+  if(!localStorage.getItem('aseul-firstgraze')){       // 생애 첫 스침 — 문법을 몸으로 깨닫는 순간을 축하한다
+    try{ localStorage.setItem('aseul-firstgraze', '1'); }catch(e){}
+    floater(W/2, H*.5, '바로 그거야! 스칠수록 배수가 오른다', '#FFDF6B', 17, 2.6);
+    rings.push({x: cx, y: cy, r0: 8, r1: 120, col: '#FFDF6B', lw: 4, life: .6, t: 0});
+  }
+  if(melody.length < 900) melody.push({ e: elapsed, h: Math.floor(heat), d: deep, g: gold });   // 이 판의 악보
+  buzz(deep ? 25 : 10);
+  rings.push({x:cx, y:cy, r0:6, r1: deep ? 64 : 46, col: deep ? '#FFEDF0' : '#FFD98A', lw: deep ? 4 : 3, life:.35, t:0});
+  if(b.cornerHit){                               // 모서리 글린트 — 모서리를 감아 돈 스침은 그 자리가 하얗게 반짝인다
+    rings.push({x:cx, y:cy, r0:2, r1:34, col:'#FFFFFF', lw:2.5, life:.28, t:0});
+    stars.push({x:cx, y:cy, vx:0, vy:0, t:0, life:.4, r:9, rot:Math.random()*6.28, vr:7, col:'#FFFFFF'});
+    tone(2093,.07,'sine',.09,.02);
+  }
+  if(!REDUCED){
+    timeScale = nv ? (deep ? .6 : .78) : (deep ? .32 : .5);   // 초신성 중엔 슬로모를 얕게 — 질주감을 끊지 않는다
+    zoom = deep ? 1.055 : 1.03;
+    if(deep) vign = .55;
+  }
+}
+
+/* 닫히는 문의 현재 기하 — 스폰 위치에서 플레이어 고도까지 스무스하게 조여든다 */
+function closeGap(row){
+  const p = clamp((row.y - row.close.y0) / (H*ORB_YR - row.close.y0), 0, 1);
+  return lerp(row.close.g0, row.close.g1, p*p*(3 - 2*p));
+}
+function blockGeom(row, b){
+  if(!b.dyn) return { x: b.amp ? b.baseX + Math.sin(elapsed*b.spd + b.ph)*b.amp : b.x, w: b.w };
+  const g = closeGap(row), c = row.close.c;
+  return b.dyn === 'L' ? { x: 0, w: c - g/2 } : { x: c + g/2, w: W - c - g/2 };
+}
+
+/* ═══════════════ 그레이즈 & 충돌 (게임의 전부) ═══════════════ */
+function hitTest(dt){
+  const ox = orb.x, oy = orb.y;
+  for(const row of rows){
+    if(row.y > oy + ORB_R + BAND + BLOCK_H || row.y + BLOCK_H < oy - ORB_R - BAND){
+      row.blocks.forEach(b => {
+        if(b.pending){                                  // 범위를 벗어나며 판정 확정
+          b.pending = false; b.judged = true;
+          grazeEvent(b.lastCx || orb.x, b.lastCy || orb.y, b.minDist < ORB_R + DEEP, b);
+        }
+        b.inBand = false;
+      });
+      continue;
+    }
+    for(const b of row.blocks){
+      const geo = blockGeom(row, b);
+      // 라운드 모서리 충돌 — 그림과 판정이 일치한다: 눈에 보이는 벽에 닿아야 죽는다
+      const R = Math.min(WALL_R, geo.w * .5);
+      const cx = clamp(ox, geo.x + R, geo.x + geo.w - R), cy = clamp(oy, row.y + R, row.y + BLOCK_H - R);
+      const dx = ox - cx, dy = oy - cy;
+      const len = Math.hypot(dx, dy);
+      const dist = len - R;
+      const sx = len > 0 ? cx + dx/len*R : cx;          // 실제 표면 접점 — 이펙트는 여기서 튄다
+      const sy = len > 0 ? cy + dy/len*R : cy;
+      const isCorner = (ox < geo.x + R || ox > geo.x + geo.w - R) && (oy < row.y + R || oy > row.y + BLOCK_H - R);
+
+      if(nova <= 0 && dist >= ORB_R && dist - ORB_R < runMinDist){   // 아슬아슬 기록 — 살아있는 순간의 최고 근접
+        runMinDist = dist - ORB_R; runMinSpd = speed();              // 무적 중의 근접은 아슬함이 아니다 — 초신성은 제외
+      }
+
+      if(dist < ORB_R){
+        if(nova > 0){                                   // 초신성 — 벽을 부수며 관통한다
+          row.blocks.splice(row.blocks.indexOf(b), 1);
+          sparks(sx, sy, 22, '#FFDF6B', 1.5); sparks(sx, sy, 10, '#FFFFFF', 1.2);
+          spawnStars(sx, sy, 6);
+          rings.push({x:sx, y:sy, r0:8, r1:90, col:'#FFDF6B', lw:4, life:.4, t:0});
+          if(!REDUCED) shake = Math.max(shake, 7);
+          if(AC && !muted){ kick(AC.currentTime); hat(AC.currentTime, .2); }
+          buzz(30);
+          break;                                        // 이 줄의 판정은 다음 프레임에
+        }
+        die(sx, sy); return;
+      }
+
+      if(dist < ORB_R + BAND){
+        if(!b.inBand){
+          b.inBand = true;
+          if(!b.judged && !b.pending){                  // 접촉 — 판정은 0.14초 뒤 딱 1번
+            b.pending = true; b.judgeAt = elapsed + .14; b.minDist = dist; b.cornerHit = isCorner;
+            tone(660,.04,'sine',.05);                   // 접촉 확인음(작게)
+            sparks(sx, sy, 3, '#FFB454', .6);
+          }
+        }
+        if(b.pending){
+          if(dist < b.minDist){ b.minDist = dist; b.cornerHit = isCorner; }  // 가장 깊이 붙은 순간과 그 위치
+          b.lastCx = sx; b.lastCy = sy;
+          if(elapsed >= b.judgeAt){                     // 판정 확정: 스침이냐 아슬이냐
+            b.pending = false; b.judged = true; b.flash = 1;
+            grazeEvent(sx, sy, b.minDist < ORB_R + DEEP, b);
+          }
+        }
+      } else {
+        b.inBand = false;
+        if(b.pending){                                  // 밴드를 떠나는 순간 조기 확정
+          b.pending = false; b.judged = true; b.flash = 1;
+          grazeEvent(b.lastCx || sx, b.lastCy || sy, b.minDist < ORB_R + DEEP, b);
+        }
+      }
+    }
+  }
+}
+
+function die(x, y){
+  state = 'dying'; deadAt = 0;
+  deathZone = zone().name;                              // 사망 원인(존) 기록 — 밸런싱 데이터
+  zc = { x, y };                                        // 죽음의 지점으로 카메라가 빨려 들어간다
+  stopMusic();
+  sfx.death(); buzz(70);
+  // 폭죽 — 별똥별은 꺼지는 게 아니라 터진다. 여러 색이 한 번에 피고, 잔불이 한 번 더 튄다
+  rings.push({x:orb.x, y:orb.y, r0:10, r1:215, col:'#FFFFFF', lw:5, life:.62, t:0});
+  rings.push({x:orb.x, y:orb.y, r0:6,  r1:132, col:'#FFDF6B', lw:3, life:.44, t:0});
+  sparks(orb.x, orb.y, 40, '#FFF3C4', 2.1);
+  sparks(orb.x, orb.y, 26, '#FFD98A', 1.6);
+  sparks(orb.x, orb.y, 22, '#9BE8FF', 1.3);
+  sparks(orb.x, orb.y, 16, '#FF9AC4', 1.1);
+  spawnStars(orb.x, orb.y, 14);
+  if(!REDUCED) setTimeout(() => {                       // 크래클 — 흩어진 자리에서 다시 한 번
+    if(state !== 'dying') return;
+    for(let i = 0; i < 3; i++){
+      const a2 = Math.random()*6.283, d2 = 32 + Math.random()*48;
+      const bx = orb.x + Math.cos(a2)*d2, by = orb.y + Math.sin(a2)*d2;
+      sparks(bx, by, 10, ['#FFF3C4','#9BE8FF','#FFD98A'][i%3], 1.1);
+      rings.push({x:bx, y:by, r0:3, r1:54, col:'#FFF3C4', lw:2, life:.3, t:0});
+    }
+  }, 150);
+  if(runMinDist < 999)                                  // 하이라이트: 이번 판 최고 근접이 크게 뜬다
+    floater(x, y - 48, Math.max(0, Math.round(runMinDist)) + 'px', '#FFDF6B', 36, 2.4);
+  if(!REDUCED){ shake = 9; flash = .8; timeScale = .06; }
+}
+
+/* 별자리 획득 — 게이지가 판 중에 차오르면 그 자리에서 하늘이 열린다 */
+function acquireConstellation(){
+  constHad = true; constGotRun = true;
+  const cl = loadClear(); cl[currentSky] = 1;
+  try{ localStorage.setItem('aseul-clear', JSON.stringify(cl)); }catch(e){}
+  const stg = STAGES[currentSky];
+  floater(W/2, H*.4, '★ ' + stg.name + ' 완성! ★', '#FFDF6B', 26, 2);
+  floater(W/2, H*.4 + 36, '다음 하늘이 열렸다', '#FFD98A', 14, 2);
+  rings.push({x: W/2, y: H*.45, r0: 20, r1: W, col: '#FFDF6B', lw: 4, life: .8, t: 0});
+  if(AC && !muted){ kick(AC.currentTime); for(let i = 0; i < 8; i++) tone(PENTA[Math.min(i+2, 11)], .14, 'triangle', .16, i*.08); }
+  buzz([40, 60, 40]);
+  if(!REDUCED){ flash = Math.max(flash, .4); zoom = 1.07; }
+}
+
+/* ═══════════════ 사망 화면 ═══════════════ */
+/* 플레이 스타일 칭호 — 동사는 하나, 결과가 이야기가 된다 (우선순위 순, 판당 1개) */
+function runTitle(){
+  if(runMinDist < 999 && runMinDist <= 4) return '종이 한 장';   // 아슬 정체성이 최상위 (리뷰 반영: 납득 가능한 우선순위)
+  if(novaCount >= 2) return '초신성의 심장';
+  if(maxChain >= 12) return '스침의 연주자';
+  if(pierceCount >= 5) return '바늘귀의 재봉사';
+  if(deepCount >= 10 && deepCount * 2 >= grazes) return '외줄 위의 별';
+  if(goldCount >= 4) return '금빛 사냥꾼';
+  if(dustRun >= 25) return '별가루 수집가';
+  if(grazes <= 3 && passed >= 15) return '신중한 비행사';
+  if(peakMult >= 30) return '타오르는 꼬리';
+  if(passed >= 30) return '긴 여정의 별';
+  return '떨어지는 별';
+}
+function verdictLine(){
+  if(peakMult <= 2)  return '너무 안전했다 — 점수는 위험 옆에 있다';
+  if(peakMult <= 5)  return '감 잡았다. 조금만 더 붙자';
+  if(peakMult <= 9)  return '그 정도면 도박사';
+  if(peakMult <= 14) return '면도날 위를 달렸다';
+  if(peakMult <= 24) return '당신, 벽이랑 사귀는 중?';
+  if(peakMult <= 39) return '별똥별? 아니, 혜성이다';
+  if(peakMult <= 49) return '우주가 당신을 피해 다닌다';
+  return '초신성 — 별의 전설이 됐다';
+}
+function showDeath(){
+  state = 'dead';
+  const t0 = performance.now();
+  lockUntil = t0 + 1800;                    // 키보드 재시작 잠금 (탭 재시작은 v0.41에서 폐기 — 버튼으로만)
+  deathSkip = false;
+  hud.classList.remove('on');
+  const isBest = score > best;
+  if(isBest){ best = score; localStorage.setItem('aseul3-best', best); }
+  if(peakMult > bestMult){ bestMult = peakMult; localStorage.setItem('aseul3-bmult', bestMult); }
+  $('verdict').textContent = verdictLine();
+  $('newbest').classList.remove('on');      // 신기록은 카운트업이 끝난 뒤에 공개 — 드럼롤 → 팡파레
+  $('c-mult').textContent = '×' + peakMult;
+  $('c-graze').textContent = grazes;
+  $('c-pass').textContent = passed;
+  try{ localStorage.setItem('aseul-runs', +(localStorage.getItem('aseul-runs') || 0) + 1); }catch(e){}   // 온보딩 판 카운트
+  // 검증 로거 — 판마다 핵심 지표를 로컬에 남긴다 (최근 200판, KPI 분포 산출용)
+  try{
+    const rl = JSON.parse(localStorage.getItem('aseul-log') || '[]');
+    rl.push({ t: Date.now(), sky: currentSky, ch: curChar, mood: MOOD.id,
+      s: score, m: peakMult, p: passed, g: grazes, mc: maxChain, pi: pierceCount, nv: novaCount,
+      px: runMinDist < 999 ? Math.round(runMinDist * 10) / 10 : null,
+      du: Math.round(elapsed * 10) / 10,
+      fg: firstGrazeT === null ? null : Math.round(firstGrazeT * 10) / 10,
+      sg: secondGrazeT === null ? null : Math.round(secondGrazeT * 10) / 10,
+      dz: deathZone });
+    while(rl.length > 200) rl.shift();
+    localStorage.setItem('aseul-log', JSON.stringify(rl));
+  }catch(e){}
+  // 아슬아슬 기록 — 점수는 결과지만, 아슬함은 정체성이다
+  const px = runMinDist < 999 ? Math.max(0, Math.round(runMinDist)) : null;
+  if(px !== null){
+    const tSec = (runMinDist / Math.max(1, runMinSpd)).toFixed(3);
+    const rawClose = localStorage.getItem('aseul3-close');
+    const prevClose = rawClose === null ? 999 : +rawClose;
+    const isClosest = runMinDist < prevClose;
+    if(isClosest) try{ localStorage.setItem('aseul3-close', runMinDist); }catch(e){}
+    $('d-close').innerHTML = `가장 가까웠던 순간 <b>${px}px</b> · 죽음까지 ${tSec}초` + (isClosest && prevClose < 999 ? ' · <b>역대 최근접!</b>' : '');
+  } else $('d-close').textContent = '';
+  $('c-close').textContent = px === null ? '–' : px + 'px';
+  $('c-chain').textContent = maxChain;
+  $('c-pierce').textContent = pierceCount;
+  $('d-badge').textContent = '칭호 — ' + runTitle();
+  // 죽음 정산 — 별가루는 어느 하늘에서든 쌓인다 (주기만 하고, 빼앗지 않는다)
+  const wallet = +(localStorage.getItem('aseul-dust') || 0) + dustRun;
+  try{ localStorage.setItem('aseul-dust', wallet); }catch(e){}
+  $('s-dust').textContent = '+' + dustRun;
+  $('s-dust-t').textContent = '총 ' + wallet.toLocaleString();
+  // 별자리 게이지 — 스테이지에서만: 이번 판 점수만큼 찬다. 다 차면 별자리 획득, 다음 하늘 개방
+  const stg = STAGES[currentSky];
+  const stageMode = !!stg.goal;
+  $('s-row2').style.display = stageMode ? 'flex' : 'none';
+  $('gaugewrap').style.display = stageMode ? 'block' : 'none';
+  $('s-next').style.display = stageMode ? 'block' : 'none';
+  $('s-born').classList.remove('on');
+  let gaugeAnim = null;
+  if(stageMode){
+    const gk = 'aseul-const-' + currentSky;
+    const cl = loadClear();
+    const had = !!cl[currentSky];
+    let prog = +(localStorage.getItem(gk) || 0);
+    const prevPct = Math.min(100, prog / stg.goal * 100);
+    prog = Math.min(stg.goal, prog + score);
+    try{ localStorage.setItem(gk, prog); }catch(e){}
+    const got = (!had && prog >= stg.goal) || constGotRun;
+    if(got && !cl[currentSky]){ cl[currentSky] = 1; try{ localStorage.setItem('aseul-clear', JSON.stringify(cl)); }catch(e){} }
+    const pct = Math.round(prog / stg.goal * 100);
+    $('s-emb').textContent = '+' + score.toLocaleString();
+    $('s-emb-d').textContent = '점수만큼 게이지가 찬다';
+    $('s-next').textContent = (had || got) ? `${stg.name} — 획득 완료 ★` : `${stg.name} — 게이지 ${pct}% (목표 ${stg.goal.toLocaleString()}점)`;
+    $('s-born').textContent = `★ ${stg.name}를 얻었다 — 다음 하늘이 열렸다 ★`;
+    $('s-born').classList.toggle('on', got);
+    const ga = $('gauge');
+    ga.classList.remove('anim'); ga.style.width = prevPct + '%';
+    gaugeAnim = () => {                      // 게이지는 정산 단계(s2)가 열릴 때 차오른다
+      void ga.offsetWidth; ga.classList.add('anim');
+      setTimeout(() => { ga.style.width = pct + '%'; }, 60);
+      if(got && !constGotRun && AC && !muted) for(let i = 0; i < 8; i++) tone(PENTA[Math.min(i+2, 11)], .14, 'triangle', .15, i*.07);
+    };
+  }
+  // 기록 레이스 북엔드 — 경쟁 정보는 필드가 아니라 여기서만 (1스테이지=데일리 / 이후=하늘별 최고)
+  if(stg.daily){
+    const day = loadDay();
+    day.n++;
+    const dailyTop = score > 0 && score >= day.hi;
+    day.hi = Math.max(day.hi, score);
+    try{ localStorage.setItem(DKEY, JSON.stringify(day)); }catch(e){}
+    $('d-day').innerHTML = dailyTop
+      ? `오늘의 하늘 ${SKY_MD} — <b>${day.n}번째 별똥별, 오늘의 1등!</b>`
+      : `오늘의 하늘 ${SKY_MD} — ${day.n}번째 별똥별 · 오늘 1등 ${day.hi.toLocaleString()}점 (<b>-${(day.hi - score).toLocaleString()}</b>)`;
+  } else {
+    const bk = 'aseul-stbest-' + currentSky;
+    const prevBest = +(localStorage.getItem(bk) || 0);
+    if(score > prevBest) try{ localStorage.setItem(bk, score); }catch(e){}
+    $('d-day').textContent = `${stg.name} — 이 하늘 최고 ${Math.max(prevBest, score).toLocaleString()}점`;
+  }
+  // 절정의 순간 — 카드와 노래를 한 버튼으로 묶었다. 노래는 들려줄 만큼 스쳤을 때만 붙는다
+  $('card-melody').style.display = melodyReady() ? '' : 'none';
+  deathOv.classList.remove('s1','s2','s3');
+  deathOv.classList.add('on');
+  // 성적표 리듬: 점수 카운트업 → 기록(신기록·칭호·근접·칩) → 정산(별가루·게이지·레이스) → 버튼
+  const target = score, el = $('d-score');
+  (function roll(){
+    if(state !== 'dead') return;
+    const p = deathSkip ? 1 : Math.min((performance.now()-t0)/700, 1);
+    el.textContent = Math.round(target * (1-Math.pow(1-p,3))).toLocaleString();
+    if(p < 1){ requestAnimationFrame(roll); return; }
+    deathOv.classList.add('s1');
+    if(isBest && score > 0){
+      $('newbest').classList.add('on');
+      tone(784,.12,'triangle',.22); tone(1046.5,.14,'triangle',.2,.1); tone(1568,.3,'sine',.16,.2);   // 신기록 팡파레
+    }
+    const fast = deathSkip;
+    setTimeout(() => { if(state === 'dead'){ deathOv.classList.add('s2'); if(gaugeAnim){ gaugeAnim(); gaugeAnim = null; } } }, fast ? 100 : 300);
+    setTimeout(() => { if(state === 'dead') deathOv.classList.add('s3'); }, fast ? 200 : 600);
+  })();
+}
+
+/* ═══════════════ 메인 루프 ═══════════════ */
+let last = performance.now();
+document.addEventListener('visibilitychange', () => {
+  last = performance.now();
+  if(document.hidden) stopMusic();
+  else if(state === 'play') startMusic();
+});
+
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt = Math.min((now - last)/1000, .033); last = now;
+  timeScale += (1 - timeScale) * Math.min(1, dt*6);
+  const sdt = dt * timeScale;
+
+  if(state === 'play' || state === 'dying') update(sdt, dt);
+  else if(state === 'title' || state === 'lobby'){ elapsed += dt; updateFx(dt); }
+  // ↑ 메뉴에서도 하늘은 흐르고 별은 반짝인다. 여기서 update()를 안 돌리던 탓에
+  //   타이틀·로비의 배경이 통째로 정지해 있었다 (elapsed는 판 시작 시 reset에서 0으로 돌아간다)
+  draw();
+}
+requestAnimationFrame(frame);
+
+function update(sdt, rawDt){
+  if(state === 'dying'){
+    deadAt += rawDt;
+    zoom += ((REDUCED ? 1 : 1.5) - zoom) * Math.min(1, rawDt * 5);   // 죽음의 지점으로 줌 인 (정지된 시간 속에서)
+    shake = Math.max(0, shake - rawDt * 26);
+    updateFx(sdt);
+    if(deadAt > .85) showDeath();
+    return;
+  }
+  elapsed += sdt;
+  const spd = speed();
+
+  // 스폰
+  distAcc += spd * sdt;
+  if(distAcc >= nextSpace){
+    distAcc = 0;
+    nextSpace = lerp(T.space0, T.space1, diff());
+    spawnRow();
+  }
+  // 이동
+  for(const row of rows) row.y += DIR * spd * sdt;
+  rows = rows.filter(r => FALL ? r.y > -80 - BLOCK_H : r.y < H + 80);
+
+  // 통과 점수 — 한 만큼 즉시 정산한다 (번 것은 빼앗지 않는다)
+  for(const row of rows){
+    if(!row.scored && (FALL ? row.y + BLOCK_H < orb.y - ORB_R : row.y > orb.y + ORB_R)){
+      row.scored = true; passed++;
+      const gain = 10 * mult;
+      score += gain;
+      floater(orb.x, orb.y - 34, '+' + gain,
+        mult >= 40 ? '#FFDF6B' : mult >= 10 ? '#FF5C7A' : mult >= 5 ? '#FF8E4F' : '#FFD98A',
+        Math.min(13 + mult, 30), .7);
+      spawnStars(W/2, 46, Math.min(3 + (mult >> 3), 6));   // 별은 점수판에서 터진다 — 시야 보호
+      sfx.pass(mult);
+      scoreEl.classList.remove('bump'); void scoreEl.offsetWidth; scoreEl.classList.add('bump');
+      if(mult >= 10 && !REDUCED) zoom = Math.max(zoom, 1.025);
+    }
+  }
+
+  // 조작
+  if(keyL) orb.tx -= 520 * rawDt;
+  if(keyR) orb.tx += 520 * rawDt;
+  orb.tx = clamp(orb.tx, ORB_R + 2, W - ORB_R - 2);
+  orb.x += (orb.tx - orb.x) * Math.min(1, rawDt * 22);
+  const ivx = (orb.x - orb.px) / Math.max(rawDt, .001);   // 몸짓용 횡속도 (부드럽게)
+  orb.vxs += (ivx - orb.vxs) * Math.min(1, rawDt * 10);
+  orb.px = orb.x;
+  if(elapsed - lastPathT > .05 && path.length < 6000){    // 절정 카드용 궤적 샘플
+    lastPathT = elapsed; path.push({ e: elapsed, x: orb.x });
+  }
+  for(const tp of orb.trail) tp.y += DIR * spd * sdt;   // 궤적은 우주 공간에 남는다
+  orb.trail.unshift({x: orb.x, y: orb.y});
+  const hs = heat / capH();                       // 꼬리 = 콤보 게이지: 뜨거울수록 길어진다 (자기 상한 기준)
+  const tlim = 22 + (hs * 26 | 0);
+  while(orb.trail.length > tlim) orb.trail.pop();
+  dustT += sdt;                                   // 궤적에서 별가루가 떨어진다 — 콤보가 높을수록 촘촘히
+  if(dustT > .05 - hs*.028 && dust.length < 40 + (hs*30|0)){
+    dustT = 0;
+    dust.push({ x: orb.x + (Math.random()-.5)*8, y: orb.y + 12, vx: (Math.random()-.5)*36, vy: 20+Math.random()*30,
+      t: 0, life: .45+Math.random()*.3, r: (1.6+Math.random()*2.4)*(1+hs*.4), rot: Math.random()*6.28, vr: (Math.random()-.5)*8 });
+  }
+
+  // 별가루 — 흐르고, 스치면 먹는다 (픽업은 후하게, 죽음은 엄격하게)
+  for(let i = motes.length - 1; i >= 0; i--){
+    const mt = motes[i];
+    mt.y += DIR * spd * sdt;
+    if(FALL ? mt.y < -20 : mt.y > H + 20){ motes.splice(i, 1); continue; }
+    if(Math.hypot(orb.x - mt.x, orb.y - mt.y) < ORB_R + 12){
+      motes.splice(i, 1);
+      // 별가루 = 보너스 점수 + 재화. 콤보(아슬함의 척도)는 절대 건드리지 않는다 — 역할 분리
+      dustRun++;
+      score += 5;
+      sparks(mt.x, mt.y, 4, '#FFD98A', .6);
+      if(nova <= 0) floater(mt.x, mt.y - 12, '+5', '#FFD98A', 11, .45);   // 소나기 중엔 텍스트 생략 — 소리와 불꽃만
+      tone(1568, .07, 'triangle', .12); tone(2093, .09, 'sine', .08, .04);   // 동전 반짝 — 스침 음계와 구분
+    }
+  }
+
+  // 히트/그레이즈 — 발진 연출 동안은 판정을 열지 않는다(첫 줄이 닿기까지 2초 이상 남아 손해 없음)
+  if(launch > 0) launch = Math.max(0, launch - rawDt);
+  else hitTest(sdt);
+  if(state !== 'play') return;
+
+  // 초신성 타이머 — 다 태우면 재로부터 다시. 그동안 하늘에서 별가루가 쏟아진다
+  if(nova > 0){
+    nova -= sdt;
+    novaRainT += sdt;
+    if(novaRainT > .12 && motes.length < 90){          // 초당 ~8개 — 6초간 재화의 소나기
+      novaRainT = 0;
+      motes.push({ x: 20 + Math.random()*(W - 40), y: FALL ? H + 14 : -14, ph: Math.random()*6.28 });
+    }
+    if(!novaWarned && nova > 0 && nova <= 2){          // 꺼지기 2초 전 — 불꽃이 눈에 띄게 잦아든다 (끝을 모른 채 죽지 않게)
+      novaWarned = true;
+      floater(W/2, H*.5, '불꽃이 잦아든다…', '#FFE9C4', 15, 1.2);
+      tone(880,.12,'sine',.12); tone(659,.16,'sine',.1,.12); tone(523,.2,'sine',.09,.26);
+    }
+    if(nova <= 0){
+      nova = 0; heat = CH().heat0; sinceGraze = 99;
+      mult = 1 + Math.floor(heat); wmPop = .45;        // 직접 동기화 — 하강 블립 연쇄 없이 조용히 재로
+      /* 번아웃 웨이브 — 마지막 불꽃이 눈앞의 벽을 태워, 꺼진 직후의 재진입 유예를 **세계로** 준다.
+         v0.52: 반경 130px 고정이던 것을 **반응 시간 기준**으로 고쳤다. 종료 시 속도가 ~600px/s인데
+         130px는 0.22초 — 사람의 반응 시간(~0.25초)보다 짧아서 "꺼지자마자 죽는" 보고가 나왔다.
+         또한 위험은 **위에서만** 내려오므로 위쪽을 넓게, 옆·아래는 좁게 태운다(다가오는 것만 치운다). */
+      const wUp = Math.max(230, speed() * .55), wSide = 150;
+      for(const row of rows){
+        if(Math.abs(row.y + BLOCK_H/2 - orb.y) > wUp + 60) continue;
+        const above = FALL ? row.y > orb.y : row.y + BLOCK_H < orb.y;   // 아직 도달하지 않은(다가오는) 벽인가
+        const reach = above ? wUp : wSide;
+        for(let i = row.blocks.length - 1; i >= 0; i--){
+          const b2 = row.blocks[i], geo2 = blockGeom(row, b2);
+          const R2 = Math.min(WALL_R, geo2.w * .5);
+          const nx = clamp(orb.x, geo2.x + R2, geo2.x + geo2.w - R2), ny = clamp(orb.y, row.y + R2, row.y + BLOCK_H - R2);
+          if(Math.hypot(orb.x - nx, orb.y - ny) - R2 < reach){
+            row.blocks.splice(i, 1);
+            sparks(nx, ny, 10, '#FFDF6B', 1.1);
+          }
+        }
+      }
+      rings.push({x: orb.x, y: orb.y, r0: 16, r1: wUp * 1.15, col: '#FFDF6B', lw: 4, life: .55, t: 0});
+      floater(W/2, H*.42, '다 태웠다 — 다시, 아슬하게', '#9BE8FF', 16, 1.4);
+      tone(784, .3, 'sine', .15); tone(392, .4, 'sine', .12, .1);
+    }
+  }
+
+  // 배수 냉각 — 안전하게 놀면 식는다. 높이 오를수록 빨리 식는다 (초신성 중엔 동결)
+  sinceGraze += sdt;
+  if(!coolWarned && nova <= 0 && heat >= 4 && heat > CH().heat0 && sinceGraze > delayNow() - .5){
+    coolWarned = true;                                 // 유예가 끝나기 직전 — 잦아드는 예고음 (냉각 텔레그래프)
+    tone(659,.08,'sine',.09); tone(523,.12,'sine',.08,.07);
+  }
+  if(nova <= 0 && sinceGraze > delayNow()) heat = Math.max(CH().heat0, heat - (T.decayRate + heat*T.decayHeat) * CH().decayMul * sdt);
+  const newMult = 1 + Math.floor(heat);
+  if(newMult !== mult){
+    const prev = mult, up = newMult > mult;
+    mult = newMult;
+    wmPop = up ? 1 : Math.max(wmPop, .45);             // 세계에 그린 배수 숫자가 팝
+    if(!up) sfx.cool(heat);                            // 한 칸 식을 때마다 — 오르던 음계 사다리를 거꾸로 내려온다
+    if(mult > peakMult){ peakMult = mult; peakAt = elapsed; }   // 절정의 순간 — 멜로디 창의 기준점
+    const m5 = Math.floor(mult/5)*5;                 // 골드 +5 점프로 건너뛴 마일스톤도 잡는다
+    if(up && m5 >= 5 && m5 > Math.floor(prev/5)*5){
+      const MS = {5:'불붙었다',10:'활활',15:'이글이글',20:'폭주!!',25:'유성우!!',30:'혜성!!',35:'신성!!',40:'백열!!',45:'은하!!',50:'초신성!!'};
+      floater(W/2, H*.42, MS[m5] + ' ×' + m5, m5 >= 40 ? '#FFDF6B' : m5 >= 10 ? '#FF5C7A' : '#FFB454', 30);
+      sfx.milestone();
+      rings.push({x:orb.x, y:orb.y, r0:12, r1:130, col: m5 >= 40 ? '#FFDF6B' : m5 >= 10 ? '#FF5C7A' : '#FFD98A', lw:4, life:.5, t:0});
+      if(!REDUCED){ flash = m5 >= 50 ? .45 : .3; zoom = 1.06; if(m5 >= 50) vign = .7; }
+      if(mult >= 1 + capH() && nova <= 0){               // 자기 상한 도달 — 초신성: 벽을 뚫는다, 그리고 재가 된다
+        nova = MOOD.id === 'nova' ? 8 : 6; novaMax = nova; novaCount++; novaWarned = false;  // 초신성의 날은 8초
+        floater(W/2, H*.52, '벽을 뚫는다!', '#FFDF6B', 20, 1.6);
+        rings.push({x:orb.x, y:orb.y, r0:14, r1:W*.9, col:'#FFFFFF', lw:5, life:.6, t:0});
+        if(!REDUCED){ shake = 12; zoom = 1.08; }
+        if(AC && !muted){                              // 진입 — 킥 두 방 + 위로 치솟는 런
+          kick(AC.currentTime); kick(AC.currentTime + .16); hat(AC.currentTime + .08, .25);
+          for(let k = 0; k < 8; k++) tone(PENTA[Math.min(4 + k, 11)] * 2, .11, 'square', .07, k * .042);
+        }
+        buzz([40, 60, 40]);
+      }
+    }
+  }
+  updateFx(sdt);
+  updateHud();
+}
+
+function updateFx(sdt){
+  for(const p of parts){ p.t += sdt; p.x += p.vx*sdt; p.y += p.vy*sdt; p.vx *= .96; p.vy = p.vy*.96 + 60*sdt; }
+  parts = parts.filter(p => p.t < p.life);
+  for(const f of floats){ f.t += sdt; f.y -= 34*sdt; }
+  floats = floats.filter(f => f.t < f.life);
+  for(const st of stars){                                  // 그 자리에서 팡 터지고 사라진다
+    st.t += sdt;
+    const damp = Math.max(0, 1 - 3*sdt);
+    st.vx *= damp; st.vy *= damp;
+    st.x += st.vx*sdt; st.y += st.vy*sdt; st.rot += st.vr*sdt;
+  }
+  stars = stars.filter(s => s.t < s.life);
+  for(const q of rings) q.t += sdt;
+  rings = rings.filter(q => q.t < q.life);
+  if(state !== 'dying') zoom += (1 - zoom) * Math.min(1, sdt*6);   // 죽음 중엔 dying 루프가 줌을 몬다
+  vign = Math.max(0, vign - sdt*2.2);
+  for(const row of rows) for(const b of row.blocks) b.flash = Math.max(0, b.flash - sdt*2.4);
+  shake = Math.max(0, shake - sdt*46);
+  flash = Math.max(0, flash - sdt*2.2);
+  wmPop = Math.max(0, wmPop - sdt*5);
+  const sp = state==='play' ? speed() : 60;
+  for(const l of lines){ l.y += DIR*(sp*l.v*sdt)/H; if(FALL ? l.y < -.18 : l.y > 1.16){ l.y = FALL ? 1.16 : -.18; l.x = Math.random(); l.v = .3+Math.random()*.45; } }
+  // 가까운 별일수록 훨씬 빠르게 흐른다(z²) — 먼 별은 거의 멈춰 있어 깊이가 읽힌다
+  for(const d0 of dots){
+    d0.y += (sp * (.16 + d0.z*d0.z*1.05) * sdt) / H;
+    if(d0.y > 1.04){ d0.y = -.04; d0.x = Math.random(); d0.z = Math.random(); }
+  }
+  for(const d1 of dust){ d1.t += sdt; d1.x += d1.vx*sdt; d1.y += DIR*(d1.vy + sp*.55)*sdt; d1.rot += d1.vr*sdt; }
+  dust = dust.filter(d1 => d1.t < d1.life);
+  // 하늘의 여정 — 고도 배경 블렌드 & 구름 패럴랙스
+  bandT = Math.min(1, bandT + sdt/2.2);
+  const bST = bandT*bandT*(3 - 2*bandT), BT = BANDS[bandTo];
+  bandCur.top = vlerp(bandSnap.top, BT.top, bST);
+  bandCur.bot = vlerp(bandSnap.bot, BT.bot, bST);
+  bandCur.starA = bandSnap.starA + (BT.starA - bandSnap.starA)*bST;
+  for(const c of CLOUDS){ c.y += sp*sdt*.00028; if(c.y > 1.15){ c.y = -.15; c.x = Math.random(); } }
+}
+
+/* 고도별 배경 장식 — 언제나 필드보다 어둡고 조용하게 */
+function drawDeco(deco, a){
+  if(!deco || a <= .02 || deco === 'deep') return;
+  if(deco === 'aurora'){
+    ctx.lineCap = 'round';
+    for(let k = 0; k < 3; k++){
+      ctx.globalAlpha = a * .07;
+      ctx.strokeStyle = k === 1 ? '#7B6CF6' : '#3AE8B0';
+      ctx.lineWidth = 46 + k*14;
+      ctx.beginPath();
+      for(let i = 0; i <= 8; i++){
+        const px = i/8*W;
+        const py = H*(.14 + k*.08) + Math.sin(elapsed*.35 + i*.9 + k*2.1)*26 + Math.sin(elapsed*.13 + i*.5)*40;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    }
+  } else if(deco === 'haze'){
+    ctx.fillStyle = '#8FA8CC';
+    for(const hz of HAZE){
+      ctx.globalAlpha = a * .045;
+      ctx.fillRect(0, (hz.y + Math.sin(elapsed*.2 + hz.ph)*.012) * H, W, 26);
+    }
+  } else if(deco === 'cloud'){
+    ctx.fillStyle = '#161E30';
+    for(const c of CLOUDS){
+      ctx.globalAlpha = a * .5;
+      const cx = c.x*W, cy = c.y*H, s = c.s;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 34*s, 0, 6.283); ctx.arc(cx + 30*s, cy + 8*s, 26*s, 0, 6.283); ctx.arc(cx - 32*s, cy + 10*s, 24*s, 0, 6.283);
+      ctx.fill();
+    }
+  } else if(deco === 'city'){
+    ctx.globalAlpha = a * .85;
+    ctx.fillStyle = '#0A0C15';
+    for(const bd of CITYW) ctx.fillRect(bd.x*W, H - bd.h, bd.w*W, bd.h);
+    ctx.fillStyle = '#FFC97E';
+    for(const bd of CITYW){
+      ctx.globalAlpha = a * (.08 + .12*(.5 + .5*Math.sin(elapsed*1.3 + bd.ph)));
+      ctx.fillRect(bd.x*W + bd.w*W*.3, H - bd.h + 6, 2, 2);
+      ctx.fillRect(bd.x*W + bd.w*W*.62, H - bd.h + 15, 2, 2);
+    }
+  } else if(deco === 'dawn'){
+    const g = ctx.createLinearGradient(0, H*.5, 0, H);
+    g.addColorStop(0, 'rgba(255,140,80,0)');
+    g.addColorStop(1, `rgba(255,150,90,${a*.11})`);
+    ctx.fillStyle = g; ctx.fillRect(0, H*.5, W, H*.5);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function updateHud(){
+  const target = score;
+  dispScore += (target - dispScore) * .25;
+  if(target - dispScore < 1) dispScore = target;
+  scoreEl.textContent = Math.round(dispScore).toLocaleString();
+  // 별자리 정복 게이지 — 화면 최상단, 이번 판 점수만큼 실시간으로 차오른다
+  const stg = STAGES[currentSky];
+  const liveProg = Math.min(stg.goal, constSaved + score);
+  const cpct = constHad ? 100 : Math.round(liveProg / stg.goal * 100);
+  $('cgfill').style.width = cpct + '%';
+  $('stprog').textContent = stg.name + (constHad ? ' ★' : ' · 정복 ' + cpct + '%');
+  if(!constHad && liveProg >= stg.goal) acquireConstellation();
+  if(mult !== lastMultShown){
+    lastMultShown = mult;
+    multEl.textContent = '×' + mult;
+    multEl.className = mult >= 50 ? 'tmax' : mult >= 35 ? 't6' : mult >= 20 ? 't5' : mult >= 10 ? 't4' : mult >= 5 ? 't3' : mult >= 2 ? 't2' : '';
+    multEl.classList.remove('pop'); void multEl.offsetWidth; multEl.classList.add('pop');
+  }
+}
+
+/* ═══════════════ 렌더 ═══════════════ */
+function rr(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function starPath(x,y,r,rot){
+  ctx.beginPath();
+  for(let i=0;i<8;i++){
+    const a = rot + i*Math.PI/4, rad = i%2 === 0 ? r : r*.4;
+    const px = x+Math.cos(a)*rad, py = y+Math.sin(a)*rad;
+    i ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+  }
+  ctx.closePath();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  let sx = 0, sy = 0;
+  if(shake > 0){ sx = (Math.random()-.5)*shake; sy = (Math.random()-.5)*shake; }
+  ctx.save(); ctx.translate(sx, sy);
+  if(zoom !== 1){
+    const zx = zc ? zc.x : W/2, zy = zc ? zc.y : H*.62;   // 죽음 중엔 사망 지점이 줌 중심
+    ctx.translate(zx, zy); ctx.scale(zoom, zoom); ctx.translate(-zx, -zy);
+  }
+
+  // 하늘의 여정 — 고도가 곧 배경
+  const skg = ctx.createLinearGradient(0, 0, 0, H);
+  skg.addColorStop(0, cssv(bandCur.top)); skg.addColorStop(1, cssv(bandCur.bot));
+  ctx.fillStyle = skg; ctx.fillRect(0, 0, W, H);
+  const bST2 = bandT*bandT*(3 - 2*bandT);
+  drawDeco(bandSnap.deco, 1 - bST2);
+  drawDeco(BANDS[bandTo].deco, bST2);
+
+  const spNow = state === 'play' ? speed() : 80;
+  const bp = beatPulse();
+
+  // 별들 — 깊이마다 다른 속도로 흐른다. 은은하게 깔리되 반짝임은 뾰족하게(^3 곡선),
+  // 근경은 가느다란 빛줄기로 늘어난다. 색은 차가운 계열만 — 금빛 별 모양은 별가루의 언어다
+  for(const d0 of dots){
+    const tw = Math.pow(.5 + .5*Math.sin(elapsed*d0.w + d0.ph), 3);     // 대부분 잠잠, 가끔 확 빛난다
+    const a = (.05 + .40*tw) * (.32 + d0.z*.62) * bandCur.starA;
+    if(a < .012) continue;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = d0.c;
+    const r = .35 + d0.z*.95, st = d0.z*d0.z * spNow * .015;
+    if(st > 2.2) ctx.fillRect(d0.x*W - r*.5, d0.y*H, Math.max(.6, r), st);   // 빠른 근경 = 가는 빛줄기
+    else { ctx.beginPath(); ctx.arc(d0.x*W, d0.y*H, r, 0, 6.283); ctx.fill(); }
+    if(tw > .82 && d0.z > .55){                                          // 가장 밝게 타는 순간엔 옅은 후광
+      ctx.globalAlpha = a * .35;
+      ctx.beginPath(); ctx.arc(d0.x*W, d0.y*H + st*.5, r + 1.8, 0, 6.283); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // 속도선 — 빠를수록 길고 진해지고, 비트에 맞춰 번쩍인다
+  const hsAll = Math.min(heat / capH(), 1);
+  const mtc = hsAll > .4 ? '226,196,232' : hsAll > .12 ? '228,224,238' : '204,226,255';   // 열기에 아주 살짝만 물든다
+  for(const l of lines){
+    const al = Math.min(.24, l.a * (1 + bp*1.1 + hsAll*.6) * (.55 + spNow/440));
+    const len = l.l * (.55 + spNow/280) * (.55 + l.v);
+    // 머리는 위, 꼬리는 아래 — **내 별똥별과 같은 방향**을 향한다(내 꼬리도 아래로 흐른다).
+    // 화면에서 아래로 밀려나는 건 그들이 나보다 느려서일 뿐, 향하는 곳은 같다
+    const x = l.x*W, yh = l.y*H, yt = yh + len;
+    ctx.strokeStyle = `rgba(${mtc},${al*.5})`;          // 꼬리 끝은 흐리게
+    ctx.lineWidth = .6 + l.v*.5;
+    ctx.beginPath(); ctx.moveTo(x, yt); ctx.lineTo(x, yh + len*.42); ctx.stroke();
+    ctx.strokeStyle = `rgba(${mtc},${al})`;             // 머리 쪽으로 갈수록 진해진다
+    ctx.beginPath(); ctx.moveTo(x, yh + len*.42); ctx.lineTo(x, yh); ctx.stroke();
+    ctx.globalAlpha = Math.min(.9, al*2.6);             // 머리 끝 반짝임 — 별이 날아가는 느낌
+    ctx.fillStyle = '#EAF6FF';
+    ctx.beginPath(); ctx.arc(x, yh, .8 + l.v*1.2, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // 열기 분위기 — 콤보가 오르면 세상이 달아오른다 (초신성은 백금빛, 마지막 2초는 잦아든다)
+  if(state !== 'title' && (hsAll > 0 || nova > 0)){
+    const g = ctx.createLinearGradient(0,0,0,H);
+    const col = nova > 0 ? '255,215,90' : hsAll > .4 ? '255,92,122' : '255,150,60';
+    g.addColorStop(0, `rgba(${col},${.04 + hsAll*.09 + bp*hsAll*.04 + (nova > 0 ? .07 * Math.min(1, nova/2) : 0)})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  }
+
+  // 배수는 세계에 그린다 — 시선이 머무는 '다음 벽 자리' 배경에 크게. 벽이 그 위를 지나간다 (시야를 가리지 않음)
+  if((state === 'play' || state === 'dying') && mult >= 2){
+    const cooling = state === 'play' && nova <= 0 && sinceGraze > delayNow() && heat > CH().heat0 + .01;
+    const size = (96 + hsAll*40) * (1 + wmPop*.3) | 0;
+    ctx.font = size + 'px "Black Han Sans","Gothic A1",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = cooling ? '#68729A'
+      : mult >= 50 ? '#FFDF6B' : mult >= 35 ? '#FF7DA0' : mult >= 20 ? '#FF3D64' : mult >= 10 ? '#FF5C7A' : mult >= 5 ? '#FF8E4F' : '#FFB454';
+    ctx.globalAlpha = (cooling ? .07 : .11 + bp*.05) + wmPop*.16 + (nova > 0 ? .06 : 0);
+    ctx.fillText('×' + mult, W/2, H*(FALL ? .74 : .28));
+    ctx.globalAlpha = 1;
+  }
+
+  // 블록
+  for(const row of rows){
+    for(const b of row.blocks){
+      const geo = blockGeom(row, b);
+      // 벽 = 덩어리 하나 + 금빛 후광 한 겹(스침 구간). 골드 벽은 잭팟
+      ctx.shadowColor = b.gold
+        ? `rgba(255,215,90,${.8 + b.flash*.2})`
+        : `rgba(255,180,84,${.55 + b.flash*.45 + bp*.15})`;
+      ctx.shadowBlur = BAND * (1 + b.flash*.4) * (b.gold ? 1.2 : 1);
+      const R = Math.min(WALL_R, geo.w * .5);
+      ctx.fillStyle = b.gold ? '#C9992E' : (row.col || '#3A4680');
+      rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
+      ctx.shadowBlur = 0;
+      if(b.dyn){                                        // 닫히는 문 — 안쪽 모서리가 조여들수록 달아오른다
+        const cp = 1 - (closeGap(row) - row.close.g1) / Math.max(1, row.close.g0 - row.close.g1);
+        ctx.strokeStyle = `rgba(255,120,90,${.15 + cp*.55})`;
+        ctx.lineWidth = 3;
+        const gx = b.dyn === 'L' ? geo.x + geo.w : geo.x;
+        ctx.beginPath(); ctx.moveTo(gx, row.y + 2); ctx.lineTo(gx, row.y + BLOCK_H - 2); ctx.stroke();
+      }
+      if(b.flash > 0){
+        ctx.strokeStyle = `rgba(255,225,160,${b.flash})`;
+        ctx.lineWidth = 2.5;
+        rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.stroke();
+      }
+    }
+  }
+
+  // 별가루 — 금빛 미끼, 위험한 라인 위에서 깜빡인다
+  // 크고 입체적으로 — 후광 + 금빛 본체 + 흰 코어 + 하이라이트 점.
+  // "먹는 것"임이 한눈에 읽혀야 한다: 배경 별(차가운 색 점)과 절대 헷갈리지 않는 금빛 별 모양
+  if(motes.length){
+    for(const mt of motes){
+      const pu = .84 + .16*Math.sin(elapsed*3 + mt.ph), rot = mt.ph + elapsed*.9;
+      ctx.globalAlpha = .26 * pu;
+      ctx.fillStyle = '#FFB454';
+      ctx.beginPath(); ctx.arc(mt.x, mt.y, 11.5*pu, 0, 6.283); ctx.fill();      // 후광
+      ctx.globalAlpha = .96;
+      ctx.shadowColor = '#FFB454'; ctx.shadowBlur = 10;
+      ctx.fillStyle = '#FFD05C';
+      starPath(mt.x, mt.y, 6.5*pu, rot); ctx.fill();                            // 금빛 본체
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#FFF6DC';
+      starPath(mt.x, mt.y, 3.2*pu, rot); ctx.fill();                            // 흰 코어
+      ctx.globalAlpha = .55;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(mt.x - 1.9, mt.y - 2.3, 1.3, 0, 6.283); ctx.fill();  // 하이라이트
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  if(state !== 'title'){
+    // 냉각 텔레그래프 — 유예가 끝나갈수록 불꽃이 깜빡이고(가터링), 식는 동안엔 잿빛으로 잦아든다
+    let gut = 1, ashen = false;
+    if(state === 'play' && nova <= 0 && heat > CH().heat0 + .01){
+      if(sinceGraze > delayNow()){ ashen = true; gut = .55 + .18*Math.sin(elapsed*17); }
+      else if(sinceGraze > delayNow() - .5){
+        const gg = (sinceGraze - (delayNow() - .5)) / .5;
+        gut = 1 - gg * .45 * (.5 + .5*Math.sin(elapsed*22));
+      }
+    }
+    // 별똥별 궤적 — 우주에 실제로 남는 빛줄기 (넓은 광층 + 밝은 심). 발진 중엔 아직 꼬리가 없다
+    if(orb.trail.length > 1 && launch <= 0){
+      const maxed = hsAll >= .999;                 // 자기 상한 절정 — 심지가 백금색으로 떨린다
+      const tcol = ashen ? '#7C86AC' : maxed ? '#FF7DA0' : hsAll > .4 ? '#FF5C7A' : hsAll > .12 ? '#FFB454' : '#9BE8FF';
+      const core = ashen ? '#C3CCE4' : maxed ? (Math.sin(elapsed*16) > 0 ? '#FFFFFF' : '#FFE9C4') : hsAll > .12 ? '#FFF3DC' : '#EAFBFF';
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for(let pass = 0; pass < 2; pass++){
+        for(let i = 0; i < orb.trail.length-1; i++){
+          const a = 1 - i/orb.trail.length;
+          ctx.globalAlpha = a * (pass ? .5 : .16) * (.7 + hsAll*.6) * gut;
+          ctx.strokeStyle = pass ? core : tcol;
+          ctx.lineWidth = (pass ? ORB_R*.5 : ORB_R*1.5) * a * (1 + hsAll*.45);
+          ctx.beginPath();
+          ctx.moveTo(orb.trail[i].x, orb.trail[i].y);
+          ctx.lineTo(orb.trail[i+1].x, orb.trail[i+1].y);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+    // 궤적에서 흩어지는 별가루 — 식는 중엔 재가 된다
+    ctx.fillStyle = ashen ? '#93A0C8' : '#FFEBB8';
+    for(const d1 of dust){
+      ctx.globalAlpha = Math.max(0, 1 - d1.t/d1.life) * .8;
+      starPath(d1.x, d1.y, d1.r, d1.rot); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if(state === 'play'){
+      const inB = sinceGraze < .25;
+      // 초신성 꺼짐 박자 — 화면 점멸·액자 게이지·캐릭터가 이 한 값을 공유한다(6펄스)
+      let novaPulse = 0;
+      if(nova > 0 && nova <= 2 && !REDUCED){
+        const nt = (2 - nova) / 2, nf2 = (nt * 6) % 1;
+        novaPulse = nf2 < .32 ? (1 - nf2 / .32) * (.55 + nt * .45) : 0;
+      }
+      // 몸 = 히트박스 그대로, 크기 절대 고정(13px). 몸짓(기울기·늘어남)은 그리기 변형뿐 — 넓이 보존
+      const bodyR = ORB_R;
+      const lean = clamp(orb.vxs * .0013, -.46, .46);   // 뱅킹 — 꺾을수록 더 눕는다 (v0.52 강화)
+      const st = clamp(Math.abs(orb.vxs) * .00042, 0, .16);
+      const sq = (sinceGraze < .14 ? (1 - sinceGraze/.14) : 0) * .1;   // 스침 순간 움찔
+      // 발진 — 로비에서 이쪽을 보던 큰 별이 몸을 돌려 작아지며 제자리로 날아든다
+      const lq = launch > 0 ? 1 - launch/LAUNCH_T : 1;
+      const le = lq*lq*(3 - 2*lq);                                     // smoothstep
+      ctx.save();
+      if(launch > 0){
+        const sc = 6.5 + (1 - 6.5) * le, y0 = FALL ? H*.62 : H*.273;   // 로비 히어로(170px, 중심 0.273H)에서 그대로 이어받는다
+        ctx.translate(orb.x, y0 + (orb.y - y0) * le);
+        ctx.rotate((1 - le) * -.42 + lean * le);
+        ctx.scale(sc, sc);
+      } else {
+        ctx.translate(orb.x, orb.y); ctx.rotate(lean + (FALL ? Math.PI : 0));
+        ctx.scale(1 + st, Math.max(.8, 1 - st*.75 - sq));
+      }
+      if(nova > 0){
+        /* 초신성 — 백열의 핵. 마지막 2초에는 **액자·화면과 같은 박자로 캐릭터도 함께 번쩍인다**:
+           별·게이지·화면이 한 심장으로 뛰어야 "이 불이 곧 꺼진다"가 하나의 사건으로 읽힌다 */
+        const nf = Math.min(1, nova / 2);
+        ctx.shadowColor = '#FFDF6B';
+        ctx.shadowBlur = (30 + Math.sin(elapsed*18)*8) * (.35 + .65*nf) + novaPulse * 40;
+      } else {
+        ctx.shadowColor = hsAll > .4 ? '#FF5C7A' : '#7DF3FF';
+        ctx.shadowBlur = 10 + hsAll*12;
+      }
+      if(charImgOk){
+        /* 별똥별은 카메라를 등지고 난다. 옆으로 꺾을 때는 **몸을 굴려서(roll)** 돌아선다 —
+           뒤↔옆을 딱 끊어 바꾸면 종잇장이 뒤집히는 느낌이라, 뒷모습을 가로로 눌러
+           회전 중간을 만들고 그 끝에서 옆모습으로 넘긴다. 3/4 뷰 스프라이트가 생기면 여기에 끼운다 */
+        const roll = clamp((Math.abs(orb.vxs) - 110) / 280, 0, 1);   // 0 = 정면(뒤), 1 = 완전히 옆
+        const side = roll > .58;
+        const iw = 26;                                 // 판정 링(지름 26px) 안에 꽉 차게
+        let fr = side ? FR_SIDE : FR_BACK;
+        let flip = orb.vxs > 0, rsx = side ? 1 : 1 - roll * .78;     // 돌수록 납작해진다
+        if(launch > 0){ fr = lq < .32 ? FR_FRONT : lq < .60 ? FR_SIDE : FR_BACK; flip = false; rsx = 1; }
+        ctx.save();
+        ctx.scale(flip ? -rsx : rsx, 1);               // 옆모습 원본은 왼쪽을 본다
+        ctx.drawImage(CHAR_IMG, fr*FR, 0, FR, FR, -iw/2, -iw/2, iw, iw);
+        ctx.restore();
+      } else {                                         // 폴백 — 기존 원형 몸
+        ctx.fillStyle = nova > 0 ? (Math.sin(elapsed*(nova < 2 ? 36 : 22)) > 0 ? '#FFFFFF' : '#FFF3C4') : inB ? '#FFF3D9' : CH().col;
+        ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      if(nova > 0 && charImgOk){                       // 백열 플리커 — 마지막 2초엔 꺼짐 박자에 맞춰 크게 터진다
+        ctx.globalAlpha = nova <= 2 ? .12 + novaPulse * .8 : .2 + .2 * Math.max(0, Math.sin(elapsed*22));
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath(); ctx.arc(0, 0, bodyR * (1 + novaPulse * .5), 0, 6.283); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      // 판정 링 — 스침의 경계가 캐릭터를 감싼다 (13px 불변). 발진 중엔 자리를 잡으며 서서히 켜진다
+      ctx.globalAlpha = launch > 0 ? clamp((lq - .45) / .45, 0, 1) : 1;
+      ctx.strokeStyle = nova > 0 ? '#FFDF6B' : inB ? '#FFB454' : 'rgba(125,243,255,.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  }
+
+  // 파티클
+  for(const p of parts){
+    ctx.globalAlpha = 1 - p.t/p.life;
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // 별 — 점수판으로 빨려 들어간다
+  for(const st of stars){
+    ctx.globalAlpha = st.t < .3 ? 1 : Math.max(0, 1 - (st.t-.3)/.2);
+    ctx.fillStyle = st.col || '#FFD98A';
+    ctx.shadowColor = st.col || '#FFB454'; ctx.shadowBlur = 9;
+    starPath(st.x, st.y, st.r, st.rot); ctx.fill();
+  }
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+
+  // 충격파 링
+  for(const q of rings){
+    const p = q.t/q.life, r = q.r0 + (q.r1-q.r0)*(1-Math.pow(1-p,2));
+    ctx.globalAlpha = (1-p)*.8;
+    ctx.strokeStyle = q.col; ctx.lineWidth = q.lw*(1-p)+.5;
+    ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.283); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // 점수 플로터
+  ctx.textAlign = 'center';
+  for(const f of floats){
+    ctx.globalAlpha = 1 - (f.t/f.life);
+    ctx.font = `${f.size}px "Black Han Sans","Gothic A1",sans-serif`;
+    ctx.fillStyle = f.col;
+    ctx.fillText(f.txt, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // 아슬 순간 — 화면 가장자리 금빛 섬광
+  if(vign > 0){
+    const g = ctx.createRadialGradient(W/2, H/2, H*.25, W/2, H/2, H*.75);
+    g.addColorStop(0, 'rgba(255,180,84,0)');
+    g.addColorStop(1, `rgba(255,180,84,${vign*.5})`);
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  }
+
+  ctx.restore();
+
+  // 초신성 — 액자 안쪽이 금빛에 잠긴다. 가운데는 비우고 가장자리만 물들여 시야를 지킨다(헌법 4조).
+  // 불이 잦아들수록 글로우도 함께 식는다
+  if(nova > 0){
+    const gp = clamp(nova / novaMax, 0, 1);
+    const gg = ctx.createRadialGradient(W/2, H*.55, Math.min(W,H)*.20, W/2, H*.55, Math.max(W,H)*.74);
+    gg.addColorStop(0, 'rgba(255,201,86,0)');
+    gg.addColorStop(.55, `rgba(255,201,86,${(.05 + .05*gp).toFixed(3)})`);
+    gg.addColorStop(1, `rgba(255,186,64,${(.11 + .13*gp).toFixed(3)})`);
+    ctx.fillStyle = gg; ctx.fillRect(0, 0, W, H);
+  }
+
+  // 초신성 꺼짐 — 마지막 2초, 조명이 나가듯 화면 전체가 6번 크게 점멸한다.
+  // 고주파 사인은 프레임에 뭉개져 안 읽혔다 → 셀 수 있는 박자로 바꾸고 갈수록 세게
+  if(nova > 0 && nova <= 2 && !REDUCED){
+    const t = (2 - nova) / 2;                                // 0 → 1
+    const f = (t * 6) % 1;                                   // 펄스 6번, 각 펄스 안의 위상 (셀 수 있되 다급하게)
+    const amp = .30 + t * .28;                               // 마지막이 가장 세다
+    ctx.fillStyle = f < .32
+      ? `rgba(255,246,220,${amp * (1 - f/.32) * .95})`        // 번쩍
+      : `rgba(6,8,14,${amp * Math.sin((f-.32)/.68 * Math.PI) * .9})`;   // 암전 (무적 중이라 시야 위험 없음)
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // 초신성 게이지 — 남은 시간이 '금빛 액자'로 필드를 감싸고 상단 중앙에서 좌우 대칭으로 타들어간다.
+  // 점멸 '위에' 그린다 — 암전이 화면을 삼켜도 남은 시간만은 계속 읽혀야 한다
+  if(nova > 0){
+    const p = clamp(nova / novaMax, 0, 1), ins = 3;
+    const seg = (W/2 - ins) + (H - ins*2) + (W/2 - ins);      // 한쪽 경로 길이(상단 중앙 → 모서리 → 하단 중앙)
+    const end = nova <= 2;
+    ctx.save();
+    ctx.lineWidth = end ? 7 : 5;
+    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+    ctx.strokeStyle = end ? (Math.sin(elapsed*26) > 0 ? '#FFFFFF' : '#FF8A4C') : '#FFDF6B';
+    ctx.shadowColor = end ? '#FF9A5C' : '#FFDF6B';
+    ctx.shadowBlur = 18 + (end ? 10 : 0);
+    ctx.setLineDash([seg * p, seg]);                          // 남은 만큼만 그린다 = 그대로 게이지
+    ctx.beginPath();                                          // 오른쪽 절반
+    ctx.moveTo(W/2, ins); ctx.lineTo(W - ins, ins); ctx.lineTo(W - ins, H - ins); ctx.lineTo(W/2, H - ins);
+    ctx.stroke();
+    ctx.beginPath();                                          // 왼쪽 절반 (대칭)
+    ctx.moveTo(W/2, ins); ctx.lineTo(ins, ins); ctx.lineTo(ins, H - ins); ctx.lineTo(W/2, H - ins);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* 첫 두 판 — 반투명 손이 좌우로 왕복하며 조작을 한 번만 보여준다. 손을 대는 순간 사라진다.
+     조작 문법(절대 위치)은 그대로 두고 "만질 곳"만 알려주는 어포던스다 — 조이스틱이 아니다 */
+  if(state === 'play' && tut && handHint && elapsed < 5.2 && !REDUCED){
+    const a = Math.min(1, elapsed / .45) * Math.min(1, Math.max(0, (5.2 - elapsed) / .8));
+    const hy = H * .88, hx = W/2 + Math.sin(elapsed * 1.5) * (W * .3);
+    ctx.globalAlpha = a * .32;                          // 문지를 트랙
+    ctx.strokeStyle = '#EAF3FF'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 8]);
+    ctx.beginPath(); ctx.moveTo(W*.17, hy); ctx.lineTo(W*.83, hy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = a * .3;                           // 손등
+    ctx.fillStyle = '#EAF3FF';
+    rr(hx - 12, hy + 3, 24, 32, 11); ctx.fill();
+    ctx.globalAlpha = a * .8;                           // 손끝
+    ctx.beginPath(); ctx.arc(hx, hy, 8.5, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = a * .75;
+    ctx.font = '700 12px "Gothic A1",sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#CFE3FF';
+    ctx.fillText('좌우로 문지르면 별이 따라온다', W/2, hy + 52);
+    ctx.globalAlpha = 1;
+  }
+
+  // 사망 플래시
+  if(flash > 0){
+    ctx.fillStyle = `rgba(255,255,255,${flash*.5})`;
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
+if(FALL){ const fm = document.getElementById('foot-mode'); if(fm) fm.textContent = '[실험] 낙하 모드'; }
+/* 타이틀에 베스트 표기 */
+if(best > 0) $('title-best').textContent = `BEST ${best.toLocaleString()} · 최고 배수 ×${bestMult}`;
+
+/* ── 로비 — 계정 요약·캐릭터·하늘 선택·게임 시작 (메인 → 로비 → 플레이 → 결과 → 로비) ── */
+function renderChars(){
+  const cp = $('charpanel'); cp.innerHTML = '';
+  const wallet = +(localStorage.getItem('aseul-dust') || 0);
+  for(const id of CHAR_ORDER){
+    const c = CHARS[id], own = !!charsOwned[id], sel = id === curChar;
+    const d = document.createElement('div');
+    d.className = 'charcard' + (own ? '' : ' lock');
+    d.innerHTML = (charFace                               // 로비에서는 별이 이쪽을 본다 (필드에선 등을 보인다)
+        ? `<span class="chdot face" style="background-image:url(${charFace})"></span>`
+        : `<span class="chdot" style="background:${c.col}"></span>`) +
+      `<span class="chinfo"><b>${c.name}${sel ? ' · 선택됨' : ''}</b><span>${c.desc}</span></span>` +
+      `<span class="chact">${own ? (sel ? '' : '선택') : '별가루 ' + c.cost}</span>`;
+    d.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      if(own){                                            // 보유 → 선택
+        curChar = id;
+        try{ localStorage.setItem('aseul-char', id); }catch(_e){}
+        renderLobby();
+      } else if(wallet >= c.cost){                        // 미보유 → 별가루로 데려오기 (즉시 선택)
+        charsOwned[id] = 1; curChar = id;
+        try{
+          localStorage.setItem('aseul-dust', wallet - c.cost);
+          localStorage.setItem('aseul-chars', JSON.stringify(charsOwned));
+          localStorage.setItem('aseul-char', id);
+        }catch(_e){}
+        renderLobby();
+      } else {
+        $('lb-charname').textContent = `별가루가 ${c.cost - wallet} 부족해`;
+        setTimeout(renderLobby, 1100);
+      }
+    });
+    cp.appendChild(d);
+  }
+}
+function renderLobby(){
+  const w = +(localStorage.getItem('aseul-dust') || 0);
+  const cl = loadClear();
+  const m = STAGE_ORDER.filter(k => cl[k]).length;
+  const stg = STAGES[currentSky];
+  $('cur-dust').textContent = w.toLocaleString();               // 재화는 상단 바에 아이콘으로
+  $('cur-const').textContent = m + '/' + STAGE_ORDER.length;
+  $('cur-best').textContent = best.toLocaleString();
+  $('lb-title').textContent = stg.name;                          // 하늘 이름이 이 화면의 제목이다
+  const pr = cl[currentSky] ? '정복 완료 ★'
+    : '정복 ' + Math.min(99, Math.round((+localStorage.getItem('aseul-const-' + currentSky) || 0) / stg.goal * 100)) + '%';
+  const d0 = loadDay();
+  $('lb-sub').textContent = pr + ' · ' + (stg.daily
+    ? (d0.n ? `오늘의 하늘 ${SKY_MD} · 오늘 1등 ${d0.hi.toLocaleString()}점` : `오늘의 하늘 ${SKY_MD} — 오늘의 첫 별똥별이 되어보자`)
+    : `이 하늘 최고 ${(+localStorage.getItem('aseul-stbest-' + currentSky) || 0).toLocaleString()}점`);
+  $('mood-line').textContent = `오늘의 무드 — ${MOOD.name} · ${MOOD.desc}`;
+  $('lb-charname').textContent = CH().name;
+  if(charFace) $('lb-char').src = charFace;                      // 로비에서는 앞모습으로 눈을 맞춘다
+  renderChars();
+  renderSkies();
+}
+function showLobby(){
+  state = 'lobby';
+  titleOv.classList.remove('on');
+  deathOv.classList.remove('on');
+  $('cardview').classList.remove('on'); $('skyview').classList.remove('on');
+  hud.classList.remove('on');
+  renderLobby();
+  $('lobby').classList.add('on');
+}
+$('btn-play').addEventListener('pointerdown', e => { e.stopPropagation(); ac(); startRun(); });
+$('btn-sky').addEventListener('pointerdown', e => { e.stopPropagation(); $('skies').classList.toggle('hide'); });
+$('btn-char').addEventListener('pointerdown', e => { e.stopPropagation(); $('charpanel').classList.toggle('hide'); });
+
+/* ── 밤하늘 도감 — 획득한 별자리가 실제 별 무늬로 반짝인다 ── */
+const CONST_SHAPES = {
+  noname: [[10,60],[35,20],[62,45],[88,15],[112,55]],
+  leo:    [[8,50],[30,25],[55,30],[80,15],[105,35],[95,65],[60,70]],
+  cygnus: [[60,8],[60,40],[25,32],[95,28],[60,40],[60,78]],
+  orion:  [[25,10],[85,12],[55,30],[45,46],[65,46],[20,76],[95,72]],
+  draco:  [[8,20],[30,35],[55,25],[80,40],[100,25],[112,50],[90,68]],
+};
+const CONST_POS = { noname:[215,70], leo:[120,205], cygnus:[315,235], orion:[160,390], draco:[290,510] };
+function renderSkyview(){
+  const cl = loadClear();
+  let open = true, html = '';
+  for(let i = 0; i < 46; i++)
+    html += `<circle cx="${(Math.random()*430)|0}" cy="${(Math.random()*610)|0}" r="${(Math.random()*1.2+.4).toFixed(1)}" fill="#CFE7FF" opacity="${(Math.random()*.25+.08).toFixed(2)}"/>`;
+  for(const k of STAGE_ORDER){
+    const stg = STAGES[k], pts = CONST_SHAPES[k], [ox, oy] = CONST_POS[k];
+    const got = !!cl[k], locked = !open;
+    const col = got ? '#FFDF6B' : locked ? '#232B47' : '#5A6791';
+    const pline = pts.map(([x, y]) => `${ox + x - 60},${oy + y - 45}`).join(' ');
+    html += `<polyline points="${pline}" fill="none" stroke="${col}" stroke-width="${got ? 1.4 : 1}" opacity="${got ? .85 : .5}"${got ? '' : ' stroke-dasharray="3 4"'}/>`;
+    for(const [x, y] of pts)
+      html += `<circle class="${got ? 'skv-on' : ''}" cx="${ox + x - 60}" cy="${oy + y - 45}" r="${got ? 3.2 : 2.2}" fill="${got ? '#FFDF6B' : col}"${got ? ` style="animation-delay:${(Math.random()*2).toFixed(1)}s"` : ''}/>`;
+    const pr = got ? '★' : locked ? '잠김' : Math.min(99, Math.round((+localStorage.getItem('aseul-const-' + k) || 0) / stg.goal * 100)) + '%';
+    html += `<text x="${ox}" y="${oy + 64}" text-anchor="middle" font-size="11" font-weight="700" fill="${got ? '#FFD98A' : '#68729A'}" font-family="Gothic A1,sans-serif">${stg.name} ${pr}</text>`;
+    open = got;
+  }
+  $('skv').innerHTML = html;
+}
+$('btn-skyview').addEventListener('pointerdown', e => { e.stopPropagation(); renderSkyview(); $('skyview').classList.add('on'); });
+$('skv-close').addEventListener('pointerdown', e => { e.stopPropagation(); $('skyview').classList.remove('on'); });
+
+/* 하늘 선택 칩 — 정복해야 다음 하늘이 열린다 */
+function renderSkies(){
+  const cl = loadClear();
+  const el = $('skies'); el.innerHTML = '';
+  const mk = (key, locked) => {
+    const stg = STAGES[key];
+    let tail = '';
+    if(locked) tail = ' · 잠김';
+    else if(cl[key]) tail = ' ★';
+    else {
+      const pr = Math.min(99, Math.round((+localStorage.getItem('aseul-const-' + key) || 0) / stg.goal * 100));
+      if(pr > 0) tail = ` ${pr}%`;
+    }
+    const b = document.createElement('div');
+    b.className = 'skychip' + (currentSky === key ? ' sel' : '') + (locked ? ' lock' : '');
+    b.textContent = stg.name + tail;
+    if(!locked) b.addEventListener('pointerdown', e => {
+      e.stopPropagation(); currentSky = key;
+      try{ localStorage.setItem('aseul-sky-sel', key); }catch(err){}
+      renderLobby();                                     // 하늘 이름 줄까지 함께 갱신
+    });
+    el.appendChild(b);
+  };
+  let open = true, anyOpenSel = false;
+  for(const k of STAGE_ORDER){
+    if(k === currentSky && open) anyOpenSel = true;
+    mk(k, !open); open = !!cl[k];
+  }
+  if(!anyOpenSel){ currentSky = 'noname'; renderSkies(); }   // 잠긴 하늘이 선택돼 있으면 처음으로
+}
+$('tohome').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  showLobby();
+});
+
+/* ── 절정 카드 — 절정 6초의 실제 궤적을 유성 줄기로 그린 공유 이미지 ── */
+function buildCard(){
+  const cw = 720, chh = 960;
+  const c = document.createElement('canvas'); c.width = cw; c.height = chh;
+  const g = c.getContext('2d');
+  const bg = g.createLinearGradient(0, 0, 0, chh);
+  bg.addColorStop(0, '#0D1226'); bg.addColorStop(1, '#07090F');
+  g.fillStyle = bg; g.fillRect(0, 0, cw, chh);
+  for(let i = 0; i < 80; i++){
+    g.globalAlpha = Math.random()*.45 + .08; g.fillStyle = '#CFE7FF';
+    g.beginPath(); g.arc(Math.random()*cw, Math.random()*chh, Math.random()*1.6 + .4, 0, 6.283); g.fill();
+  }
+  g.globalAlpha = 1;
+  // 절정 궤적 (peakAt-4 ~ +2) — 시간은 아래로, x는 실제 조작
+  const w0 = peakAt - 4, w1 = peakAt + 2;
+  const seg = path.filter(p => p.e >= w0 && p.e <= w1);
+  if(seg.length > 1){
+    const yTop = 168, yBot = 620, eSpan = Math.max(.1, seg[seg.length-1].e - seg[0].e);
+    const pts = seg.map(p => [80 + (p.x / W) * (cw - 160), yTop + ((p.e - seg[0].e) / eSpan) * (yBot - yTop)]);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.strokeStyle = 'rgba(255,180,84,.32)'; g.lineWidth = 26; g.shadowColor = '#FFB454'; g.shadowBlur = 34;
+    g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke();
+    g.shadowBlur = 0;
+    g.strokeStyle = '#FFF3DC'; g.lineWidth = 6;
+    g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke();
+    // 스침의 순간들 — 궤적 위의 작은 별
+    g.fillStyle = '#FFDF6B'; g.shadowColor = '#FFB454'; g.shadowBlur = 12;
+    for(const n of melody){
+      if(n.e < w0 || n.e > w1) continue;
+      let near = seg[0];
+      for(const p of seg) if(Math.abs(p.e - n.e) < Math.abs(near.e - n.e)) near = p;
+      const x = 80 + (near.x / W) * (cw - 160), y = yTop + ((n.e - seg[0].e) / eSpan) * (yBot - yTop);
+      g.beginPath(); g.arc(x, y, n.g ? 7 : n.d ? 5.5 : 4, 0, 6.283); g.fill();
+    }
+    g.shadowBlur = 0;
+  }
+  const px2 = runMinDist < 999 ? Math.max(0, Math.round(runMinDist)) : null;
+  g.textAlign = 'center';
+  g.fillStyle = '#FFB454'; g.font = '900 19px "Gothic A1",sans-serif'; g.fillText('별똥별의 여정', cw/2, 76);
+  g.fillStyle = '#EDF1FF'; g.font = '52px "Black Han Sans","Gothic A1",sans-serif'; g.fillText('아슬아슬', cw/2, 132);
+  g.font = '86px "Black Han Sans","Gothic A1",sans-serif'; g.fillText(score.toLocaleString(), cw/2, 742);
+  g.fillStyle = '#7E89B0'; g.font = '700 19px "Gothic A1",sans-serif';
+  g.fillText(`최고 배수 ×${peakMult}` + (px2 !== null ? ` · 가장 가까웠던 순간 ${px2}px` : ''), cw/2, 786);
+  if(px2 !== null){
+    g.fillText(`죽음까지 ${(runMinDist / Math.max(1, runMinSpd)).toFixed(3)}초`, cw/2, 816);
+  }
+  g.fillStyle = '#FFDF6B'; g.font = '900 25px "Gothic A1",sans-serif';
+  g.fillText(`칭호 — ${runTitle()}`, cw/2, 866);
+  g.fillStyle = '#7E89B0'; g.font = '700 16px "Gothic A1",sans-serif';
+  g.fillText(`${STAGES[currentSky].name} · ${SKY_MD}`, cw/2, 902);
+  g.fillStyle = '#3A4364'; g.font = '700 12px "Gothic A1",sans-serif';
+  g.fillText('ASEUL·ASEUL', cw/2, chh - 32);
+  return c;
+}
+let cardCanvas = null;
+$('peak-btn').addEventListener('pointerdown', e => {          // 절정의 순간 — 그림과 노래를 한 버튼에 (결과 화면 정리)
+  e.stopPropagation();
+  cardCanvas = buildCard();
+  $('cardimg').src = cardCanvas.toDataURL('image/png');
+  $('cardview').classList.add('on');
+  if(melodyReady()) playPeakMelody();
+});
+$('card-melody').addEventListener('pointerdown', e => { e.stopPropagation(); playPeakMelody(); });
+$('card-close').addEventListener('pointerdown', e => { e.stopPropagation(); $('cardview').classList.remove('on'); });
+$('card-share').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  if(!cardCanvas) return;
+  cardCanvas.toBlob(blob => {
+    if(!blob) return;
+    const file = new File([blob], 'aseul-card.png', { type: 'image/png' });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      navigator.share({ files: [file], title: '아슬아슬', text: '내 절정의 순간 — 아슬아슬' }).catch(() => {});
+    } else {
+      $('card-share').textContent = '공유 미지원 — 길게 눌러 저장';
+    }
+  });
+});
+
+/* 개발용 훅 — 자동 테스트에서 상태 확인/강제 조향 */
+window.ASEUL = {
+  get state(){ return state; }, get score(){ return score; }, get mult(){ return mult; },
+  get rows(){ return rows; }, get orb(){ return orb; }, get W(){ return W; },
+  get elapsed(){ return elapsed; }, get zoneIdx(){ return zoneIdx; }, get peakMult(){ return peakMult; },
+  get melodyLen(){ return melody.length; }, get motes(){ return motes.length; }, get nova(){ return nova; },
+  get heat(){ return heat; }, get dustRun(){ return dustRun; },
+  get bandTo(){ return bandTo; }, get bandT(){ return bandT; }, get phraseLen(){ return phraseQueue.length; },
+  get sky(){ return currentSky; }, get passed(){ return passed; },
+  get grazes(){ return grazes; }, get deeps(){ return deepCount; }, get golds(){ return goldCount; },
+  get bpm(){ return +bpmNow().toFixed(1); },      // 검증용: 초신성 템포 상승 확인
+  steer(x){ if(orb) orb.tx = x; },
+  setSky(k){ if(STAGES[k]) currentSky = k; },     // 검증용
+  log(){ try{ return JSON.parse(localStorage.getItem('aseul-log') || '[]'); }catch(e){ return []; } },
+  stats(){                                        // KPI 분포 요약 — P25/50/75/90, 학습·사망 지표
+    const rl = this.log(); if(!rl.length) return null;
+    const q = (arr, p) => { const s = [...arr].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+    const scores = rl.map(r => r.s);
+    const dzCount = {}; rl.forEach(r => { dzCount[r.dz] = (dzCount[r.dz] || 0) + 1; });
+    return {
+      판수: rl.length,
+      점수: { P25: q(scores, .25), P50: q(scores, .5), P75: q(scores, .75), P90: q(scores, .9), 최고: Math.max(...scores) },
+      평균지속초: +(rl.reduce((a, r) => a + r.du, 0) / rl.length).toFixed(1),
+      첫스침중앙값초: q(rl.filter(r => r.fg !== null).map(r => r.fg), .5) ?? null,
+      두번째스침전환율: +(rl.filter(r => r.sg !== null).length / Math.max(1, rl.filter(r => r.fg !== null).length)).toFixed(2),
+      최고배수중앙값: q(rl.map(r => r.m), .5),
+      사망존분포: dzCount,
+    };
+  },
+  boost(){ heat = capH(); sinceGraze = 0; },      // 검증용: 다음 프레임 상한 도달 → 초신성 발동
+  setHeat(h){ heat = Math.min(h, capH()); sinceGraze = 0; },   // 검증용: 열기 임의 설정
+  chill(){ sinceGraze = delayNow() + .01; },      // 검증용: 즉시 냉각 상태로 (가터링·하강음 확인)
+  warp(s){ if(state === 'play') elapsed = Math.max(elapsed, s); },   // 검증용: 난이도 램프 앞으로 감기 (후반 코스·엄지 이동량 확인)
+  gapCenters(){                                   // 검증용: 현재 줄들의 통로 중심 (엄지 이동량 측정)
+    return rows.filter(r => r.blocks.length === 2 && r.blocks[0].x === 0 && !r.blocks[0].dyn)
+      .map(r => Math.round(r.blocks[0].w + (r.blocks[1].x - r.blocks[0].w) / 2));
+  },
+};
+})();
+</script>
+
+
