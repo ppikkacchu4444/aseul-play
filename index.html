@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.67</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.68</div>
 </div>
 
 <script>
@@ -408,13 +408,18 @@ addEventListener('resize', resize); resize();
 
 /* ═══════════════ 튜닝 값 (게임의 심장) ═══════════════ */
 const ORB_R   = 13;      // 플레이어 반지름
-const BAND    = 28;      // 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침' (v0.59: 32→28, 관통이 너무 쉬워 조임)
+const BAND    = 24;      /* 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침' (v0.59: 32→28 / v0.68: 28→24)
+                            안전 구간 비율 = 1 − 2·BAND/(통로폭−26). 밴드가 넓으면 통로를 아무리 넓혀도
+                            안 스치고 갈 자리가 안 남는다 — 폭과 밴드는 한 세트로 잡아야 한다 */
 const DEEP    = 12;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0.59: 14→12). 죽음 판정 ORB_R 13px은 절대 불변
 const BLOCK_H = 26;
 const WALL_R  = 11;      // 벽 모서리 라운드 — 그림과 충돌 판정이 같은 값을 쓴다 ("보이는 대로 죽는다")
 const T = {
   speed0: 235, speed1: 610, rampSec: 64,   // 낙하 속도 곡선 (v0.43 엄지 배려로 이동이 순해진 만큼 램프를 당김)
-  gap0: 4.3,  gap1: 2.15,                  // 통로 폭 (지름 배수) — 난이도는 이동 거리가 아니라 '정밀도'로 만든다(헌법 15조)
+  /* 통로 폭 (지름 배수) — v0.68에서 **난이도 손잡이에서 내렸다**.
+     폭으로 난이도를 만들면 후반에 안전 구간이 0%가 되어 "붙는다"가 선택이 아니게 된다.
+     폭은 언제나 '안 스치고 갈 수 있는 차선'이 남을 만큼 유지하고, 난이도는 속도·줄 간격·조임목이 맡는다 */
+  gap0: 4.3,  gap1: 4.0,                   // (v0.68: 2.15 → 4.0)
   space0: 225, space1: 152,                // 줄 간격(px)
   heatCap: 49,                             // 최대 배수 = 1 + heatCap = ×50
   decayDelay: 1.4,                         // 안 스치고 버틸 수 있는 유예(초)
@@ -970,10 +975,16 @@ function island(row, bw, bx, amp){
 
 function spawnRow(y = -BLOCK_H - 6){
   const d = diff(), z = zone();
-  const gapW = lerp(T.gap0, T.gap1, d) * ORB_R * 2 * z.gapMul;
   const row = { y, blocks: [], scored: false, col: z.col };
   const r = rng();                                       // 배치 난수는 전부 rng — 오늘 안에서 코스가 고정된다
   const gateRow = (rowsSpawned + 1) % ROWS_PER_ZONE === 0;
+  /* ── 조임목 (v0.68) — 통로를 상시 좁히는 대신 **가끔** 조인다 ──
+     상시 좁히면 후반엔 안 스치고 지나갈 수가 없어져 "붙는다"가 선택이 아니라 기하가 된다.
+     실측: 66초 시점 안전 구간 **0%** — 통로를 지나가는 것만으로 양쪽 벽에 동시에 스쳤다.
+     그러면 배수가 오르는 건 잘해서가 아니라 살아 있어서고, 정체성이 지형으로 내려앉는다.
+     넓은 구간에서는 "붙을지 말지"가 선택으로 살아 있고, 조임목이 긴장과 리듬을 맡는다 */
+  const pinch = (!gateRow && rowsSpawned % 7 === 5) ? lerp(.9, .54, d) : 1;
+  const gapW = lerp(T.gap0, T.gap1, d) * ORB_R * 2 * z.gapMul * pinch;
 
   // 프레이즈 시작 판정 — 조용한 존들에서 가끔, 작곡된 5~6줄이 끼어든다
   if(!gateRow && !phraseQueue.length && rowsSpawned >= 6 &&
@@ -2619,6 +2630,18 @@ window.ASEUL = {
   get grazes(){ return grazes; }, get deeps(){ return deepCount; }, get golds(){ return goldCount; },
   get bpm(){ return +bpmNow().toFixed(1); },      // 검증용: 초신성 템포 상승 확인
   steer(x){ if(orb) orb.tx = x; },
+  /* 검증용: 줄마다 **실제로 지나갈 수 있는 구간** — 섬·움직이는 벽·닫히는 문까지 전부 포함한다.
+     gapCenters()는 2블록 줄만 봐서 섬 줄을 통째로 놓쳤고, 그걸로 만든 봇이 섬에 박으며
+     "통로가 좁아서 죽는다"는 잘못된 결론을 냈다. 자동 플레이 계측은 반드시 이걸 써야 한다 */
+  gaps(){
+    return rows.map(r => {
+      const seg = r.blocks.map(b => { const g = blockGeom(r, b); return [g.x, g.x + g.w]; }).sort((a,b) => a[0]-b[0]);
+      const out = []; let cur = 0;
+      for(const s of seg){ if(s[0] > cur) out.push([cur, s[0]]); cur = Math.max(cur, s[1]); }
+      if(cur < W) out.push([cur, W]);
+      return { y: r.y, g: out.filter(g => g[1]-g[0] >= ORB_R*2 + 4) };
+    });
+  },
   get canyon(){ return CANYON; },                 // 검증용: 협곡 모서리 위치·붙어 간 거리
   cEdge(y){ return CANYON ? { l: cEdgeX(y === undefined ? orb.y : y, 0), r: cEdgeX(y === undefined ? orb.y : y, 1) } : null; },
   get cRun(){ return [Math.round(cRun[0]), Math.round(cRun[1])]; },
