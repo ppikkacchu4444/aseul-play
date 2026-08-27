@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.56</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.57</div>
 </div>
 
 <script>
@@ -1789,15 +1789,46 @@ function draw(){
   for(const row of rows){
     for(const b of row.blocks){
       const geo = blockGeom(row, b);
+      const R = Math.min(WALL_R, geo.w * .5);
+      /* ── 벽이 당신을 느낀다 ──
+         별이 가까울수록 그 벽면이 달아오른다. 거리는 **판정과 같은 식**으로 잰다
+         (라운드 모서리 최근접점) — 보이는 대로 죽고, 보이는 대로 점수가 난다.
+         회피 게임은 멀어질수록 좋으니 화면이 밝아질 이유가 없다. 이 게임은 붙을수록 타오른다:
+         화면이 매 순간 "지금 너는 여기에 이만큼 붙어 있다"를 말한다 */
+      let prox = 0;
+      if(state === 'play' || state === 'dying'){
+        // 가로는 좁게(스침 밴드 기준), 세로는 넓게(다가오는 동안 미리 달아오른다).
+        // 한 점 거리로만 재면 벽이 내 높이를 지나는 0.2초만 켜져서 아무도 못 본다 —
+        // 미리 타올라야 "이 모서리를 스치게 된다"가 읽히고, 그게 곧 코스 안내가 된다
+        const nx = clamp(orb.x, geo.x + R, geo.x + geo.w - R);
+        const dx = Math.abs(orb.x - nx) - R - ORB_R;
+        const dy = Math.max(0, Math.abs(orb.y - (row.y + BLOCK_H/2)) - BLOCK_H/2 - ORB_R);
+        const hx = clamp(1 - dx / (BAND * 1.7), 0, 1);
+        const hy = clamp(1 - dy / 170, 0, 1);
+        prox = hx * hx * hy;                             // 붙을수록 급격히 달아오른다
+      }
+      const glow = prox * (nova > 0 ? .45 : 1);          // 초신성 땐 화면이 이미 금빛이라 절제
       // 벽 = 덩어리 하나 + 금빛 후광 한 겹(스침 구간). 골드 벽은 잭팟
       ctx.shadowColor = b.gold
-        ? `rgba(255,215,90,${.8 + b.flash*.2})`
-        : `rgba(255,180,84,${.55 + b.flash*.45 + bp*.15})`;
-      ctx.shadowBlur = BAND * (1 + b.flash*.4) * (b.gold ? 1.2 : 1);
-      const R = Math.min(WALL_R, geo.w * .5);
+        ? `rgba(255,215,90,${.75 + b.flash*.25})`
+        : `rgba(255,180,84,${.34 + glow*.52 + b.flash*.4 + bp*.1})`;
+      ctx.shadowBlur = BAND * (.6 + glow*1.05 + b.flash*.45) * (b.gold ? 1.2 : 1);
       ctx.fillStyle = b.gold ? '#C9992E' : (row.col || '#3A4680');
       rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
       ctx.shadowBlur = 0;
+      if(glow > .012){                                   // 달아오른 안쪽 모서리 — 스침이 일어나는 바로 그 선
+        const inner = orb.x > geo.x + geo.w ? geo.x + geo.w : (orb.x < geo.x ? geo.x : null);
+        ctx.fillStyle = `rgba(255,190,110,${(glow*.3).toFixed(3)})`;
+        rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
+        if(inner !== null){
+          ctx.strokeStyle = `rgba(255,242,206,${(glow*.95).toFixed(3)})`;
+          ctx.lineWidth = 1.8 + glow*3.2;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(inner, row.y + R*.55); ctx.lineTo(inner, row.y + BLOCK_H - R*.55);
+          ctx.stroke();
+        }
+      }
       if(b.dyn){                                        // 닫히는 문 — 안쪽 모서리가 조여들수록 달아오른다
         const cp = 1 - (closeGap(row) - row.close.g1) / Math.max(1, row.close.g0 - row.close.g1);
         ctx.strokeStyle = `rgba(255,120,90,${.15 + cp*.55})`;
@@ -1805,9 +1836,11 @@ function draw(){
         const gx = b.dyn === 'L' ? geo.x + geo.w : geo.x;
         ctx.beginPath(); ctx.moveTo(gx, row.y + 2); ctx.lineTo(gx, row.y + BLOCK_H - 2); ctx.stroke();
       }
-      if(b.flash > 0){
-        ctx.strokeStyle = `rgba(255,225,160,${b.flash})`;
-        ctx.lineWidth = 2.5;
+      if(b.flash > 0){                                   // 스친 순간 — 벽이 하얗게 달아올랐다 식는다
+        ctx.fillStyle = `rgba(255,246,214,${(b.flash*.35).toFixed(3)})`;
+        rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
+        ctx.strokeStyle = `rgba(255,252,236,${b.flash})`;
+        ctx.lineWidth = 2.5 + b.flash*2;
         rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.stroke();
       }
     }
