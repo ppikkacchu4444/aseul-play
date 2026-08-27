@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.72</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.73</div>
 </div>
 
 <script>
@@ -417,15 +417,16 @@ const DEEP    = 12;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0
    5초간 별이 부풀어 **더 멀리서도 스친다**(밴드·아슬 판정 1.5배). 즉 같은 코스가
    잠깐 나에게 가까워진다 — 규칙을 바꾸는 게 아니라 **거리를 바꾸는** 방식이라
    룰 3줄은 그대로다. 죽음 판정 13px은 성운 중에도 절대 안 늘어난다 */
-const NEB_T = 5, NEB_HOLD = 2, NEB_MUL = 1.5;
-/* 앞 2초는 **그대로 유지**하고, 남은 3초에 걸쳐 **서서히 잦아들어** 5초에 소멸한다(유저 지시).
-   처음부터 줄어들면 "부풀었다"는 느낌 없이 곧장 꺼지는 것처럼 읽힌다 — 절정에는 머무는 구간이 있어야 한다.
-   감쇠는 smoothstep이라 유지→감쇠 이음매에도, 끝나는 순간에도 꺾임이 없다(양끝 기울기 0).
+const NEB_T = 5, NEB_HOLD = 3.6, NEB_MUL = 1.5, NEB_OUT = .28;
+/* 앞 3.6초는 **그대로 유지**하고, 남은 1.4초에 **빠르게** 평상 크기로 돌아온다.
+   느리게 줄이면(3초에 걸쳐) 변화율이 너무 낮아 "돌아오는 중"으로 안 읽히고,
+   그 상태에서 사라지니 **덜 줄어든 채 끊긴 것**처럼 보인다 — 유저 지시: "빨리 줄어도 되니까
+   줄어서 깔끔하게 원래대로 돌아가는 모습이 다 보이게". 되돌아오는 구간은 짧고 또렷해야 한다.
    그리고 이 값이 곧 화면에 그려지는 아우라 반지름이다 — 보이는 것과 판정은 언제나 같다 */
 const nebQ = () => {
   if(neb <= 0) return 0;
-  const fade = NEB_T - NEB_HOLD;                  // 감쇠에 쓰는 시간(3초)
-  if(neb >= fade) return 1;                       // 앞 2초 — 그대로
+  const fade = NEB_T - NEB_HOLD;                  // 되돌아오는 데 쓰는 시간(1.4초)
+  if(neb >= fade) return 1;                       // 앞 3.6초 — 그대로
   const p = neb / fade;
   return p * p * (3 - 2 * p);
 };
@@ -759,7 +760,7 @@ let state = 'title';           // title | play | dying | dead
 let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
 let glints = [];               // 스침 섬광 — 폭발과 구분되는 '긁힘'의 언어
 let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
-let nebs = [], neb = 0, nebGap = 0;      // 성운 조각 · 부푼 시간 잔여 · 마지막 성운 이후 지난 줄 수
+let nebs = [], neb = 0, nebGap = 0, nebOut = 0;  // 성운 조각 · 부푼 시간 잔여 · 출현 쿨다운 · 마무리(링으로 빨려드는) 잔여
 let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
 let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
 let bandSnap, bandTo, bandT, bandCur;   // 하늘의 여정 — 고도 배경 블렌드
@@ -822,7 +823,7 @@ function reset(){
   const stg = STAGES[currentSky];
   rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0; glints = [];
   motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
-  nebs = []; neb = 0; nebGap = 0;
+  nebs = []; neb = 0; nebGap = 0; nebOut = 0;
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
   bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
@@ -1774,7 +1775,10 @@ function update(sdt, rawDt){
   }
 
   /* 성운 — 지나면 별이 부푼다. 5초간 더 멀리서도 스친다 */
-  if(neb > 0) neb = Math.max(0, neb - sdt);
+  if(neb > 0){
+    neb = Math.max(0, neb - sdt);
+    if(neb === 0) nebOut = NEB_OUT;                      // 평상 크기에 닿은 뒤, 링까지 마저 빨려든다
+  } else if(nebOut > 0) nebOut = Math.max(0, nebOut - sdt);
   if(nebGap > 0) nebGap = Math.max(0, nebGap - sdt);      // 출현 쿨다운(초)
   for(let i = nebs.length - 1; i >= 0; i--){
     const nb = nebs[i];
@@ -2314,17 +2318,19 @@ function draw(){
          ⚠ 아래 판정 링(13px)은 절대 같이 키우지 않는다 — 그 링이 커지면 "죽는 거리가 늘었다"로
          읽혀서 '보이는 대로 죽는다'가 무너진다. 커지는 건 어디까지나 **스치는 거리**이므로
          링과 다른 색·다른 질감(단단한 선 vs 부드러운 띠)으로 갈라 둔다 */
-      if(neb > 0 && state === 'play'){
-        /* 반지름은 실제 판정 폭 그대로(보이는 것 = 판정).
-           ⚠ 알파를 남은 양(q)에 비례시키면 **줄어드는 마지막 30%가 투명해진 채로 사라져서**
-           "원래 크기로 돌아오는 과정"이 안 보인다 — 크기가 줄다가 그냥 없어진 것처럼 읽힌다.
-           그래서 알파는 끝까지 그대로 두고, 제자리에 **닿은 뒤에만** 짧게(0.35초) 지운다 */
-        const nr = ORB_R + bandNow(), pul = .5 + .5*Math.sin(elapsed*9);
-        const av = neb > .35 ? 1 : neb / .35;
-        ctx.globalAlpha = (.18 + .12*pul) * av;
+      /* 성운 아우라 — **오므라드는 전 과정이 알파 1.0으로 끝까지 보인다.**
+         ① neb 동안: 반지름 = 실제 판정 폭(보이는 것 = 판정) — 52px에서 39px로 되돌아온다
+         ② 그 뒤 0.28초: 판정은 이미 평상이고, 남은 껍질이 **판정 링(13px)까지 빨려들며** 끝난다.
+         ②가 없으면 39px에서 그냥 없어져서 "덜 줄어든 채 끊긴" 것으로 읽힌다 —
+         원 하나가 커졌다가 제자리로 완전히 돌아오는 그림이 되어야 한다 */
+      if((neb > 0 || nebOut > 0) && state === 'play'){
+        const pul = .5 + .5*Math.sin(elapsed*9);
+        const nr = neb > 0 ? ORB_R + bandNow()
+                           : ORB_R + BAND * (nebOut / NEB_OUT);   // 39px → 13px로 빨려든다
+        ctx.globalAlpha = .18 + .12*pul;
         ctx.fillStyle = '#7DF3FF';
         ctx.beginPath(); ctx.arc(0, 0, nr, 0, 6.283); ctx.fill();
-        ctx.globalAlpha = (.5 + .3*pul) * av;
+        ctx.globalAlpha = .5 + .3*pul;
         ctx.strokeStyle = '#9BF6FF'; ctx.lineWidth = 1.4;
         ctx.beginPath(); ctx.arc(0, 0, nr, 0, 6.283); ctx.stroke();
         ctx.globalAlpha = 1;
@@ -2743,6 +2749,8 @@ window.ASEUL = {
   },
   get neb(){ return +neb.toFixed(2); },           // 검증용: 성운 잔여 초 · 필드의 성운 수 · 현재 판정 폭
   get nebs(){ return nebs.length; },
+  get nebOut(){ return +nebOut.toFixed(3); },      // 검증용: 링으로 빨려드는 마무리 잔여
+  get auraR(){ return +(neb > 0 ? ORB_R + bandNow() : nebOut > 0 ? ORB_R + BAND*(nebOut/NEB_OUT) : 0).toFixed(1); },
   get band(){ return +bandNow().toFixed(1); },
   get deep(){ return +deepNow().toFixed(1); },
   setNeb(s){ neb = s; },                          // 검증용: 성운 효과 강제
