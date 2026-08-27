@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.65</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.66</div>
 </div>
 
 <script>
@@ -747,6 +747,16 @@ let phraseQueue = [];          // 진행 중인 프레이즈의 남은 줄들
 let melody, peakAt;            // 절정 멜로디 — 스침 음표의 기록
 let sinceGraze, timeScale, shake, flash, deadAt, lockUntil = 0;
 let held = false;              // 손가락이 닿아 있는가 — reset()이 입력 블록보다 먼저 도니 여기서 선언한다
+/* 협곡(실험) 상태 — 설계 근거와 구현은 아래 「협곡」 절에.
+   ⚠ 선언은 반드시 여기(reset() 위)에 둔다. reset()이 모듈 로드 시 바로 돌기 때문에
+   아래쪽에 let으로 두면 TDZ로 스크립트가 통째로 죽는다 (held와 같은 사고) */
+const CANYON = /[?&]canyon(=|&|$)/.test(location.search);
+const CSEG  = 26;    // 폴리라인 표본 간격 — **그리는 선과 판정선이 같은 값**이어야 한다(보이는 대로 죽는다)
+const CTICK = 140;   // 붙어서 이만큼 가면 스침 1회 (기존은 줄당 1회 ≈ 190px)
+                     // 100으로 두니 완벽히 붙는 봇이 20초 만에 ×50에 닿아 판 전체가 상한에 눌어붙었다
+let cpts = [], cGenS = 0, cPhase = 0, cScoreAcc = 0, cLastC = 0;
+let cRun = [0, 0], cDeep = [999, 999];        // 모서리에 붙어서 간 거리 / 그동안의 최고 근접
+const cBlk = [{ gold:false, flash:0 }, { gold:false, flash:0 }];   // grazeEvent가 받는 가짜 블록(관통 판정에 쓰임)
 let launch = 0;                        // 발진 연출 잔여 초 — 로비의 앞모습이 돌아서서 날아가기까지
 let novaSpin = 0;                      // 초신성 진입 가속분 (부스터 점화 직후 잠깐 더 빠르게 돈다)
 let novaRoll = 0;                      // 초신성 회전 각 — 드릴처럼 계속 돌며 돌진한다
@@ -803,6 +813,7 @@ function reset(){
   constHad = !!loadClear()[currentSky];
   constGotRun = false;
   rng = mulberry32(SEED + (stg.so || 0) * 7919);   // 모든 하늘이 날짜 시드 — 매일 새 코스, 하늘마다 다른 코스
+  if(CANYON) canyonReset();                        // 깎는 것은 첫 update 프레임에서 (위 주석 참고)
 }
 reset();
 
@@ -1183,8 +1194,144 @@ function blockGeom(row, b){
   return b.dyn === 'L' ? { x: 0, w: c - g/2 } : { x: c + g/2, w: W - c - g/2 };
 }
 
+/* ═══════════════ 협곡 (실험 — ?canyon) ═══════════════
+   벽을 '줄 단위 도장'에서 '끊기지 않는 모서리'로 바꾼다.
+
+   왜: 측정해 보니 한 줄이 지나가는 시간이 0.04~0.08초라 실력이 표현될 시간이 없고,
+   줄당 스침이 사실상 1회로 상한이 걸려 있었다(관통이 두 번째이자 마지막). 점수 규칙을
+   더 얹어도 그 2비트를 재배분할 뿐이라, 늘려야 하는 건 규칙이 아니라 **대역폭**이다.
+   그래서 스침을 '순간'이 아니라 '거리'로 판다 — 붙어서 CTICK만큼 가면 한 번.
+   밴드를 벗어나면 누적이 0으로 돌아가므로 **실력 = 얼마나 오래 선을 붙들고 가느냐**가 된다.
+
+   헌법과의 관계: 3조의 "판정은 블록당 1회, 지속 보너스 금지"는 *같은 벽에 눌어붙는*
+   퇴행을 막으려던 규칙인데, 협곡에선 모서리가 계속 흔들려서 붙어 있는 것 자체가 추적
+   작업이다. 이 프로토타입은 그 예외를 인정할 값어치가 있는지를 보는 것이다.
+   15조(엄지)는 그대로 지킨다 — 중심 이동은 표본마다 엄지가 갈 수 있는 만큼으로 잘린다. */
+/* ⚠ reset()은 모듈 로드 시점에 한 번 돌기 때문에, 여기서는 **다른 함수를 부르면 안 된다**
+   (clamp·lerp·rng가 아직 선언 전이라 TDZ로 스크립트가 통째로 죽는다). 순수 대입만 한다 —
+   시드가 필요한 값은 -1로 두고 첫 canyonGen에서 뽑는다 */
+function canyonReset(){
+  cpts = []; cGenS = 0; cScoreAcc = 0; cLastC = -1; cPhase = -1;
+  cRun = [0,0]; cDeep = [999,999];
+  cBlk[0].flash = cBlk[1].flash = 0;
+}
+function canyonGen(){                                   // 화면 위로 표본을 채운다
+  if(cPhase < 0) cPhase = rng() * 6.283;                // 시드가 정해진 뒤 첫 호출에서
+  if(cLastC < 0) cLastC = W/2;
+  let guard = 0;
+  while((!cpts.length || cpts[cpts.length-1].y > -CSEG*2) && guard++ < 200){
+    const prev = cpts[cpts.length-1];
+    const y = prev ? prev.y - CSEG : H + CSEG;
+    cGenS += CSEG;
+    const s = cGenS, d = diff();
+    /* 중심 — 주기가 서로 어긋난 세 사인. 반복은 안 느껴지되 규칙은 있어서 읽을 수 있다 */
+    let c = W/2 + Math.sin(s*.0042 + cPhase)*W*.17
+                + Math.sin(s*.0107 + cPhase*2.1)*W*.08
+                + Math.sin(s*.0231 + cPhase*3.7)*W*.04;
+    /* 폭 — 넓은 방과 조임목이 번갈아 온다. 협곡의 리듬이자 관통이 나는 자리 */
+    const pinch = (Math.sin(s*.0061 + cPhase*1.3) + 1) * .5;
+    let w = Math.max(lerp(T.gap0, T.gap1, d) * (ORB_R*2) * lerp(1.75, 1.02, pinch*pinch), ORB_R*2 + 26);
+    const step = REACH.spd * (CSEG / Math.max(1, speed())) * REACH.safe;   // 헌법 15조 — 엄지가 갈 수 있는 만큼만
+    c = clamp(c, cLastC - step, cLastC + step);
+    c = clamp(c, w/2 + 26, W - w/2 - 26);               // 양쪽에 스칠 벽이 남아 있어야 한다
+    cLastC = c;
+    cpts.push({ y, l: c - w/2, r: c + w/2 });
+    if(cpts.length > 6 && (cGenS % (CSEG*7) === 0)){    // 별가루 — 모서리를 따라가는 미끼(기존 규칙과 같은 간격감)
+      const side = rng() < .5, ex = side ? c + w/2 - 20 : c - w/2 + 20;
+      const n = 2 + (rng() < .5 ? 1 : 0);
+      for(let k = 0; k < n; k++) motes.push({ x: ex, y: y - k*38 - rng()*14, ph: rng()*6.28 });
+    }
+  }
+  while(cpts.length && cpts[0].y > H + CSEG*3) cpts.shift();
+}
+function cEdgeX(y, side){                               // 그 높이에서의 모서리 x (안/밖 판정용)
+  for(let i = 0; i + 1 < cpts.length; i++){
+    const a = cpts[i], b = cpts[i+1];
+    if(y <= a.y && y >= b.y){
+      const t = (a.y - y) / Math.max(1e-6, a.y - b.y);
+      return lerp(side ? a.r : a.l, side ? b.r : b.l, t);
+    }
+  }
+  return side ? W : 0;
+}
+function cNear(side){                                   // 오브에서 그 모서리까지 최단거리 + 실제 접점
+  let best = 1e9, bx = orb.x, by = orb.y;
+  const lim = ORB_R + BAND + CSEG*2;
+  for(let i = 0; i + 1 < cpts.length; i++){
+    const a = cpts[i], b = cpts[i+1];
+    if(Math.min(a.y, b.y) > orb.y + lim || Math.max(a.y, b.y) < orb.y - lim) continue;
+    const ax = side ? a.r : a.l, bx2 = side ? b.r : b.l;
+    const vx = bx2 - ax, vy = b.y - a.y;
+    const t = clamp(((orb.x - ax)*vx + (orb.y - a.y)*vy) / Math.max(1e-6, vx*vx + vy*vy), 0, 1);
+    const px = ax + vx*t, py = a.y + vy*t;
+    const dd = Math.hypot(orb.x - px, orb.y - py);
+    if(dd < best){ best = dd; bx = px; by = py; }
+  }
+  return { d: best, x: bx, y: by };
+}
+function canyonHit(dt){
+  const trav = speed() * dt;                            // 이번 프레임에 지나온 세계 거리
+  for(let s = 0; s < 2; s++){
+    const e = cNear(s);
+    const out = s ? orb.x > cEdgeX(orb.y, 1) : orb.x < cEdgeX(orb.y, 0);
+    const dist = out ? -e.d : e.d;                      // 벽을 넘어갔으면 음수 — 이미 죽은 거리다
+    if(dist < ORB_R){
+      if(nova > 0){                                     // 초신성 — 부수는 대신 벽을 갈고 나아간다
+        orb.x += (s ? -1 : 1) * (ORB_R - dist + .5);
+        orb.tx = clamp(orb.tx, s ? -25 : orb.x, s ? orb.x : W + 25);
+        sparks(e.x, e.y, 3, '#FFDF6B', 1.1);
+        if(!REDUCED) shake = Math.max(shake, 3);
+        continue;
+      }
+      die(e.x, e.y); return;
+    }
+    if(nova <= 0 && dist - ORB_R < runMinDist){ runMinDist = dist - ORB_R; runMinSpd = speed(); }
+    if(dist < ORB_R + BAND){
+      if(cRun[s] === 0){ tone(660,.04,'sine',.05); sparks(e.x, e.y, 3, '#FFB454', .6); }
+      cRun[s] += trav;
+      cDeep[s] = Math.min(cDeep[s], dist);              // 이 구간에서 가장 깊이 붙었던 순간
+      if(cRun[s] >= CTICK){
+        cRun[s] -= CTICK; cBlk[s].flash = 1;
+        grazeEvent(e.x, e.y, cDeep[s] < ORB_R + DEEP, cBlk[s]);
+        cDeep[s] = 999;
+      }
+    } else { cRun[s] = 0; cDeep[s] = 999; }             // 놓치면 처음부터 — 이게 '붙들고 가는' 실력이다
+  }
+}
+function drawCanyon(){
+  if(cpts.length < 2) return;
+  /* 벽 전체 도형에 shadow를 걸면 화면 절반이 번진다(면적이 벽이라서) — 대신
+     **모서리에서 안쪽으로 들어가는 그라디언트**로 벽면만 달아오르게 한다.
+     v0.58대로 모서리에 선은 긋지 않는다(조준선으로 읽힌다) — 달아오르는 건 벽의 몸뿐 */
+  for(let s = 0; s < 2; s++){
+    const b = cBlk[s];
+    const near = cNear(s).d;
+    const glow = clamp(1 - (near - ORB_R) / (BAND * 1.7), 0, 1);
+    const g2 = glow * glow * (nova > 0 ? .45 : 1);
+    ctx.beginPath();
+    ctx.moveTo(s ? W : 0, cpts[0].y + CSEG);
+    for(const p of cpts) ctx.lineTo(s ? p.r : p.l, p.y);
+    ctx.lineTo(s ? W : 0, cpts[cpts.length-1].y);
+    ctx.closePath();
+    /* 협곡에선 벽이 화면의 대부분이다 — 줄 벽 색(#3A4680)을 그대로 쓰면 화면이 통째로
+       밝아져 "어두운 강이 흐르는 밝은 화면"이 된다. 벽은 밤하늘보다 어두운 암석으로 두고,
+       모서리에만 차가운 림라이트를 얹어 실루엣이 읽히게 한다 */
+    ctx.fillStyle = '#141A31'; ctx.fill();
+    ctx.strokeStyle = 'rgba(125,163,255,.30)'; ctx.lineWidth = 1.6; ctx.stroke();
+    const heat2 = g2 * .5 + b.flash * .45;
+    if(heat2 > .01){
+      const ex = cEdgeX(orb.y, s), dir = s ? 1 : -1;    // 모서리에서 벽 안쪽으로
+      const gr = ctx.createLinearGradient(ex, 0, ex + dir * 78, 0);
+      gr.addColorStop(0, `rgba(255,196,120,${Math.min(.85, heat2).toFixed(3)})`);
+      gr.addColorStop(1, 'rgba(255,196,120,0)');
+      ctx.fillStyle = gr; ctx.fill();
+    }
+  }
+}
+
 /* ═══════════════ 그레이즈 & 충돌 (게임의 전부) ═══════════════ */
 function hitTest(dt){
+  if(CANYON){ canyonHit(dt); return; }
   const ox = orb.x, oy = orb.y;
   for(const row of rows){
     if(row.y > oy + ORB_R + BAND + BLOCK_H || row.y + BLOCK_H < oy - ORB_R - BAND){
@@ -1474,29 +1621,45 @@ function update(sdt, rawDt){
   const spd = speed();
 
   // 스폰
-  distAcc += spd * sdt;
-  if(distAcc >= nextSpace){
-    distAcc = 0;
-    nextSpace = lerp(T.space0, T.space1, diff());
-    spawnRow();
+  if(CANYON){
+    for(const p of cpts) p.y += spd * sdt;
+    canyonGen();
+    cBlk[0].flash = Math.max(0, cBlk[0].flash - sdt*2.4);
+    cBlk[1].flash = Math.max(0, cBlk[1].flash - sdt*2.4);
+  } else {
+    distAcc += spd * sdt;
+    if(distAcc >= nextSpace){
+      distAcc = 0;
+      nextSpace = lerp(T.space0, T.space1, diff());
+      spawnRow();
+    }
+    // 이동
+    for(const row of rows) row.y += spd * sdt;
+    rows = rows.filter(r => r.y < H + 80);
   }
-  // 이동
-  for(const row of rows) row.y += spd * sdt;
-  rows = rows.filter(r => r.y < H + 80);
 
   // 통과 점수 — 한 만큼 즉시 정산한다 (번 것은 빼앗지 않는다)
-  for(const row of rows){
-    if(!row.scored && row.y > orb.y + ORB_R){
-      row.scored = true; passed++;
-      const gain = 10 * mult;
-      score += gain;
-      floater(orb.x, orb.y - 34, '+' + gain,
-        mult >= 40 ? '#FFDF6B' : mult >= 10 ? '#FF5C7A' : mult >= 5 ? '#FF8E4F' : '#FFD98A',
-        Math.min(13 + mult, 30), .7);
-      spawnStars(W/2, 46, Math.min(3 + (mult >> 3), 6));   // 별은 점수판에서 터진다 — 시야 보호
-      sfx.pass(mult);
-      scoreEl.classList.remove('bump'); void scoreEl.offsetWidth; scoreEl.classList.add('bump');
-      if(mult >= 10 && !REDUCED) zoom = Math.max(zoom, 1.025);
+  const payPass = () => {
+    passed++;
+    const gain = 10 * mult;
+    score += gain;
+    floater(orb.x, orb.y - 34, '+' + gain,
+      mult >= 40 ? '#FFDF6B' : mult >= 10 ? '#FF5C7A' : mult >= 5 ? '#FF8E4F' : '#FFD98A',
+      Math.min(13 + mult, 30), .7);
+    spawnStars(W/2, 46, Math.min(3 + (mult >> 3), 6));   // 별은 점수판에서 터진다 — 시야 보호
+    sfx.pass(mult);
+    scoreEl.classList.remove('bump'); void scoreEl.offsetWidth; scoreEl.classList.add('bump');
+    if(mult >= 10 && !REDUCED) zoom = Math.max(zoom, 1.025);
+  };
+  if(CANYON){
+    // 협곡엔 '줄'이 없다 — 같은 거리를 지날 때마다 같은 값을 준다(경제는 그대로)
+    cScoreAcc += spd * sdt;
+    const need = lerp(T.space0, T.space1, diff());
+    let guard = 0;
+    while(cScoreAcc >= need && guard++ < 8){ cScoreAcc -= need; payPass(); }
+  } else {
+    for(const row of rows){
+      if(!row.scored && row.y > orb.y + ORB_R){ row.scored = true; payPass(); }
     }
   }
 
@@ -1869,7 +2032,8 @@ function draw(){
     ctx.globalAlpha = 1;
   }
 
-  // 블록
+  // 벽
+  if(CANYON) drawCanyon();
   for(const row of rows){
     for(const b of row.blocks){
       const geo = blockGeom(row, b);
@@ -2428,6 +2592,9 @@ window.ASEUL = {
   get grazes(){ return grazes; }, get deeps(){ return deepCount; }, get golds(){ return goldCount; },
   get bpm(){ return +bpmNow().toFixed(1); },      // 검증용: 초신성 템포 상승 확인
   steer(x){ if(orb) orb.tx = x; },
+  get canyon(){ return CANYON; },                 // 검증용: 협곡 모서리 위치·붙어 간 거리
+  cEdge(y){ return CANYON ? { l: cEdgeX(y === undefined ? orb.y : y, 0), r: cEdgeX(y === undefined ? orb.y : y, 1) } : null; },
+  get cRun(){ return [Math.round(cRun[0]), Math.round(cRun[1])]; },
   get held(){ return held; },                     // 검증용: 미는 각(turn)이 왜 안 풀리는지 가르는 값
   get turn(){ return orb ? +(orb.turn * 57.2958).toFixed(1) : 0; },
   setSky(k){ if(STAGES[k]) currentSky = k; },     // 검증용
