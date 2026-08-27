@@ -410,7 +410,7 @@ addEventListener('resize', resize); resize();
 const ORB_R   = 13;      // 플레이어 반지름
 /* ── [실험] 낙하 방향 — ?fall=1 이면 별이 아래로 떨어진다 ──
    세계 이동 방향(DIR)과 플레이어 고도(ORB_Y)만 뒤집는 최소 실험. 감각 비교용이다 */
-const FALL = /[?&]fall=1/.test(location.search);
+const FALL = /[?&]fall=1/.test(location.search) || /\/fall\//.test(location.pathname);   // /fall/ 경로면 주소만으로 켜진다
 const DIR = FALL ? -1 : 1;              // 세계가 흐르는 방향 (아래로 +1 / 위로 -1)
 const ORB_YR = FALL ? .26 : .74;        // 플레이어 고도 비율
 const BAND    = 32;      // 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침' (v0.52: 26→32, 보상을 후하게)
