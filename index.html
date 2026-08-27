@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.66</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.67</div>
 </div>
 
 <script>
@@ -471,8 +471,17 @@ const STAGES = {
   cygnus: { name:'백조자리',        zones:['basic','mover','mover'],   band:2, so:2, goal:140000 },
   orion:  { name:'오리온자리',      zones:['basic','narrow','narrow'], band:4, so:3, goal:300000 },
   draco:  { name:'용자리',          zones:['basic','closer','closer'], band:5, so:4, goal:600000 },
+  /* ── 별가루로 여는 특성 하늘 (선형 체인 밖) ──
+     레벨의 다양성은 **세계**가 맡는다. 코어 룰은 어느 하늘에서나 같고, 달라지는 건 벽의 문법이다.
+     체인(별자리)은 실력으로 열고, 이쪽은 모은 별가루로 연다 — 두 개의 다른 동기.
+     협곡: 벽이 줄 단위 도장이 아니라 끊기지 않는 모서리다. 닿으면 바로 죽어서
+     훨씬 정교한 조작을 요구하는 대신, 붙들고 간 거리가 그대로 배수가 된다 (v0.66 실험 → v0.67 승격) */
+  canyon: { name:'협곡의 밤', canyon:true, band:3, so:5, goal:120000, cost:400 },
 };
 const STAGE_ORDER = ['noname', 'leo', 'cygnus', 'orion', 'draco'];
+const SKY_SHOP = ['canyon'];                          // 별가루로 여는 하늘 (체인과 무관하게 열린다)
+let skiesOwned = {};
+try{ skiesOwned = JSON.parse(localStorage.getItem('aseul-skies') || '{}'); }catch(e){}
 
 /* ── 캐릭터 = 별: 규칙 한 줄 비틀기. 초신성은 '자기 상한 도달'로 일반화 ── */
 const CHARS = {
@@ -750,7 +759,7 @@ let held = false;              // 손가락이 닿아 있는가 — reset()이 �
 /* 협곡(실험) 상태 — 설계 근거와 구현은 아래 「협곡」 절에.
    ⚠ 선언은 반드시 여기(reset() 위)에 둔다. reset()이 모듈 로드 시 바로 돌기 때문에
    아래쪽에 let으로 두면 TDZ로 스크립트가 통째로 죽는다 (held와 같은 사고) */
-const CANYON = /[?&]canyon(=|&|$)/.test(location.search);
+let CANYON = false;  // 이번 판이 협곡 하늘인가 — reset()에서 선택된 하늘로 정해진다
 const CSEG  = 26;    // 폴리라인 표본 간격 — **그리는 선과 판정선이 같은 값**이어야 한다(보이는 대로 죽는다)
 const CTICK = 140;   // 붙어서 이만큼 가면 스침 1회 (기존은 줄당 1회 ≈ 190px)
                      // 100으로 두니 완벽히 붙는 봇이 20초 만에 ×50에 닿아 판 전체가 상한에 눌어붙었다
@@ -813,6 +822,7 @@ function reset(){
   constHad = !!loadClear()[currentSky];
   constGotRun = false;
   rng = mulberry32(SEED + (stg.so || 0) * 7919);   // 모든 하늘이 날짜 시드 — 매일 새 코스, 하늘마다 다른 코스
+  CANYON = !!stg.canyon;                           // 하늘이 벽의 문법을 정한다
   if(CANYON) canyonReset();                        // 깎는 것은 첫 update 프레임에서 (위 주석 참고)
 }
 reset();
@@ -2471,10 +2481,17 @@ $('skv-close').addEventListener('pointerdown', e => { e.stopPropagation(); $('sk
 function renderSkies(){
   const cl = loadClear();
   const el = $('skies'); el.innerHTML = '';
-  const mk = (key, locked) => {
+  const wallet = +(localStorage.getItem('aseul-dust') || 0);
+  const pick = key => {
+    currentSky = key;
+    try{ localStorage.setItem('aseul-sky-sel', key); }catch(err){}
+    renderLobby();                                       // 하늘 이름 줄까지 함께 갱신
+  };
+  const mk = (key, locked, price) => {
     const stg = STAGES[key];
     let tail = '';
-    if(locked) tail = ' · 잠김';
+    if(price !== undefined) tail = ' · 별가루 ' + price;   // 별가루로 여는 하늘 — 값이 곧 안내다
+    else if(locked) tail = ' · 잠김';
     else if(cl[key]) tail = ' ★';
     else {
       const pr = Math.min(99, Math.round((+localStorage.getItem('aseul-const-' + key) || 0) / stg.goal * 100));
@@ -2483,10 +2500,15 @@ function renderSkies(){
     const b = document.createElement('div');
     b.className = 'skychip' + (currentSky === key ? ' sel' : '') + (locked ? ' lock' : '');
     b.textContent = stg.name + tail;
-    if(!locked) b.addEventListener('pointerdown', e => {
-      e.stopPropagation(); currentSky = key;
-      try{ localStorage.setItem('aseul-sky-sel', key); }catch(err){}
-      renderLobby();                                     // 하늘 이름 줄까지 함께 갱신
+    if(!locked) b.addEventListener('pointerdown', e => { e.stopPropagation(); pick(key); });
+    else if(price !== undefined && wallet >= price) b.addEventListener('pointerdown', e => {
+      e.stopPropagation();                               // 별가루로 하늘을 연다 (즉시 선택)
+      skiesOwned[key] = 1;
+      try{
+        localStorage.setItem('aseul-dust', wallet - price);
+        localStorage.setItem('aseul-skies', JSON.stringify(skiesOwned));
+      }catch(err){}
+      pick(key);
     });
     el.appendChild(b);
   };
@@ -2494,6 +2516,11 @@ function renderSkies(){
   for(const k of STAGE_ORDER){
     if(k === currentSky && open) anyOpenSel = true;
     mk(k, !open); open = !!cl[k];
+  }
+  for(const k of SKY_SHOP){                              // 체인 밖 — 실력이 아니라 모은 별가루로 연다
+    const own = !!skiesOwned[k];
+    if(k === currentSky && own) anyOpenSel = true;
+    mk(k, !own, own ? undefined : STAGES[k].cost);
   }
   if(!anyOpenSel){ currentSky = 'noname'; renderSkies(); }   // 잠긴 하늘이 선택돼 있으면 처음으로
 }
