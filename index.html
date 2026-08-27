@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.69</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.70</div>
 </div>
 
 <script>
@@ -418,9 +418,11 @@ const DEEP    = 12;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0
    잠깐 나에게 가까워진다 — 규칙을 바꾸는 게 아니라 **거리를 바꾸는** 방식이라
    룰 3줄은 그대로다. 죽음 판정 13px은 성운 중에도 절대 안 늘어난다 */
 const NEB_T = 5, NEB_MUL = 1.5;
-/* 마지막 0.8초에 걸쳐 **오므라들며** 꺼진다 — 뚝 끊으면 "왜 방금 건 안 됐지"가 된다.
-   그리고 이 값이 곧 화면에 그려지는 아우라 반지름이다(보이는 대로 스친다) */
-const nebQ = () => neb <= 0 ? 0 : Math.min(1, neb / .8);
+/* **지속 내내** 선형으로 오므라들며 소멸한다(유저 지시). 마지막에만 급히 꺼지면
+   "언제 끝나는지" 정보가 마지막 순간에만 오고, 그 전까지는 남은 시간을 알 수 없다.
+   내내 줄어들면 **아우라 자체가 남은 시간 게이지**가 된다.
+   그리고 이 값이 곧 화면에 그려지는 아우라 반지름이다 — 보이는 것과 판정은 언제나 같다 */
+const nebQ = () => neb <= 0 ? 0 : neb / NEB_T;
 const bandNow = () => BAND * (1 + (NEB_MUL - 1) * nebQ());
 const deepNow = () => DEEP * (1 + (NEB_MUL - 1) * nebQ());
 const BLOCK_H = 26;
@@ -2307,11 +2309,13 @@ function draw(){
          읽혀서 '보이는 대로 죽는다'가 무너진다. 커지는 건 어디까지나 **스치는 거리**이므로
          링과 다른 색·다른 질감(단단한 선 vs 부드러운 띠)으로 갈라 둔다 */
       if(neb > 0 && state === 'play'){
-        const nr = ORB_R + bandNow(), pul = .5 + .5*Math.sin(elapsed*9);
-        ctx.globalAlpha = .16 + .10*pul;
+        /* 반지름은 실제 판정 폭 그대로, 알파는 남은 양에 비례 — 부푼 만큼만 보이고
+           효과가 0이 되는 순간 자국도 없이 사라진다(평상 밴드는 원래 안 보이는 것이다) */
+        const q = nebQ(), nr = ORB_R + bandNow(), pul = .5 + .5*Math.sin(elapsed*9);
+        ctx.globalAlpha = (.18 + .12*pul) * q;
         ctx.fillStyle = '#7DF3FF';
         ctx.beginPath(); ctx.arc(0, 0, nr, 0, 6.283); ctx.fill();
-        ctx.globalAlpha = .45 + .28*pul;
+        ctx.globalAlpha = (.5 + .3*pul) * q;
         ctx.strokeStyle = '#9BF6FF'; ctx.lineWidth = 1.4;
         ctx.beginPath(); ctx.arc(0, 0, nr, 0, 6.283); ctx.stroke();
         ctx.globalAlpha = 1;
