@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.70</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.71</div>
 </div>
 
 <script>
@@ -417,12 +417,18 @@ const DEEP    = 12;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0
    5초간 별이 부풀어 **더 멀리서도 스친다**(밴드·아슬 판정 1.5배). 즉 같은 코스가
    잠깐 나에게 가까워진다 — 규칙을 바꾸는 게 아니라 **거리를 바꾸는** 방식이라
    룰 3줄은 그대로다. 죽음 판정 13px은 성운 중에도 절대 안 늘어난다 */
-const NEB_T = 5, NEB_MUL = 1.5;
-/* **지속 내내** 선형으로 오므라들며 소멸한다(유저 지시). 마지막에만 급히 꺼지면
-   "언제 끝나는지" 정보가 마지막 순간에만 오고, 그 전까지는 남은 시간을 알 수 없다.
-   내내 줄어들면 **아우라 자체가 남은 시간 게이지**가 된다.
+const NEB_T = 5, NEB_HOLD = 2, NEB_MUL = 1.5;
+/* 앞 2초는 **그대로 유지**하고, 남은 3초에 걸쳐 **서서히 잦아들어** 5초에 소멸한다(유저 지시).
+   처음부터 줄어들면 "부풀었다"는 느낌 없이 곧장 꺼지는 것처럼 읽힌다 — 절정에는 머무는 구간이 있어야 한다.
+   감쇠는 smoothstep이라 유지→감쇠 이음매에도, 끝나는 순간에도 꺾임이 없다(양끝 기울기 0).
    그리고 이 값이 곧 화면에 그려지는 아우라 반지름이다 — 보이는 것과 판정은 언제나 같다 */
-const nebQ = () => neb <= 0 ? 0 : neb / NEB_T;
+const nebQ = () => {
+  if(neb <= 0) return 0;
+  const fade = NEB_T - NEB_HOLD;                  // 감쇠에 쓰는 시간(3초)
+  if(neb >= fade) return 1;                       // 앞 2초 — 그대로
+  const p = neb / fade;
+  return p * p * (3 - 2 * p);
+};
 const bandNow = () => BAND * (1 + (NEB_MUL - 1) * nebQ());
 const deepNow = () => DEEP * (1 + (NEB_MUL - 1) * nebQ());
 const BLOCK_H = 26;
