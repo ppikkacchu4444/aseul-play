@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.58</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.59</div>
 </div>
 
 <script>
@@ -408,8 +408,8 @@ addEventListener('resize', resize); resize();
 
 /* ═══════════════ 튜닝 값 (게임의 심장) ═══════════════ */
 const ORB_R   = 13;      // 플레이어 반지름
-const BAND    = 32;      // 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침' (v0.52: 26→32, 보상을 후하게)
-const DEEP    = 14;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0.52: 11→14). 죽음 판정 ORB_R 13px은 절대 불변
+const BAND    = 28;      // 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침' (v0.59: 32→28, 관통이 너무 쉬워 조임)
+const DEEP    = 12;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0.59: 14→12). 죽음 판정 ORB_R 13px은 절대 불변
 const BLOCK_H = 26;
 const WALL_R  = 11;      // 벽 모서리 라운드 — 그림과 충돌 판정이 같은 값을 쓴다 ("보이는 대로 죽는다")
 const T = {
@@ -721,6 +721,8 @@ let phraseQueue = [];          // 진행 중인 프레이즈의 남은 줄들
 let melody, peakAt;            // 절정 멜로디 — 스침 음표의 기록
 let sinceGraze, timeScale, shake, flash, deadAt, lockUntil = 0;
 let launch = 0;                        // 발진 연출 잔여 초 — 로비의 앞모습이 돌아서서 날아가기까지
+let novaSpin = 0;                      // 초신성 진입 — 한 바퀴 돌며 부스터를 켜는 순간
+const SPIN_T = .5;
 const LAUNCH_T = .7;
 let wmPop = 0, coolWarned = false, deathSkip = false, novaWarned = false;   // 세계 배수 팝 · 냉각 예고 · 성적표 스킵 · 초신성 꺼짐 예고
 let best = +(localStorage.getItem('aseul3-best') || 0);
@@ -765,7 +767,7 @@ function reset(){
   phraseQueue = [];
   melody = []; peakAt = 0;
   sinceGraze = 99; timeScale = 1; shake = 0; flash = 0; zoom = 1; vign = 0;
-  wmPop = 0; coolWarned = false; novaWarned = false; launch = LAUNCH_T;
+  wmPop = 0; coolWarned = false; novaWarned = false; launch = LAUNCH_T; novaSpin = 0;
   orb = { x: W/2, tx: W/2, y: H*.74, trail: [], px: W/2, vxs: 0 };
   lastMultShown = -1;
   constSaved = +(localStorage.getItem('aseul-const-' + currentSky) || 0);
@@ -1507,6 +1509,7 @@ function update(sdt, rawDt){
 
   // 히트/그레이즈 — 발진 연출 동안은 판정을 열지 않는다(첫 줄이 닿기까지 2초 이상 남아 손해 없음)
   if(launch > 0) launch = Math.max(0, launch - rawDt);
+  if(novaSpin > 0) novaSpin = Math.max(0, novaSpin - rawDt);
   else hitTest(sdt);
   if(state !== 'play') return;
 
@@ -1574,6 +1577,9 @@ function update(sdt, rawDt){
       if(!REDUCED){ flash = m5 >= 50 ? .45 : .3; zoom = 1.06; if(m5 >= 50) vign = .7; }
       if(mult >= 1 + capH() && nova <= 0){               // 자기 상한 도달 — 초신성: 벽을 뚫는다, 그리고 재가 된다
         nova = MOOD.id === 'nova' ? 8 : 6; novaMax = nova; novaCount++; novaWarned = false;  // 초신성의 날은 8초
+        novaSpin = SPIN_T;                           // 한 바퀴 돌며 부스터 점화
+        sparks(orb.x, orb.y + 6, 22, '#FFF3C4', 1.7, 280);   // 뒤로 뿜는 화염
+        sparks(orb.x, orb.y + 6, 14, '#FFB454', 1.3, 220);
         floater(W/2, H*.52, '벽을 뚫는다!', '#FFDF6B', 20, 1.6);
         rings.push({x:orb.x, y:orb.y, r0:14, r1:W*.9, col:'#FFFFFF', lw:5, life:.6, t:0});
         if(!REDUCED){ shake = 12; zoom = 1.08; }
@@ -1958,8 +1964,16 @@ function draw(){
         let fr = side ? FR_SIDE : FR_BACK;
         let flip = orb.vxs > 0, rsx = side ? 1 : 1 - roll * .78;     // 돌수록 납작해진다
         if(launch > 0){ fr = lq < .32 ? FR_FRONT : lq < .60 ? FR_SIDE : FR_BACK; flip = false; rsx = 1; }
+        /* 초신성 — 진입할 때 한 바퀴 돌며 부스터를 켜고, 그동안 별이 부풀어 오른다.
+           회전과 확대는 **캐릭터에만** 건다: 판정 링(13px)까지 커지면 판정이 커진 것처럼 읽힌다.
+           별이 제 껍데기를 넘어 부푸는 그림이 되는데, 그게 초신성의 뜻과도 맞는다 */
+        const sp2 = novaSpin > 0 ? 1 - novaSpin / SPIN_T : 1;
+        const sE = 1 - Math.pow(1 - sp2, 3);
+        const spinAng = novaSpin > 0 ? (1 - sE) * Math.PI * 2 : 0;
+        const nScale = nova > 0 ? 1.3 + (novaSpin > 0 ? (1 - sE) * .55 : 0) : 1;
         ctx.save();
-        ctx.scale(flip ? -rsx : rsx, 1);               // 옆모습 원본은 왼쪽을 본다
+        if(spinAng) ctx.rotate(spinAng);
+        ctx.scale((flip ? -rsx : rsx) * nScale, nScale);   // 옆모습 원본은 왼쪽을 본다
         ctx.drawImage(CHAR_IMG, fr*FR, 0, FR, FR, -iw/2, -iw/2, iw, iw);
         ctx.restore();
       } else {                                         // 폴백 — 기존 원형 몸
