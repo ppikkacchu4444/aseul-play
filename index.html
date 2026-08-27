@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.60</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.61</div>
 </div>
 
 <script>
@@ -1508,8 +1508,6 @@ function update(sdt, rawDt){
     }
   }
 
-  // 히트/그레이즈 — 발진 연출 동안은 판정을 열지 않는다(첫 줄이 닿기까지 2초 이상 남아 손해 없음)
-  if(launch > 0) launch = Math.max(0, launch - rawDt);
   if(novaSpin > 0) novaSpin = Math.max(0, novaSpin - rawDt);
   /* 초신성 = 드릴. 크기를 키우면 판정 링(13px)과 어긋나 보이므로 **회전으로만** 힘을 낸다.
      점화 직후 급가속했다가 일정 속도로 잦아들고, 꺼지면 가장 가까운 한 바퀴에 맞춰 곧게 선다 */
@@ -1521,7 +1519,15 @@ function update(sdt, rawDt){
       if(Math.abs(tgt - novaRoll) < .01) novaRoll = 0;
     }
   }
-  else hitTest(sdt);
+
+  // 히트/그레이즈 — 발진 연출 동안은 판정을 열지 않는다(첫 줄이 닿기까지 2초 이상 남아 손해 없음)
+  // ⚠ 이 if/else 사이에 코드를 끼워 넣지 말 것 — v0.59에서 그렇게 해서 else가 다른 if에 붙었고,
+  //    판정이 통째로 죽어 "부딪혀도 안 죽는" 버그가 됐다. 블록으로 감싸 재발을 막는다
+  if(launch > 0){
+    launch = Math.max(0, launch - rawDt);
+  } else {
+    hitTest(sdt);
+  }
   if(state !== 'play') return;
 
   // 초신성 타이머 — 다 태우면 재로부터 다시. 그동안 하늘에서 별가루가 쏟아진다
