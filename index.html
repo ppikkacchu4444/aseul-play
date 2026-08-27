@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.53</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.54</div>
 </div>
 
 <script>
@@ -443,14 +443,18 @@ const MOOD = MOODS[SEED % MOODS.length];
 const delayNow = () => T.decayDelay + (MOOD.id === 'calm' ? .6 : 0);
 function loadDay(){ try{ return JSON.parse(localStorage.getItem(DKEY)) || {n:0, hi:0}; }catch(e){ return {n:0, hi:0}; } }
 
-/* ── 하늘의 여정: 존이 곧 고도 — 배경은 조용히, 필드는 선명히 ── */
+/* ── 하늘의 여정: 존이 곧 고도 — 배경은 조용히, 필드는 선명히 ──
+   v0.54에서 순서를 뒤집었다. 세계가 아래로 흐르니 플레이어는 **올라가고 있다** —
+   떨어진 별이 다시 하늘로 돌아가는 여정이고, 죽는 순간 마침내 별자리가 된다.
+   덤으로 오를수록 별이 많아진다(starA .25 → 1) — 별을 모으는 게임에서 진행할수록
+   하늘이 비어가던 게 거꾸로였다. 이제 절정이 곧 목적지다. */
 const BANDS = [
-  { top:[5,7,15],   bot:[11,15,29], deco:'deep',   starA:1 },     // 별의 바다 (심우주)
-  { top:[6,16,24],  bot:[11,21,36], deco:'aurora', starA:.9 },    // 오로라
-  { top:[7,11,22],  bot:[16,22,39], deco:'haze',   starA:.7 },    // 성층권
-  { top:[10,14,25], bot:[20,27,44], deco:'cloud',  starA:.5 },    // 구름바다
+  { top:[10,13,26], bot:[38,32,58], deco:'dawn',   starA:.25 },   // 새벽 — 여정의 시작
   { top:[8,10,20],  bot:[23,21,38], deco:'city',   starA:.35 },   // 도시의 불빛
-  { top:[10,13,26], bot:[38,32,58], deco:'dawn',   starA:.25 },   // 새벽
+  { top:[10,14,25], bot:[20,27,44], deco:'cloud',  starA:.5 },    // 구름바다
+  { top:[7,11,22],  bot:[16,22,39], deco:'haze',   starA:.7 },    // 성층권
+  { top:[6,16,24],  bot:[11,21,36], deco:'aurora', starA:.9 },    // 오로라
+  { top:[5,7,15],   bot:[11,15,29], deco:'deep',   starA:1 },     // 별의 바다 (심우주) — 도착지
 ];
 const vlerp = (a,b,t) => [0,1,2].map(i => Math.round(a[i] + (b[i]-a[i])*t));
 const cssv = v => `rgb(${v[0]},${v[1]},${v[2]})`;
@@ -461,8 +465,10 @@ const STAGES = {
   // 모든 하늘은 데일리 시드 — 매일 새 코스. 스테이지 간 차이는 테마·기믹뿐, 레벨 생성 문법은 동일.
   // so = 시드 오프셋 (같은 날에도 하늘마다 다른 코스가 나오게)
   noname: { name:'이름없는 별자리', daily: true,                        so:0, goal:20000 },
+  // 별자리 순서 = 고도 순서 (v0.54): 도시 → 구름바다 → 오로라 → 별의 바다.
+  // 여정이 위로 향하므로 마지막 하늘이 가장 높다 — 도착지가 곧 절정이다.
   leo:    { name:'사자자리',        zones:['basic','fork','fork'],     band:1, so:1, goal:60000 },
-  cygnus: { name:'백조자리',        zones:['basic','mover','mover'],   band:3, so:2, goal:140000 },
+  cygnus: { name:'백조자리',        zones:['basic','mover','mover'],   band:2, so:2, goal:140000 },
   orion:  { name:'오리온자리',      zones:['basic','narrow','narrow'], band:4, so:3, goal:300000 },
   draco:  { name:'용자리',          zones:['basic','closer','closer'], band:5, so:4, goal:600000 },
 };
