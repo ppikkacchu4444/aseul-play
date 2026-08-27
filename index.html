@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.64</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.65</div>
 </div>
 
 <script>
@@ -502,13 +502,21 @@ const TURN = [
   { f: FR_PROF_L, m: false },   // 270° 옆(왼쪽을 봄)
   { f: FR_B34,    m: true  },   // 315° 뒤 3/4
 ];
-/* 각도 → 자세. 칸에 딱 안 맞는 나머지 각(±22.5° 이내)은 **가로로 눌러** 메운다 —
-   v0.53에서 뒷모습을 눌러 회전 중간을 만들던 언어를 그대로 두되, 이제 보정 폭이 8% 이내다 */
-function turnFrame(a){
+/* 각도 → 자세. 45° 간격 8장뿐이라 가장 가까운 칸으로 **갈아 끼우면 끊겨 보인다** —
+   0°에서 90°까지 실제 그림이 세 장(뒤·뒤3/4·옆)이고, 칸이 바뀌는 순간 실루엣 폭이
+   한 프레임에 24%씩 튀기 때문이다(15.5px → 11.8px). 그래서 두 가지를 이어 붙인다:
+   ① **폭을 두 자세 사이 값으로** 잡고 양쪽 다 그 폭에 맞춰 눌러/늘려 그린다 — 폭이
+      회전의 주된 단서라, 폭만 이어져도 도는 것으로 읽힌다
+   ② **두 자세를 겹쳐 녹인다**(알파 크로스페이드) — 그림 자체도 갈아 끼우지 않고 넘어간다
+   칸 안에서 별이 차지하는 가로 비율(TURN_W)은 시트를 자를 때 실측한 값이다 */
+const TURN_W = [.963, .644, .490, .673, .969, .673, .483, .644];
+function turnPose(a){
   const STEP = .785398;                           // 45°
   const n = ((a % 6.283185) + 6.283185) % 6.283185;
-  const t = TURN[Math.round(n / STEP) % 8];
-  return { fr: t.f, flip: t.m, sx: Math.cos(n - Math.round(n / STEP) * STEP) };
+  const q = n / STEP, i = Math.floor(q), i0 = i % 8, i1 = (i0 + 1) % 8;
+  const f = q - i, s = f * f * (3 - 2 * f);       // smoothstep — 가운데(겹치는 구간)를 짧게 지난다
+  const w = TURN_W[i0] + (TURN_W[i1] - TURN_W[i0]) * s;
+  return { a: TURN[i0], b: TURN[i1], f: s, sa: w / TURN_W[i0], sb: w / TURN_W[i1] };
 }
 let charImgOk = false;
 CHAR_IMG.onload = () => { charImgOk = true; };
@@ -2024,11 +2032,16 @@ function draw(){
            날아가는 별에는 안 맞는다) **진행 축을 축으로 몸이 뒤집히며** 돈다: 뒤 → 옆 → 앞 → 옆 → 뒤.
            세로·크기는 불변이라 판정 링(13px)과 어긋나지 않는다 — 힘은 회전과 빛으로만 낸다 */
         if(novaRoll !== 0) a = novaRoll;
-        const t = turnFrame(a);
-        ctx.save();
-        ctx.scale(t.flip ? -t.sx : t.sx, 1);
-        ctx.drawImage(CHAR_IMG, t.fr*FR, 0, FR, FR, -iw/2, -iw/2, iw, iw);
-        ctx.restore();
+        const p = turnPose(a), ga = ctx.globalAlpha;
+        for(const s of [[p.a, p.sa, 1 - p.f], [p.b, p.sb, p.f]]){
+          if(s[2] <= .004) continue;                 // 한쪽으로 붙어 있으면 한 장만 그린다
+          ctx.save();
+          ctx.globalAlpha = ga * s[2];
+          ctx.scale(s[0].m ? -s[1] : s[1], 1);
+          ctx.drawImage(CHAR_IMG, s[0].f*FR, 0, FR, FR, -iw/2, -iw/2, iw, iw);
+          ctx.restore();
+        }
+        ctx.globalAlpha = ga;
       } else {                                         // 폴백 — 기존 원형 몸
         ctx.fillStyle = nova > 0 ? (Math.sin(elapsed*(nova < 2 ? 36 : 22)) > 0 ? '#FFFFFF' : '#FFF3C4') : inB ? '#FFF3D9' : CH().col;
         ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.fill();
