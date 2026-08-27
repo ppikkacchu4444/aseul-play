@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.55</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.56</div>
 </div>
 
 <script>
@@ -698,7 +698,6 @@ function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} 
 /* ═══════════════ 상태 ═══════════════ */
 let state = 'title';           // title | play | dying | dead
 let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
-let marks = [];                // 스친 자국 — 붙은 자리마다 세계에 남는 점(퀘스트 '궤적으로 별자리 그리기'의 씨앗)
 let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
 let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
 let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
@@ -746,7 +745,7 @@ for(let i=0;i<138;i++) dots.push({          // 하얗고 희미한 별은 많을
 
 function reset(){
   const stg = STAGES[currentSky];
-  rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0; marks = [];
+  rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0;
   motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
@@ -1093,10 +1092,6 @@ function grazeEvent(cx, cy, deep, b){
     tone(880, .07, 'square', .14); tone(1760, .12, 'sine', .14, .05);
     buzz(20);
   }
-  // 스친 자국 — 붙은 그 지점이 세계에 남는다. 회피 게임은 잘할수록 화면이 깨끗하지만,
-  // 이 게임은 **잘할수록 하늘에 그림이 남는다**. 별가루(금빛 별 모양·먹는 것)와 헷갈리지 않게
-  // 형태는 작은 점, 색은 옅게 — 그리고 이어진 스침끼리는 선으로 묶여 별자리처럼 그려진다
-  marks.push({ x: cx, y: cy, e: elapsed, deep, gold });
   grazes++; sinceGraze = 0; coolWarned = false;
   if(firstGrazeT === null) firstGrazeT = elapsed;       // 문법 학습 지표: 첫 스침 → 두 번째 스침 전환
   else if(secondGrazeT === null) secondGrazeT = elapsed;
@@ -1443,9 +1438,6 @@ function update(sdt, rawDt){
   }
   // 이동
   for(const row of rows) row.y += spd * sdt;
-  for(const mk of marks) mk.y += spd * sdt;          // 자국도 세계와 함께 흐른다
-  if(marks.length > 140) marks.splice(0, marks.length - 140);
-  marks = marks.filter(mk => mk.y < H + 40);
   rows = rows.filter(r => r.y < H + 80);
 
   // 통과 점수 — 한 만큼 즉시 정산한다 (번 것은 빼앗지 않는다)
@@ -1822,26 +1814,6 @@ function draw(){
   }
 
   // 별가루 — 금빛 미끼, 위험한 라인 위에서 깜빡인다
-  /* 스친 자국 — 붙은 자리마다 남는 점, 이어진 스침은 선으로 묶인다(별자리가 그려진다).
-     별가루(금빛 별 모양)와 절대 헷갈리면 안 되므로: **작은 원점 + 옅은 색 + 연결선**.
-     아래로 흘러갈수록 사그라들어 화면이 영영 지저분해지지는 않는다 */
-  if(marks.length){
-    ctx.lineCap = 'round';
-    for(let i = 0; i < marks.length; i++){
-      const mk = marks[i], nx = marks[i+1];
-      const a = clamp(1 - (mk.y - H*.80) / (H*.24), 0, 1);      // 지나간 만큼 사그라든다
-      if(a <= .03) continue;
-      const mc = mk.gold ? '255,238,196' : mk.deep ? '255,208,224' : '214,231,255';
-      if(nx && nx.e - mk.e < 1.6){                              // 한 호흡 안의 스침만 잇는다
-        ctx.strokeStyle = `rgba(${mc},${(a*.2).toFixed(3)})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(mk.x, mk.y); ctx.lineTo(nx.x, nx.y); ctx.stroke();
-      }
-      ctx.fillStyle = `rgba(${mc},${(a*.8).toFixed(3)})`;
-      ctx.beginPath(); ctx.arc(mk.x, mk.y, mk.deep ? 2.5 : 1.8, 0, 6.283); ctx.fill();
-    }
-  }
-
   // 크고 입체적으로 — 후광 + 금빛 본체 + 흰 코어 + 하이라이트 점.
   // "먹는 것"임이 한눈에 읽혀야 한다: 배경 별(차가운 색 점)과 절대 헷갈리지 않는 금빛 별 모양
   if(motes.length){
