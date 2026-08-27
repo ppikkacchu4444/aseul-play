@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.52</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.53</div>
 </div>
 
 <script>
@@ -709,6 +709,7 @@ let firstGrazeT = null, secondGrazeT = null, deathZone = '';   // 검증 로거 
 let constSaved, constHad, constGotRun;   // 현재 별자리: 누적 점수 / 이미 획득 / 이번 판에 획득
 let rowsSpawned, zoneIdx, lastGapC, zigDir, forkSafeLeft;
 let moteGap;                   // 별가루 배치 간격 카운터 — 마지막 무리 이후 지난 줄 수
+let handHint;                  // 첫 판 조작 안내(반투명 손) — 실제로 손을 대면 사라진다
 let phraseQueue = [];          // 진행 중인 프레이즈의 남은 줄들
 let melody, peakAt;            // 절정 멜로디 — 스침 음표의 기록
 let sinceGraze, timeScale, shake, flash, deadAt, lockUntil = 0;
@@ -750,6 +751,7 @@ function reset(){
   runMinDist = 999; runMinSpd = 1; maxChain = 0; curChain = 0;
   deepCount = 0; goldCount = 0; pierceCount = 0; novaCount = 0; zc = null;
   tut = +(localStorage.getItem('aseul-runs') || 0) < 2;
+  handHint = tut;
   path = []; lastPathT = 0;
   firstGrazeT = null; secondGrazeT = null; deathZone = '';
   rowsSpawned = 0; zoneIdx = 0; lastGapC = W/2; zigDir = 1; forkSafeLeft = true; moteGap = 99;
@@ -789,7 +791,7 @@ stage.addEventListener('pointerdown', e => {
     deathSkip = true;                                    // 이른 탭 = 성적표 즉시 공개
     return;
   }
-  if(state === 'play') orb.tx = pointerX(e);
+  if(state === 'play'){ orb.tx = pointerX(e); handHint = false; }   // 손을 대는 순간 안내는 끝난다
 });
 stage.addEventListener('pointermove', e => { if(state==='play' && !modalOpen()) orb.tx = pointerX(e); });
 stage.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
@@ -1868,6 +1870,12 @@ function draw(){
 
     if(state === 'play'){
       const inB = sinceGraze < .25;
+      // 초신성 꺼짐 박자 — 화면 점멸·액자 게이지·캐릭터가 이 한 값을 공유한다(6펄스)
+      let novaPulse = 0;
+      if(nova > 0 && nova <= 2 && !REDUCED){
+        const nt = (2 - nova) / 2, nf2 = (nt * 6) % 1;
+        novaPulse = nf2 < .32 ? (1 - nf2 / .32) * (.55 + nt * .45) : 0;
+      }
       // 몸 = 히트박스 그대로, 크기 절대 고정(13px). 몸짓(기울기·늘어남)은 그리기 변형뿐 — 넓이 보존
       const bodyR = ORB_R;
       const lean = clamp(orb.vxs * .0013, -.46, .46);   // 뱅킹 — 꺾을수록 더 눕는다 (v0.52 강화)
@@ -1886,10 +1894,12 @@ function draw(){
         ctx.translate(orb.x, orb.y); ctx.rotate(lean);
         ctx.scale(1 + st, Math.max(.8, 1 - st*.75 - sq));
       }
-      if(nova > 0){                                    // 초신성 — 백열의 핵. 마지막 2초는 광휘가 잦아들고 더 빠르게 파닥인다
+      if(nova > 0){
+        /* 초신성 — 백열의 핵. 마지막 2초에는 **액자·화면과 같은 박자로 캐릭터도 함께 번쩍인다**:
+           별·게이지·화면이 한 심장으로 뛰어야 "이 불이 곧 꺼진다"가 하나의 사건으로 읽힌다 */
         const nf = Math.min(1, nova / 2);
         ctx.shadowColor = '#FFDF6B';
-        ctx.shadowBlur = (30 + Math.sin(elapsed*18)*8) * (.35 + .65*nf);
+        ctx.shadowBlur = (30 + Math.sin(elapsed*18)*8) * (.35 + .65*nf) + novaPulse * 40;
       } else {
         ctx.shadowColor = hsAll > .4 ? '#FF5C7A' : '#7DF3FF';
         ctx.shadowBlur = 10 + hsAll*12;
@@ -1913,10 +1923,10 @@ function draw(){
         ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.fill();
       }
       ctx.shadowBlur = 0;
-      if(nova > 0 && charImgOk){                       // 백열 플리커 — 캐릭터 위로 빛이 요동친다
-        ctx.globalAlpha = .2 + .2 * Math.max(0, Math.sin(elapsed*(nova < 2 ? 36 : 22)));
+      if(nova > 0 && charImgOk){                       // 백열 플리커 — 마지막 2초엔 꺼짐 박자에 맞춰 크게 터진다
+        ctx.globalAlpha = nova <= 2 ? .12 + novaPulse * .8 : .2 + .2 * Math.max(0, Math.sin(elapsed*22));
         ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, bodyR * (1 + novaPulse * .5), 0, 6.283); ctx.fill();
         ctx.globalAlpha = 1;
       }
       // 판정 링 — 스침의 경계가 캐릭터를 감싼다 (13px 불변). 발진 중엔 자리를 잡으며 서서히 켜진다
@@ -2018,6 +2028,28 @@ function draw(){
     ctx.moveTo(W/2, ins); ctx.lineTo(ins, ins); ctx.lineTo(ins, H - ins); ctx.lineTo(W/2, H - ins);
     ctx.stroke();
     ctx.restore();
+  }
+
+  /* 첫 두 판 — 반투명 손이 좌우로 왕복하며 조작을 한 번만 보여준다. 손을 대는 순간 사라진다.
+     조작 문법(절대 위치)은 그대로 두고 "만질 곳"만 알려주는 어포던스다 — 조이스틱이 아니다 */
+  if(state === 'play' && tut && handHint && elapsed < 5.2 && !REDUCED){
+    const a = Math.min(1, elapsed / .45) * Math.min(1, Math.max(0, (5.2 - elapsed) / .8));
+    const hy = H * .88, hx = W/2 + Math.sin(elapsed * 1.5) * (W * .3);
+    ctx.globalAlpha = a * .32;                          // 문지를 트랙
+    ctx.strokeStyle = '#EAF3FF'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 8]);
+    ctx.beginPath(); ctx.moveTo(W*.17, hy); ctx.lineTo(W*.83, hy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = a * .3;                           // 손등
+    ctx.fillStyle = '#EAF3FF';
+    rr(hx - 12, hy + 3, 24, 32, 11); ctx.fill();
+    ctx.globalAlpha = a * .8;                           // 손끝
+    ctx.beginPath(); ctx.arc(hx, hy, 8.5, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = a * .75;
+    ctx.font = '700 12px "Gothic A1",sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#CFE3FF';
+    ctx.fillText('좌우로 문지르면 별이 따라온다', W/2, hy + 52);
+    ctx.globalAlpha = 1;
   }
 
   // 사망 플래시
