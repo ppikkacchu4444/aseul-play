@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.68</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.69</div>
 </div>
 
 <script>
@@ -408,10 +408,21 @@ addEventListener('resize', resize); resize();
 
 /* ═══════════════ 튜닝 값 (게임의 심장) ═══════════════ */
 const ORB_R   = 13;      // 플레이어 반지름
-const BAND    = 24;      /* 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침' (v0.59: 32→28 / v0.68: 28→24)
+const BAND    = 26;      /* 그레이즈 판정 폭(px) — 이 안에 들어오면 '스침' (v0.59: 32→28 / v0.68: 28→24 → 26)
                             안전 구간 비율 = 1 − 2·BAND/(통로폭−26). 밴드가 넓으면 통로를 아무리 넓혀도
                             안 스치고 갈 자리가 안 남는다 — 폭과 밴드는 한 세트로 잡아야 한다 */
 const DEEP    = 12;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0.59: 14→12). 죽음 판정 ORB_R 13px은 절대 불변
+/* ── 성운 (v0.69) — 초신성까지 가는 길을 줄여 주는 촉진제 ──
+   초신성이 이 게임의 도파민 봉우리인데, 거기까지 가는 등반이 길다. 성운을 지나면
+   5초간 별이 부풀어 **더 멀리서도 스친다**(밴드·아슬 판정 1.5배). 즉 같은 코스가
+   잠깐 나에게 가까워진다 — 규칙을 바꾸는 게 아니라 **거리를 바꾸는** 방식이라
+   룰 3줄은 그대로다. 죽음 판정 13px은 성운 중에도 절대 안 늘어난다 */
+const NEB_T = 5, NEB_MUL = 1.5;
+/* 마지막 0.8초에 걸쳐 **오므라들며** 꺼진다 — 뚝 끊으면 "왜 방금 건 안 됐지"가 된다.
+   그리고 이 값이 곧 화면에 그려지는 아우라 반지름이다(보이는 대로 스친다) */
+const nebQ = () => neb <= 0 ? 0 : Math.min(1, neb / .8);
+const bandNow = () => BAND * (1 + (NEB_MUL - 1) * nebQ());
+const deepNow = () => DEEP * (1 + (NEB_MUL - 1) * nebQ());
 const BLOCK_H = 26;
 const WALL_R  = 11;      // 벽 모서리 라운드 — 그림과 충돌 판정이 같은 값을 쓴다 ("보이는 대로 죽는다")
 const T = {
@@ -740,6 +751,7 @@ let state = 'title';           // title | play | dying | dead
 let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
 let glints = [];               // 스침 섬광 — 폭발과 구분되는 '긁힘'의 언어
 let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
+let nebs = [], neb = 0, nebGap = 0;      // 성운 조각 · 부푼 시간 잔여 · 마지막 성운 이후 지난 줄 수
 let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
 let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
 let bandSnap, bandTo, bandT, bandCur;   // 하늘의 여정 — 고도 배경 블렌드
@@ -802,6 +814,7 @@ function reset(){
   const stg = STAGES[currentSky];
   rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0; glints = [];
   motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
+  nebs = []; neb = 0; nebGap = 0;
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
   bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
@@ -1090,6 +1103,19 @@ function spawnRow(y = -BLOCK_H - 6){
       }
     }
   }
+  /* 성운 — 별가루보다 훨씬 드물게, 그리고 **벽 옆에** 둔다.
+     쉽게 주우면 촉진제가 아니라 그냥 배경이 된다. 먹으려면 한 번 붙어야 한다.
+     간격은 **줄 수가 아니라 시간**으로 잰다: 후반엔 줄이 초당 4개씩 지나가서
+     줄 기준으로 두면 4초마다 나오고, 지속이 5초라 촉진제가 상시 버프가 되어 버린다.
+     18초 간격이면 점유율 5/18 ≈ 28% — 특별한 구간으로 남는다 */
+  if(!gateRow && rowsSpawned >= 8 && nebGap <= 0 && row.blocks.length){
+    const cbs = row.blocks.filter(b => !b.amp && !b.dyn);
+    if(cbs.length){
+      const b = cbs[(rng() * cbs.length)|0];
+      const nx = b.x <= 1 ? b.x + b.w + 22 : b.x + b.w >= W - 1 ? b.x - 22 : (rng() < .5 ? b.x - 22 : b.x + b.w + 22);
+      if(nx > 14 && nx < W - 14){ nebs.push({ x: nx, y, ph: rng()*6.28 }); nebGap = 18; }
+    }
+  }
   row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; b.cornerHit = false; });
   rows.push(row);
 
@@ -1277,7 +1303,7 @@ function cEdgeX(y, side){                               // 그 높이에서의 �
 }
 function cNear(side){                                   // 오브에서 그 모서리까지 최단거리 + 실제 접점
   let best = 1e9, bx = orb.x, by = orb.y;
-  const lim = ORB_R + BAND + CSEG*2;
+  const lim = ORB_R + bandNow() + CSEG*2;
   for(let i = 0; i + 1 < cpts.length; i++){
     const a = cpts[i], b = cpts[i+1];
     if(Math.min(a.y, b.y) > orb.y + lim || Math.max(a.y, b.y) < orb.y - lim) continue;
@@ -1307,13 +1333,13 @@ function canyonHit(dt){
       die(e.x, e.y); return;
     }
     if(nova <= 0 && dist - ORB_R < runMinDist){ runMinDist = dist - ORB_R; runMinSpd = speed(); }
-    if(dist < ORB_R + BAND){
+    if(dist < ORB_R + bandNow()){
       if(cRun[s] === 0){ tone(660,.04,'sine',.05); sparks(e.x, e.y, 3, '#FFB454', .6); }
       cRun[s] += trav;
       cDeep[s] = Math.min(cDeep[s], dist);              // 이 구간에서 가장 깊이 붙었던 순간
       if(cRun[s] >= CTICK){
         cRun[s] -= CTICK; cBlk[s].flash = 1;
-        grazeEvent(e.x, e.y, cDeep[s] < ORB_R + DEEP, cBlk[s]);
+        grazeEvent(e.x, e.y, cDeep[s] < ORB_R + deepNow(), cBlk[s]);
         cDeep[s] = 999;
       }
     } else { cRun[s] = 0; cDeep[s] = 999; }             // 놓치면 처음부터 — 이게 '붙들고 가는' 실력이다
@@ -1327,7 +1353,7 @@ function drawCanyon(){
   for(let s = 0; s < 2; s++){
     const b = cBlk[s];
     const near = cNear(s).d;
-    const glow = clamp(1 - (near - ORB_R) / (BAND * 1.7), 0, 1);
+    const glow = clamp(1 - (near - ORB_R) / (bandNow() * 1.7), 0, 1);
     const g2 = glow * glow * (nova > 0 ? .45 : 1);
     ctx.beginPath();
     ctx.moveTo(s ? W : 0, cpts[0].y + CSEG);
@@ -1355,11 +1381,11 @@ function hitTest(dt){
   if(CANYON){ canyonHit(dt); return; }
   const ox = orb.x, oy = orb.y;
   for(const row of rows){
-    if(row.y > oy + ORB_R + BAND + BLOCK_H || row.y + BLOCK_H < oy - ORB_R - BAND){
+    if(row.y > oy + ORB_R + bandNow() + BLOCK_H || row.y + BLOCK_H < oy - ORB_R - bandNow()){
       row.blocks.forEach(b => {
         if(b.pending){                                  // 범위를 벗어나며 판정 확정
           b.pending = false; b.judged = true;
-          grazeEvent(b.lastCx || orb.x, b.lastCy || orb.y, b.minDist < ORB_R + DEEP, b);
+          grazeEvent(b.lastCx || orb.x, b.lastCy || orb.y, b.minDist < ORB_R + deepNow(), b);
         }
         b.inBand = false;
       });
@@ -1395,7 +1421,7 @@ function hitTest(dt){
         die(sx, sy); return;
       }
 
-      if(dist < ORB_R + BAND){
+      if(dist < ORB_R + bandNow()){
         if(!b.inBand){
           b.inBand = true;
           if(!b.judged && !b.pending){                  // 접촉 — 판정은 0.14초 뒤 딱 1번
@@ -1409,14 +1435,14 @@ function hitTest(dt){
           b.lastCx = sx; b.lastCy = sy;
           if(elapsed >= b.judgeAt){                     // 판정 확정: 스침이냐 아슬이냐
             b.pending = false; b.judged = true; b.flash = 1;
-            grazeEvent(sx, sy, b.minDist < ORB_R + DEEP, b);
+            grazeEvent(sx, sy, b.minDist < ORB_R + deepNow(), b);
           }
         }
       } else {
         b.inBand = false;
         if(b.pending){                                  // 밴드를 떠나는 순간 조기 확정
           b.pending = false; b.judged = true; b.flash = 1;
-          grazeEvent(b.lastCx || sx, b.lastCy || sy, b.minDist < ORB_R + DEEP, b);
+          grazeEvent(b.lastCx || sx, b.lastCy || sy, b.minDist < ORB_R + deepNow(), b);
         }
       }
     }
@@ -1736,6 +1762,26 @@ function update(sdt, rawDt){
       sparks(mt.x, mt.y, 4, '#FFD98A', .6);
       if(nova <= 0) floater(mt.x, mt.y - 12, '+5', '#FFD98A', 11, .45);   // 소나기 중엔 텍스트 생략 — 소리와 불꽃만
       tone(1568, .07, 'triangle', .12); tone(2093, .09, 'sine', .08, .04);   // 동전 반짝 — 스침 음계와 구분
+    }
+  }
+
+  /* 성운 — 지나면 별이 부푼다. 5초간 더 멀리서도 스친다 */
+  if(neb > 0) neb = Math.max(0, neb - sdt);
+  if(nebGap > 0) nebGap = Math.max(0, nebGap - sdt);      // 출현 쿨다운(초)
+  for(let i = nebs.length - 1; i >= 0; i--){
+    const nb = nebs[i];
+    nb.y += spd * sdt;
+    if(nb.y > H + 30){ nebs.splice(i, 1); continue; }
+    if(Math.hypot(orb.x - nb.x, orb.y - nb.y) < ORB_R + 16){
+      nebs.splice(i, 1);
+      neb = NEB_T;                                    // 겹쳐 먹어도 늘어나지 않고 다시 5초 — 암산 가능하게
+      floater(nb.x, nb.y - 16, '성운 — 더 멀리서도 스친다', '#7DF3FF', 15, .9);
+      rings.push({ x: orb.x, y: orb.y, r0: 6, r1: ORB_R + BAND*NEB_MUL, col: '#7DF3FF', lw: 3, life: .45, t: 0 });
+      sparks(nb.x, nb.y, 12, '#7DF3FF', 1.1); sparks(nb.x, nb.y, 6, '#FFFFFF', .8);
+      if(!REDUCED) zoom = Math.max(zoom, 1.05);
+      // 부풀어 오르는 소리 — 동전(별가루)·스침 음계와 겹치지 않게 상승 스윕으로
+      for(let k = 0; k < 4; k++) tone(523 * Math.pow(1.335, k), .16, 'sine', .09, k*.05);
+      buzz(20);
     }
   }
 
@@ -2072,7 +2118,7 @@ function draw(){
         const nx = clamp(orb.x, geo.x + R, geo.x + geo.w - R);
         const dx = Math.abs(orb.x - nx) - R - ORB_R;
         const dy = Math.max(0, Math.abs(orb.y - (row.y + BLOCK_H/2)) - BLOCK_H/2 - ORB_R);
-        const hx = clamp(1 - dx / (BAND * 1.7), 0, 1);
+        const hx = clamp(1 - dx / (bandNow() * 1.7), 0, 1);
         const hy = clamp(1 - dy / 170, 0, 1);
         prox = hx * hx * hy;                             // 붙을수록 급격히 달아오른다
       }
@@ -2130,6 +2176,24 @@ function draw(){
     }
     ctx.globalAlpha = 1;
   }
+
+  /* 성운 — 별가루와 **다른 언어**로 그린다(§7-B: 같은 언어를 두 뜻으로 쓰지 않는다).
+     별가루 = 금빛 4각 별(먹는 것) / 성운 = 차가운 청록 고리(지나는 것).
+     색도 모양도 겹치지 않아서 판단 부하 없이 "저건 다른 거다"가 읽힌다 */
+  for(const nb of nebs){
+    const pu = .86 + .14*Math.sin(elapsed*2.4 + nb.ph), rot = nb.ph + elapsed*.7;
+    ctx.globalAlpha = .22 * pu;
+    ctx.fillStyle = '#7DF3FF';
+    ctx.beginPath(); ctx.arc(nb.x, nb.y, 15*pu, 0, 6.283); ctx.fill();          // 성운 기운
+    ctx.globalAlpha = .95;
+    ctx.shadowColor = '#7DF3FF'; ctx.shadowBlur = 12;
+    ctx.strokeStyle = '#9BF6FF'; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc(nb.x, nb.y, 8*pu, 0, 6.283); ctx.stroke();         // 고리
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(nb.x, nb.y, 4.2*pu, rot, rot + 4.2); ctx.stroke(); // 안쪽 호 — 돌아간다
+  }
+  ctx.globalAlpha = 1;
 
   if(state !== 'title'){
     // 냉각 텔레그래프 — 유예가 끝나갈수록 불꽃이 깜빡이고(가터링), 식는 동안엔 잿빛으로 잦아든다
@@ -2236,6 +2300,20 @@ function draw(){
         ctx.globalAlpha = nova <= 2 ? .12 + novaPulse * .8 : .2 + .2 * Math.max(0, Math.sin(elapsed*22));
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath(); ctx.arc(0, 0, bodyR * (1 + novaPulse * .5), 0, 6.283); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      /* 성운 — 부푼 동안 **닿는 거리**를 청록 아우라로 보여 준다. 반지름은 실제 판정 폭 그대로다.
+         ⚠ 아래 판정 링(13px)은 절대 같이 키우지 않는다 — 그 링이 커지면 "죽는 거리가 늘었다"로
+         읽혀서 '보이는 대로 죽는다'가 무너진다. 커지는 건 어디까지나 **스치는 거리**이므로
+         링과 다른 색·다른 질감(단단한 선 vs 부드러운 띠)으로 갈라 둔다 */
+      if(neb > 0 && state === 'play'){
+        const nr = ORB_R + bandNow(), pul = .5 + .5*Math.sin(elapsed*9);
+        ctx.globalAlpha = .16 + .10*pul;
+        ctx.fillStyle = '#7DF3FF';
+        ctx.beginPath(); ctx.arc(0, 0, nr, 0, 6.283); ctx.fill();
+        ctx.globalAlpha = .45 + .28*pul;
+        ctx.strokeStyle = '#9BF6FF'; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(0, 0, nr, 0, 6.283); ctx.stroke();
         ctx.globalAlpha = 1;
       }
       // 판정 링 — 스침의 경계가 캐릭터를 감싼다 (13px 불변). 발진 중엔 자리를 잡으며 서서히 켜진다
@@ -2642,6 +2720,20 @@ window.ASEUL = {
       return { y: r.y, g: out.filter(g => g[1]-g[0] >= ORB_R*2 + 4) };
     });
   },
+  /* 검증용: 프레임을 **직접** 돌린다. 자동 계측이 rAF에 묶여 있으면 브라우저 탭이 뒤로 가는
+     순간 전부 0이 나와서 "게임이 멈췄다"는 오진을 하게 된다(이 세션에서 세 번 겪었다).
+     이걸로 재면 실시간을 기다릴 필요도 없고 결과가 결정론적이다 — 그리기는 건너뛴다 */
+  step(dt, n){
+    const d = Math.min(dt || .0167, .033);
+    for(let i = 0; i < (n || 1) && (state === 'play' || state === 'dying'); i++) update(d, d);
+    return { state, elapsed: +elapsed.toFixed(2) };
+  },
+  get neb(){ return +neb.toFixed(2); },           // 검증용: 성운 잔여 초 · 필드의 성운 수 · 현재 판정 폭
+  get nebs(){ return nebs.length; },
+  get band(){ return +bandNow().toFixed(1); },
+  get deep(){ return +deepNow().toFixed(1); },
+  setNeb(s){ neb = s; },                          // 검증용: 성운 효과 강제
+  dropNeb(){ if(orb) nebs.push({ x: orb.x, y: orb.y - 120, ph: 0 }); },
   get canyon(){ return CANYON; },                 // 검증용: 협곡 모서리 위치·붙어 간 거리
   cEdge(y){ return CANYON ? { l: cEdgeX(y === undefined ? orb.y : y, 0), r: cEdgeX(y === undefined ? orb.y : y, 1) } : null; },
   get cRun(){ return [Math.round(cRun[0]), Math.round(cRun[1])]; },
