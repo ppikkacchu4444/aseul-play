@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.79</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.80</div>
 </div>
 
 <script>
@@ -1829,14 +1829,12 @@ function update(sdt, rawDt){
   for(let i = motes.length - 1; i >= 0; i--){
     const mt = motes[i];
     mt.y += spd * sdt;
-    /* 별무리 — 터뜨린 것(mt.w)은 **사정거리와 무관하게 반드시 회수한다.**
-       거리로만 걸면 아래로 흩어진 놈들이 세계 스크롤에 밀려 못 따라오고,
-       그게 "못 먹은 아이템이 꼬리에 따라오는" 지저분함이 된다(유저 보고).
-       주변 별가루는 종전대로 사정거리 안에서만 끌린다 */
+    /* 별무리의 부수 효과 — 마침 주변에 있던 별가루를 끌어온다.
+       주 보상은 즉시 지급이고(실물을 뿌리면 줄지어 선다), 이건 덤이다 */
     if(whPull > 0){
       const dx = orb.x - mt.x, dy = orb.y - mt.y, dd = Math.hypot(dx, dy);
-      if(dd > .5 && (mt.w || dd < WH_R)){
-        const k = Math.min(1, sdt * (3.4 + (1 - Math.min(1, dd/WH_R)) * 9) * (mt.w || 1));
+      if(dd > .5 && dd < WH_R){
+        const k = Math.min(1, sdt * (3.4 + (1 - dd/WH_R) * 9));
         mt.x += dx * k; mt.y += dy * k;
       }
     }
@@ -1912,19 +1910,21 @@ function update(sdt, rawDt){
     if(Math.hypot(orb.x - w2.x, orb.y - w2.y) < ORB_R + 16){
       whs.splice(i, 1);
       whPull = WH_T;
-      /* v0.74의 실패: 빨아들이기만 해서 **빨아들일 게 없을 때가 대부분**이었다.
-         이제 **직접 터뜨려 놓고 빨아들인다** — 세계 상태에 의존하지 않는다.
-         반지름을 넓게 흩어 놓아 도착 시각이 벌어지고, 동전음이 한꺼번에 뭉개지지 않고
-         우수수 쏟아지는 소리가 된다 */
-      for(let k = 0; k < WH_N; k++){
-        const a2 = (k / WH_N) * 6.283 + Math.random()*.5, rr2 = 58 + Math.random()*92;
-        // w = 개체별 끌림 속도. 거리만으로는 지수 수렴이라 도착이 한꺼번에 몰려
-        // 동전음이 0.5초 안에 다 터진다 — 개체마다 속도를 흩어 **우수수 쏟아지게** 만들되,
-        // 하한(0.55)을 둬서 세계 스크롤에 뒤처져 남는 놈이 없게 한다
-        motes.push({ x: clamp(orb.x + Math.cos(a2)*rr2, 12, W-12), y: orb.y + Math.sin(a2)*rr2*.8,
-                     ph: Math.random()*6.28, w: .55 + Math.random()*1.0 });
+      /* **실물 별가루를 뿌리지 않는다.** v0.75~77에서 20개를 터뜨려 놓고 회수했는데,
+         빨려 들어오는 동안 뒤에 줄지어 서서 "못 먹은 아이템이 따라오는" 그림이 됐다(유저 보고).
+         회수를 아무리 확실하게 해도 **줄 서는 순간 자체**가 지저분하다.
+         그래서 보상은 즉시 지급하고, 화면에는 **주울 수 없는 불꽃**만 모여든다 —
+         받는 느낌은 소리와 빛으로 내고, 필드에는 아무것도 안 남긴다 */
+      dustRun += WH_N; score += WH_N * 5;
+      for(let k = 0; k < 12; k++){                       // 우수수 쏟아지는 소리 — 0.66초에 걸쳐
+        tone(1046.5 * Math.pow(1.055, k), .075, 'triangle', .085, k*.055);
+        if(k % 3 === 0) tone(2093 * Math.pow(1.04, k), .06, 'sine', .05, k*.055 + .02);
       }
-      floater(w2.x, w2.y - 18, '별무리', '#FFD05C', 17, .9);
+      for(let k = 0; k < 5; k++)                         // 안으로 조여드는 고리들 — 수명을 달리해 차례로 닿는다
+        rings.push({ x: orb.x, y: orb.y, r0: 150 - k*22, r1: 10, col: k%2 ? '#FFF6DC' : '#FFD05C',
+                     lw: 2.5, life: .3 + k*.1, t: 0 });
+      spawnStars(orb.x, orb.y, 10);
+      floater(w2.x, w2.y - 18, '별무리 · 별가루 +' + WH_N, '#FFD05C', 17, 1.0);
       rings.push({ x: orb.x, y: orb.y, r0: 14, r1: WH_R, col: '#FFD05C', lw: 5, life: .42, t: 0 });   // 터져 나가고
       rings.push({ x: orb.x, y: orb.y, r0: WH_R, r1: 14, col: '#FFF6DC', lw: 3, life: .62, t: 0 });   // 다시 조여든다
       sparks(w2.x, w2.y, 22, '#FFD05C', 1.4); sparks(w2.x, w2.y, 10, '#FFFFFF', 1.0);
@@ -2455,17 +2455,26 @@ function draw(){
          분신은 바로 뒤(같은 라인)에 있어야 "함께 난다"로 읽히는데, 그 자리가 곧 꼬리 한복판이다.
          v0.78에서 꼬리에 구멍을 내봤더니 **꼬리가 잘려 보여서** 더 나빴다(유저 보고).
          진짜 원인은 분신이 반투명(α .8)이라 **꼬리가 몸을 통과해 비쳤던 것** —
-         꼬리를 건드릴 게 아니라 분신을 불투명하게 만들면 된다:
-         ①어두운 받침을 한 겹 깔아 그 자리의 빛줄기를 눌러 주고 ②금빛 후광 ③불투명한 몸 */
+         꼬리를 건드릴 게 아니라 분신을 불투명하게 만들면 된다 */
       const bl = .55 + .45*Math.sin(elapsed*7.5) + gdFlash*1.4;     // 번쩍임
       const gs = 24 * gdP.s * (1 + gdFlash*.18);
       if(gs > .5){
-        ctx.globalAlpha = .5 * gdP.s;                                // 받침 — 꼬리를 통과시키지 않는다
-        ctx.fillStyle = '#0B1024';
-        ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*.62, 0, 6.283); ctx.fill();
-        ctx.globalAlpha = (.16 + .14*bl) * gdP.s;                    // 후광
-        ctx.fillStyle = '#FFE9A0';
-        ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*.72 + 5, 0, 6.283); ctx.fill();   // 본체보다 커 보이지 않게
+        /* 받침을 까는 방식은 색을 뭘 쓰든 실패한다 — 어두운 받침은 그림자로 읽히고(유저 보고),
+           금빛 받침도 **저알파 단색 원**이라 어두운 배경 위에서 탁한 회갈색 판으로 앉는다.
+           원인은 색이 아니라 **덮는 방식**이다. 덮으면 뒤가 죽고, 죽은 자리는 그림자가 된다.
+           그래서 덮지 않고 **더한다**(lighter) — 가장자리가 0으로 사라지는 그라디언트라
+           테두리가 없고, 꼬리 위에 얹히면 꼬리를 누르는 대신 금빛으로 밝힌다.
+           "빛나는 것이 옆에 왔다"가 그대로 읽힌다 */
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = gdP.s;
+        const gg = ctx.createRadialGradient(gdP.x, gdP.y, 0, gdP.x, gdP.y, gs*1.7);
+        gg.addColorStop(0,  'rgba(255,224,140,' + (.46 + .30*bl).toFixed(3) + ')');
+        gg.addColorStop(.38,'rgba(255,198,86,'  + (.20 + .16*bl).toFixed(3) + ')');
+        gg.addColorStop(1,  'rgba(255,170,60,0)');
+        ctx.fillStyle = gg;
+        ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*1.7, 0, 6.283); ctx.fill();
+        ctx.restore();
         ctx.save();
         ctx.translate(gdP.x, gdP.y);
         ctx.globalAlpha = gdP.s;                                     // 몸은 불투명 — 꼬리가 비치지 않는다
@@ -2475,6 +2484,21 @@ function draw(){
         ctx.drawImage(CHAR_IMG, gt.a.f*FR, 0, FR, FR, -gs/2, -gs/2, gs, gs);
         ctx.restore();
         ctx.shadowBlur = 0;
+        // 금빛 고리 — 본체의 판정 링과 같은 언어. 또렷한 테두리가 흐릿한 꼬리와 갈라 준다
+        ctx.globalAlpha = Math.min(1, (.82 + gdFlash*.18) * gdP.s);
+        ctx.strokeStyle = gdFlash > .3 ? '#FFFFFF' : '#FFDF8C';
+        ctx.lineWidth = 2 + gdFlash*1.4;
+        ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*.58, 0, 6.283); ctx.stroke();
+        /* 고리를 도는 작은 빛 셋 — 정지한 고리는 조준선처럼 보이지만, 도는 순간
+           "살아서 함께 나는 것"이 된다. 움직임이 곧 존재의 신호다 */
+        ctx.globalAlpha = Math.min(1, (.7 + gdFlash*.3) * gdP.s);
+        ctx.fillStyle = gdFlash > .3 ? '#FFFFFF' : '#FFF3C4';
+        for(let k = 0; k < 3; k++){
+          const sa = elapsed*2.2 + k*2.094, sr = gs*.58;
+          ctx.beginPath();
+          ctx.arc(gdP.x + Math.cos(sa)*sr, gdP.y + Math.sin(sa)*sr*.62, 1.5 + gdFlash*1.2, 0, 6.283);
+          ctx.fill();
+        }
         if(gdFlash > .02){                                           // 벌었을 때 하얗게 덧씌운다
           ctx.globalAlpha = gdFlash * .5 * gdP.s;
           ctx.fillStyle = '#FFFFFF';
@@ -2985,6 +3009,9 @@ window.ASEUL = {
     for(let i = 0; i < (n || 1) && (state === 'play' || state === 'dying'); i++) update(d, d);
     return { state, elapsed: +elapsed.toFixed(2) };
   },
+  /* 검증용: step()이 그리기를 건너뛰므로, 탭이 뒤로 가 rAF가 멈춘 상태에서 화면을 확인하려면
+     한 장을 직접 그려야 한다. step()으로 상황을 만들고 이걸 부르면 그 순간이 캔버스에 남는다 */
+  render(){ draw(); },
   get neb(){ return +neb.toFixed(2); },           // 검증용: 성운 잔여 초 · 필드의 성운 수 · 현재 판정 폭
   get nebs(){ return nebs.length; },
   get nebOut(){ return +nebOut.toFixed(3); },      // 검증용: 링으로 빨려드는 마무리 잔여
