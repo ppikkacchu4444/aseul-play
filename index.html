@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.77</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.78</div>
 </div>
 
 <script>
@@ -1873,14 +1873,11 @@ function update(sdt, rawDt){
   gdFlash = Math.max(0, gdFlash - sdt * 3.2);
   if(guard > 0){
     guard = Math.max(0, guard - sdt);
-    if(!gdP) gdP = { x: orb.x, y: orb.y + 36, s: 0, off: 30 };
-    /* **꼬리 밖으로 비켜 난다.** 꼬리는 별의 지나온 자리라 정확히 뒤로 뻗는다 —
-       그 한복판에 앉히면 z가 위여도 밝은 선에 파묻혀 안 보인다(유저 보고).
-       그래서 옆으로 비스듬히, 그리고 꺾는 반대쪽으로 — 날개를 단 것처럼 읽힌다 */
-    const want = orb.vxs > 60 ? -32 : orb.vxs < -60 ? 32 : (gdP.off >= 0 ? 30 : -30);
-    gdP.off += (want - gdP.off) * Math.min(1, sdt * 3.5);
-    gdP.x += (orb.x + gdP.off - gdP.x) * Math.min(1, sdt * 7);   // 가로는 늦게 따라온다
-    gdP.y = orb.y + 36;
+    if(!gdP) gdP = { x: orb.x, y: orb.y + 40, s: 0 };
+    /* **바로 뒤, 같은 라인.** v0.77에서 꼬리를 피해 옆으로 빼봤더니 "같이 난다"는 느낌이
+       죽었다(유저 보고) — 대열은 뒤가 맞다. 대신 꼬리 쪽에 구멍을 내서 보이게 한다(draw 참고) */
+    gdP.x += (orb.x - gdP.x) * Math.min(1, sdt * 7);              // 가로는 늦게 따라온다
+    gdP.y = orb.y + 40;
     gdP.s += ((guard > .55 ? 1 : guard / .55) - gdP.s) * Math.min(1, sdt * 9);   // 올 땐 커지고 갈 땐 작아진다
     if(guard === 0) gdP = null;
   }
@@ -1891,7 +1888,7 @@ function update(sdt, rawDt){
     if(Math.hypot(orb.x - gd.x, orb.y - gd.y) < ORB_R + 16){
       gds.splice(i, 1);
       guard = GD_T;
-      gdP = { x: gd.x, y: orb.y + 36, s: 0, off: gd.x < orb.x ? -30 : 30 };   // 주운 쪽 어깨에 붙는다
+      gdP = { x: gd.x, y: orb.y + 40, s: 0 };                     // 주운 자리에서 날아와 뒤에 붙는다
       gdFlash = 1;
       floater(orb.x, orb.y - 56, '수호별 — 점수 ×2', '#FFE9A0', 19, 1.3);
       rings.push({ x: orb.x, y: orb.y, r0: 10, r1: 96,  col: '#FFE9A0', lw: 4, life: .5, t: 0 });
@@ -2429,15 +2426,26 @@ function draw(){
       const tcol = ashen ? '#7C86AC' : maxed ? '#FF7DA0' : hsAll > .4 ? '#FF5C7A' : hsAll > .12 ? '#FFB454' : '#9BE8FF';
       const core = ashen ? '#C3CCE4' : maxed ? (Math.sin(elapsed*16) > 0 ? '#FFFFFF' : '#FFE9C4') : hsAll > .12 ? '#FFF3DC' : '#EAFBFF';
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      /* 수호별이 있으면 **꼬리가 그 자리를 비켜 간다.**
+         분신은 바로 뒤(같은 라인)에 있어야 "함께 난다"로 읽히는데, 그 자리가 곧 꼬리 한복판이라
+         z를 위로 올려도 밝은 빛줄기에 파묻힌다. 옆으로 빼봤더니 이번엔 "같이 나는" 느낌이 죽었다.
+         그래서 자리는 뒤로 되돌리고, 대신 **꼬리에 구멍을 낸다** — 분신 주위 한 뼘을 건너뛰면
+         빛줄기가 그를 감싸고 지나가는 그림이 되고, 뒤쪽 꼬리는 그대로 이어진다 */
+      const hole = (guard > 0 && gdP) ? 26 : 0;
       for(let pass = 0; pass < 2; pass++){
         for(let i = 0; i < orb.trail.length-1; i++){
+          const p0 = orb.trail[i], p1 = orb.trail[i+1];
+          if(hole){
+            const mx2 = (p0.x + p1.x)/2, my2 = (p0.y + p1.y)/2;
+            if(Math.hypot(mx2 - gdP.x, my2 - gdP.y) < hole) continue;
+          }
           const a = 1 - i/orb.trail.length;
           ctx.globalAlpha = a * (pass ? .5 : .16) * (.7 + hsAll*.6) * gut;
           ctx.strokeStyle = pass ? core : tcol;
           ctx.lineWidth = (pass ? ORB_R*.5 : ORB_R*1.5) * a * (1 + hsAll*.45);
           ctx.beginPath();
-          ctx.moveTo(orb.trail[i].x, orb.trail[i].y);
-          ctx.lineTo(orb.trail[i+1].x, orb.trail[i+1].y);
+          ctx.moveTo(p0.x, p0.y);
+          ctx.lineTo(p1.x, p1.y);
           ctx.stroke();
         }
       }
