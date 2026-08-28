@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.82</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.83</div>
 </div>
 
 <script>
@@ -1871,11 +1871,16 @@ function update(sdt, rawDt){
   gdFlash = Math.max(0, gdFlash - sdt * 3.2);
   if(guard > 0){
     guard = Math.max(0, guard - sdt);
-    if(!gdP) gdP = { x: orb.x, y: orb.y + 40, s: 0 };
+    if(!gdP) gdP = { x: orb.x, y: orb.y + 40, s: 0, vx: 0 };
     /* **바로 뒤, 같은 라인.** v0.77에서 꼬리를 피해 옆으로 빼봤더니 "같이 난다"는 느낌이
        죽었다(유저 보고) — 대열은 뒤가 맞다. 대신 꼬리 쪽에 구멍을 내서 보이게 한다(draw 참고) */
+    const gpx0 = gdP.x;
     gdP.x += (orb.x - gdP.x) * Math.min(1, sdt * 7);              // 가로는 늦게 따라온다
     gdP.y = orb.y + 40;
+    /* 분신 **자기 속도**로 뱅킹한다 — 본체의 lean을 그대로 베끼면 뒤따라오는 놈이 앞사람과
+       동시에 기울어 부자연스럽다. 자기 속도를 쓰면 늦게 따라오는 만큼 늦게 눕는다 */
+    const gvx = (gdP.x - gpx0) / Math.max(sdt, .001);
+    gdP.vx = (gdP.vx || 0) + (gvx - (gdP.vx || 0)) * Math.min(1, sdt * 8);
     gdP.s += ((guard > .55 ? 1 : guard / .55) - gdP.s) * Math.min(1, sdt * 9);   // 올 땐 커지고 갈 땐 작아진다
     if(guard === 0) gdP = null;
   }
@@ -1886,7 +1891,7 @@ function update(sdt, rawDt){
     if(Math.hypot(orb.x - gd.x, orb.y - gd.y) < ORB_R + 16){
       gds.splice(i, 1);
       guard = GD_T;
-      gdP = { x: gd.x, y: orb.y + 40, s: 0 };                     // 주운 자리에서 날아와 뒤에 붙는다
+      gdP = { x: gd.x, y: orb.y + 40, s: 0, vx: 0 };              // 주운 자리에서 날아와 뒤에 붙는다
       gdFlash = 1;
       floater(orb.x, orb.y - 56, '수호별 — 점수 ×2', '#FFE9A0', 19, 1.3);
       rings.push({ x: orb.x, y: orb.y, r0: 10, r1: 96,  col: '#FFE9A0', lw: 4, life: .5, t: 0 });
@@ -2193,6 +2198,34 @@ function starPath(x,y,r,rot){
   ctx.closePath();
 }
 
+/* 수호천사의 실루엣 — **필드의 아이템과 함께 나는 분신이 이 한 쌍을 같이 쓴다.**
+   아이콘은 곧 얻게 될 모습이어야 직관적이고, 따로 그리면 반드시 어긋난다(별무리에서 겪었다).
+   s = 몸 크기 / fp = 날갯짓 위상(-1~1) / tilt = 뱅킹 각 / fold = 옆을 볼 때 접히는 정도 */
+function angelWings(x, y, s, fp, tilt, fold, a, col){
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(tilt);
+  ctx.globalCompositeOperation = 'lighter';                  // 덮지 않고 더한다 — 꼬리를 누르지 않는다
+  ctx.globalAlpha = a; ctx.fillStyle = col;
+  for(let d = -1; d <= 1; d += 2){
+    const ww = s*.90*(.92 + .08*fp)*fold;
+    ctx.beginPath();
+    ctx.moveTo(0, s*.10);
+    ctx.quadraticCurveTo(d*ww*.46, -s*(.58 + .30*fp), d*ww, -s*(.28 + .26*fp));
+    ctx.quadraticCurveTo(d*ww*.60,  s*.26,  0,  s*.26);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+function angelHalo(x, y, s, tilt, a, lw, col, ry){
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(tilt);
+  ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.ellipse(0, -s*.62, s*.29, ry === undefined ? s*.095 : ry, 0, 0, 6.283);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function draw(){
   ctx.clearRect(0,0,W,H);
   let sx = 0, sy = 0;
@@ -2356,29 +2389,58 @@ function draw(){
      별가루 = 금빛 4각 별(먹는 것) / 성운 = 차가운 청록 고리(지나는 것).
      색도 모양도 겹치지 않아서 판단 부하 없이 "저건 다른 거다"가 읽힌다 */
   for(const nb of nebs){
-    const pu = .86 + .14*Math.sin(elapsed*2.4 + nb.ph), rot = nb.ph + elapsed*.7;
-    ctx.globalAlpha = .22 * pu;
-    ctx.fillStyle = '#7DF3FF';
-    ctx.beginPath(); ctx.arc(nb.x, nb.y, 15*pu, 0, 6.283); ctx.fill();          // 성운 기운
-    ctx.globalAlpha = .95;
-    ctx.shadowColor = '#7DF3FF'; ctx.shadowBlur = 12;
-    ctx.strokeStyle = '#9BF6FF'; ctx.lineWidth = 2.4;
-    ctx.beginPath(); ctx.arc(nb.x, nb.y, 8*pu, 0, 6.283); ctx.stroke();         // 고리
+    /* 아이콘은 **그것이 하는 일**을 그린다. 성운이 하는 일은 판정이 넓어지는 것이니
+       밖으로 퍼져 나가는 물결이 곧 아이콘이다. v0.82까지 안쪽에 돌아가는 호(arc 4.2rad)를
+       뒀는데 그게 'C' 자로 읽혀서(유저 보고) 뜻도 없고 아이템처럼 보이지도 않았다 */
+    const pu = .86 + .14*Math.sin(elapsed*2.4 + nb.ph);
+    ctx.save();                                                                 // 성운 기운 — 저알파 단색 원은
+    ctx.globalCompositeOperation = 'lighter';                                   // 어두운 배경에 탁한 판으로 앉는다.
+    const nag = ctx.createRadialGradient(nb.x, nb.y, 0, nb.x, nb.y, 19*pu);     // 덮지 말고 더한다
+    nag.addColorStop(0,  'rgba(125,243,255,.34)');
+    nag.addColorStop(.45,'rgba(110,220,255,.14)');
+    nag.addColorStop(1,  'rgba(90,200,255,0)');
+    ctx.fillStyle = nag;
+    ctx.beginPath(); ctx.arc(nb.x, nb.y, 19*pu, 0, 6.283); ctx.fill();
+    ctx.restore();
+    for(let k = 0; k < 3; k++){                                                 // 퍼져 나가는 물결 셋
+      const t = (elapsed*.85 + nb.ph*.16 + k/3) % 1;
+      ctx.globalAlpha = (1 - t) * .85;
+      ctx.strokeStyle = '#9BF6FF'; ctx.lineWidth = 2.1 * (1 - t*.55);
+      ctx.beginPath(); ctx.arc(nb.x, nb.y, (5 + t*11) * pu, 0, 6.283); ctx.stroke();
+    }
+    ctx.globalAlpha = .98;                                                      // 알맹이 — 밝은 심
+    ctx.shadowColor = '#7DF3FF'; ctx.shadowBlur = 14;
+    ctx.fillStyle = '#D6FCFF';
+    ctx.beginPath(); ctx.arc(nb.x, nb.y, 4.8*pu, 0, 6.283); ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.arc(nb.x, nb.y, 4.2*pu, rot, rot + 4.2); ctx.stroke(); // 안쪽 호 — 돌아간다
+    ctx.globalAlpha = .85; ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(nb.x - 1.5, nb.y - 1.8, 1.7, 0, 6.283); ctx.fill();
   }
-  /* 수호별 조각 — 네 번째 언어. 나와 같은 금빛이되 **별 모양이 아니라 겹친 두 개의 고리**:
-     "하나가 더 있다"가 모양으로 읽혀야 한다 */
+  /* 수호별 조각 — **얻게 될 그 모습 그대로**: 날개와 후광을 단 작은 별똥별.
+     v0.82까지는 겹친 두 고리였는데, 실제로 따라붙는 것과 하나도 안 닮아서 "이게 뭘 주는지"가
+     읽히지 않았다(유저 보고). 분신과 **같은 angelWings/angelHalo**를 쓰므로 앞으로 어긋날 수 없다.
+     몸은 별가루의 4각 별이 아니라 캐릭터 스프라이트 — 그래야 "나 같은 게 하나 더"로 읽힌다 */
   for(const gd of gds){
     const pu = .88 + .12*Math.sin(elapsed*3 + gd.ph);
-    ctx.globalAlpha = .22 * pu; ctx.fillStyle = '#FFE9A0';
-    ctx.beginPath(); ctx.arc(gd.x, gd.y, 15*pu, 0, 6.283); ctx.fill();
-    ctx.globalAlpha = .95; ctx.shadowColor = '#FFE9A0'; ctx.shadowBlur = 12;
-    ctx.strokeStyle = '#FFF3C4'; ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.arc(gd.x - 3.4, gd.y, 6*pu, 0, 6.283); ctx.stroke();
-    ctx.beginPath(); ctx.arc(gd.x + 3.4, gd.y, 6*pu, 0, 6.283); ctx.stroke();
-    ctx.shadowBlur = 0;
+    const gis = 19 * pu, gfp = Math.sin(elapsed*16.4 + gd.ph);
+    ctx.save();                                                                 // 분신의 발광과 같은 방식 —
+    ctx.globalCompositeOperation = 'lighter';                                   // 덮으면 탁한 판, 더하면 빛이다
+    const gag = ctx.createRadialGradient(gd.x, gd.y, 0, gd.x, gd.y, 21*pu);
+    gag.addColorStop(0,  'rgba(255,224,140,.40)');
+    gag.addColorStop(.40,'rgba(255,198,86,.16)');
+    gag.addColorStop(1,  'rgba(255,170,60,0)');
+    ctx.fillStyle = gag;
+    ctx.beginPath(); ctx.arc(gd.x, gd.y, 21*pu, 0, 6.283); ctx.fill();
+    ctx.restore();
+    angelWings(gd.x, gd.y, gis, gfp, 0, 1, .82, '#FFF4D2');
+    if(charImgOk){
+      ctx.globalAlpha = .98;
+      ctx.shadowColor = '#FFE9A0'; ctx.shadowBlur = 12;
+      ctx.drawImage(CHAR_IMG, FR_FRONT*FR, 0, FR, FR, gd.x - gis/2, gd.y - gis/2, gis, gis);
+      ctx.shadowBlur = 0;
+    }
+    angelHalo(gd.x, gd.y, gis, 0, .8, 1.3, '#FFE59A');
+    ctx.globalAlpha = 1;
   }
   /* 별무리 — **별가루의 큰 버전이므로 같은 언어를 쓴다.**
      v0.74에서 보랏빛 나선으로 그린 게 오류였다: 별가루의 덩어리인데 다른 범주처럼 보였다.
@@ -2475,32 +2537,18 @@ function draw(){
         ctx.fillStyle = gg;
         ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*1.7, 0, 6.283); ctx.fill();
         ctx.restore();
-        /* 날개 — **몸 뒤**에 깔아야 등에서 돋은 것으로 읽힌다.
-           날갯짓(fl)이 곧 살아 있다는 신호고, 본체가 옆을 볼 때는 wt로 접혀 함께 돈다 */
         /* 파닥파닥 — 크게 젓는 게 아니라 **작게 자주** 떤다(2.6Hz). 작은 날개는 빨라야 귀엽고,
-           느리면 무겁게 활공하는 것처럼 보인다.
-           젓는 건 **폭이 아니라 끝**이다. 폭을 접으면 최저점에서 날개가 몸(24px) 뒤로 통째로
-           숨어 깜빡이는 것처럼 보인다. 끝을 위아래로 젓게 하면 항상 삐져나온 채로 파닥거린다 */
+           느리면 무겁게 활공하는 것처럼 보인다. 젓는 건 폭이 아니라 **끝**이다(angelWings 참고).
+           **뱅킹(gtl)은 날개·몸·후광이 전부 같이 받는다.** 몸만 기울고 날개가 고정이면
+           날개가 몸에 붙어 있지 않은 것처럼 보인다(유저 보고) — 한 몸이면 같이 눕는다 */
         const fp = Math.sin(elapsed * 16.4);
-        const wt = .70 + .30*Math.abs(Math.cos(orb.turn * .7));
+        const wt = .70 + .30*Math.abs(Math.cos(orb.turn * .7));      // 옆을 볼 땐 접힌다
+        const gtl = clamp((gdP.vx || 0) * .0016, -.5, .5);
+        angelWings(gdP.x, gdP.y, gs, fp, gtl, wt,
+                   Math.min(1, (.52 + .26*bl) * gdP.s), gdFlash > .3 ? '#FFFFFF' : '#FFF4D2');
         ctx.save();
         ctx.translate(gdP.x, gdP.y);
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = Math.min(1, (.52 + .26*bl) * gdP.s);
-        ctx.fillStyle = gdFlash > .3 ? '#FFFFFF' : '#FFF4D2';
-        for(let d = -1; d <= 1; d += 2){
-          /* 몸(24px)보다 조금만 넓게 — 몸 폭 안에 들어가면 아예 안 보이고(v0.81 전 실패),
-             너무 크면 분신이 주인공만큼 커진다. 삐져나오는 만큼만 앙증맞다 */
-          const ww = gs*.90*(.92 + .08*fp)*wt;
-          ctx.beginPath();
-          ctx.moveTo(0, gs*.10);
-          ctx.quadraticCurveTo(d*ww*.46, -gs*(.58 + .30*fp), d*ww, -gs*(.28 + .26*fp));
-          ctx.quadraticCurveTo(d*ww*.60,  gs*.26,  0,  gs*.26);
-          ctx.closePath(); ctx.fill();
-        }
-        ctx.restore();
-        ctx.save();
-        ctx.translate(gdP.x, gdP.y);
+        ctx.rotate(gtl);
         ctx.globalAlpha = gdP.s;                                     // 몸은 불투명 — 꼬리가 비치지 않는다
         ctx.shadowColor = '#FFF3C4'; ctx.shadowBlur = 14 + bl*16;
         const gt = turnPose(orb.turn * .7);                 // 본체와 같은 방향을 보되 덜 꺾인다
@@ -2512,14 +2560,9 @@ function draw(){
            본체의 판정 링과 같은 모양이라 주인공과 눈길을 다툰다(주인공이 제일 잘 보여야 한다).
            천사의 기호는 감싸지 않는다: 링은 머리 위, 날개는 등 뒤 — 둘 다 몸 **밖**에 있어서
            실루엣만으로 "도우러 온 것"이 읽히고, 가운데는 비워 두니 별똥별이 가려지지 않는다 */
-        ctx.globalAlpha = Math.min(1, (.62 + gdFlash*.38) * gdP.s);
-        ctx.strokeStyle = gdFlash > .3 ? '#FFFFFF' : '#FFE59A';
-        ctx.lineWidth = 1.3 + gdFlash*1.2;
-        ctx.beginPath();
-        /* 머리 **바로 위**(정수리에서 몇 px). 더 띄우면 본체와 분신 사이 꼬리에 낀 고리로
-           보이고, 머리에 걸치면 띠처럼 보인다. 링도 작아야 앙증맞다 — 머리보다 좁게 */
-        ctx.ellipse(gdP.x, gdP.y - gs*.62, gs*.29, gs*.095 + gdFlash*.05, 0, 0, 6.283);
-        ctx.stroke();
+        angelHalo(gdP.x, gdP.y, gs, gtl, Math.min(1, (.62 + gdFlash*.38) * gdP.s),
+                  1.3 + gdFlash*1.2, gdFlash > .3 ? '#FFFFFF' : '#FFE59A',
+                  gs*.095 + gdFlash*.05);
         if(gdFlash > .02){                                           // 벌었을 때 하얗게 덧씌운다
           ctx.globalAlpha = gdFlash * .5 * gdP.s;
           ctx.fillStyle = '#FFFFFF';
