@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.76</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.77</div>
 </div>
 
 <script>
@@ -1112,13 +1112,23 @@ function spawnRow(y = -BLOCK_H - 6){
      목표는 부자 되는 느낌이 아니라 "계속 먹을 게 나오는구나" 수준의 꾸준함. */
   moteGap++;
   const gapNeed = (tut && rowsSpawned < 14) ? 2 : (MOOD.id === 'dust' ? 2 : 4);   // 온보딩·별가루의 날은 촘촘히
+  /* ⚠ 무리의 세로 폭은 **줄 간격 안에** 들어와야 한다. 빗발 존은 간격이 91px인데
+     기본 무리는 최대 94px까지 뻗어서 다음 줄 안으로 들어갔다 — 그게 "별가루가 벽에 겹쳐
+     보이는" 원인이었다(유저 보고). 남는 세로 공간(간격 − 블록 높이)에 맞춰 간격을 조인다 */
+  const mRoom = Math.max(0, nextSpace - BLOCK_H - 26);
+  const mStep = Math.max(13, Math.min(38, mRoom / 2.2));
   if(gateRow){
+    const gStep = Math.max(15, Math.min(42, mRoom / 2.6));
     for(let k = 0; k < 3; k++)                             // 별의 문 = 관문 보상, 항상 3개
-      motes.push({ x: lastGapC + (rng() - .5)*18, y: y - 34 - k*42 - rng()*16, ph: rng()*6.28 });
+      motes.push({ x: lastGapC + (rng() - .5)*18, y: y - 30 - k*gStep - rng()*10, ph: rng()*6.28 });
     moteGap = 0;
   } else if(rowsSpawned >= 3 && moteGap >= gapNeed){
     const mPick = rng(), mSide = rng() < .5;
-    const cbs = row.blocks.filter(b => !b.amp && !b.dyn);   // 움직이는 벽·닫히는 문에는 안 뿌린다
+    /* ⚠ 움직이는 블록이 **하나라도 있는 줄에는 아예 안 뿌린다.**
+       예전엔 "붙일 블록"만 걸렀는데, 정지한 벽 옆에 놓아도 같은 줄의 **떠다니는 섬이
+       그 위를 쓸고 지나가** 별가루가 벽 속에 박힌 것처럼 보였다(유저 보고).
+       배치 시점에 안전해도 이후 프레임에 겹치므로, 줄 단위로 빼는 게 유일한 확실한 방법이다 */
+    const cbs = row.blocks.some(b => b.amp || b.dyn) ? [] : row.blocks;
     if(cbs.length){
       const b = cbs[(mPick * cbs.length)|0];
       let mx;
@@ -1128,7 +1138,7 @@ function spawnRow(y = -BLOCK_H - 6){
       if(mx > 10 && mx < W - 10){
         const n = 2 + (rng() < .5 ? 1 : 0);                 // 한 무리 = 2~3개
         for(let k = 0; k < n; k++)
-          motes.push({ x: mx + (rng() - .5)*16, y: y - k*38 - rng()*18, ph: rng()*6.28 });
+          motes.push({ x: mx + (rng() - .5)*16, y: y - k*mStep - rng()*10, ph: rng()*6.28 });
         moteGap = 0;
       }
     }
@@ -1165,6 +1175,15 @@ function spawnRow(y = -BLOCK_H - 6){
   if(!gateRow && rowsSpawned >= 16 && gdGap <= 0 && nebGap > 5 && whGap > 5 && row.blocks.length){
     const x = byWall();
     if(x !== null){ gds.push({ x, y, ph: rng()*6.28 }); gdGap = 26; }
+  }
+  // 생성 즉시 한 번 더 — 매 프레임 정리는 다음 프레임에야 도니 화면 밖에서 한 프레임 겹친다
+  for(let i = motes.length - 1; i >= 0; i--){
+    const mt = motes[i];
+    if(mt.w || mt.y < y - 7 || mt.y > y + BLOCK_H + 7) continue;
+    for(const b of row.blocks){
+      const g = blockGeom(row, b);
+      if(mt.x > g.x - 7 && mt.x < g.x + g.w + 7){ motes.splice(i, 1); break; }
+    }
   }
   row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; b.cornerHit = false; });
   rows.push(row);
@@ -1810,14 +1829,34 @@ function update(sdt, rawDt){
   for(let i = motes.length - 1; i >= 0; i--){
     const mt = motes[i];
     mt.y += spd * sdt;
-    if(whPull > 0){                                   // 소용돌이 — 사정거리 안의 부스러기가 끌려온다
+    /* 별무리 — 터뜨린 것(mt.w)은 **사정거리와 무관하게 반드시 회수한다.**
+       거리로만 걸면 아래로 흩어진 놈들이 세계 스크롤에 밀려 못 따라오고,
+       그게 "못 먹은 아이템이 꼬리에 따라오는" 지저분함이 된다(유저 보고).
+       주변 별가루는 종전대로 사정거리 안에서만 끌린다 */
+    if(whPull > 0){
       const dx = orb.x - mt.x, dy = orb.y - mt.y, dd = Math.hypot(dx, dy);
-      if(dd < WH_R && dd > .5){
-        const k = Math.min(1, sdt * (2.2 + (1 - dd/WH_R) * 9) * (mt.w || 1));   // 가까울수록 급해지되 개체마다 다르게
+      if(dd > .5 && (mt.w || dd < WH_R)){
+        const k = Math.min(1, sdt * (3.4 + (1 - Math.min(1, dd/WH_R)) * 9) * (mt.w || 1));
         mt.x += dx * k; mt.y += dy * k;
       }
     }
     if(mt.y > H + 20){ motes.splice(i, 1); continue; }
+    /* 벽 속에 박힌 별가루는 치운다 — **배치 시점 검사만으로는 못 잡는다.**
+       ①줄이 나중에 생기며 기존 별가루를 덮고 ②움직이는 벽·닫히는 문은 나중에 쓸고 지나간다.
+       "먹을 수 없는 먹이"가 벽에 박혀 있으면 플레이어는 규칙을 의심한다 — 없느니만 못하다.
+       터뜨린 것(w)은 곧 빨려 들어가므로 건드리지 않는다 */
+    if(!mt.w){
+      let buried = false;
+      for(const r of rows){
+        if(mt.y < r.y - 7 || mt.y > r.y + BLOCK_H + 7) continue;
+        for(const b of r.blocks){
+          const g = blockGeom(r, b);
+          if(mt.x > g.x - 7 && mt.x < g.x + g.w + 7){ buried = true; break; }
+        }
+        if(buried) break;
+      }
+      if(buried){ motes.splice(i, 1); continue; }
+    }
     if(Math.hypot(orb.x - mt.x, orb.y - mt.y) < ORB_R + 12){
       motes.splice(i, 1);
       // 별가루 = 보너스 점수 + 재화. 콤보(아슬함의 척도)는 절대 건드리지 않는다 — 역할 분리
@@ -1834,9 +1873,14 @@ function update(sdt, rawDt){
   gdFlash = Math.max(0, gdFlash - sdt * 3.2);
   if(guard > 0){
     guard = Math.max(0, guard - sdt);
-    if(!gdP) gdP = { x: orb.x, y: orb.y + 44, s: 0 };
-    gdP.x += (orb.x - gdP.x) * Math.min(1, sdt * 7);      // 가로는 늦게 따라온다 — 뒤따르는 느낌
-    gdP.y = orb.y + 44;
+    if(!gdP) gdP = { x: orb.x, y: orb.y + 36, s: 0, off: 30 };
+    /* **꼬리 밖으로 비켜 난다.** 꼬리는 별의 지나온 자리라 정확히 뒤로 뻗는다 —
+       그 한복판에 앉히면 z가 위여도 밝은 선에 파묻혀 안 보인다(유저 보고).
+       그래서 옆으로 비스듬히, 그리고 꺾는 반대쪽으로 — 날개를 단 것처럼 읽힌다 */
+    const want = orb.vxs > 60 ? -32 : orb.vxs < -60 ? 32 : (gdP.off >= 0 ? 30 : -30);
+    gdP.off += (want - gdP.off) * Math.min(1, sdt * 3.5);
+    gdP.x += (orb.x + gdP.off - gdP.x) * Math.min(1, sdt * 7);   // 가로는 늦게 따라온다
+    gdP.y = orb.y + 36;
     gdP.s += ((guard > .55 ? 1 : guard / .55) - gdP.s) * Math.min(1, sdt * 9);   // 올 땐 커지고 갈 땐 작아진다
     if(guard === 0) gdP = null;
   }
@@ -1847,7 +1891,7 @@ function update(sdt, rawDt){
     if(Math.hypot(orb.x - gd.x, orb.y - gd.y) < ORB_R + 16){
       gds.splice(i, 1);
       guard = GD_T;
-      gdP = { x: gd.x, y: orb.y + 44, s: 0 };              // 주운 자리에서 날아와 뒤에 붙는다
+      gdP = { x: gd.x, y: orb.y + 36, s: 0, off: gd.x < orb.x ? -30 : 30 };   // 주운 쪽 어깨에 붙는다
       gdFlash = 1;
       floater(orb.x, orb.y - 56, '수호별 — 점수 ×2', '#FFE9A0', 19, 1.3);
       rings.push({ x: orb.x, y: orb.y, r0: 10, r1: 96,  col: '#FFE9A0', lw: 4, life: .5, t: 0 });
@@ -1876,11 +1920,12 @@ function update(sdt, rawDt){
          반지름을 넓게 흩어 놓아 도착 시각이 벌어지고, 동전음이 한꺼번에 뭉개지지 않고
          우수수 쏟아지는 소리가 된다 */
       for(let k = 0; k < WH_N; k++){
-        const a2 = (k / WH_N) * 6.283 + Math.random()*.5, rr2 = 70 + Math.random()*130;
+        const a2 = (k / WH_N) * 6.283 + Math.random()*.5, rr2 = 58 + Math.random()*92;
         // w = 개체별 끌림 속도. 거리만으로는 지수 수렴이라 도착이 한꺼번에 몰려
-        // 동전음이 0.5초 안에 다 터진다 — 개체마다 속도를 흩어 **우수수 쏟아지게** 만든다
+        // 동전음이 0.5초 안에 다 터진다 — 개체마다 속도를 흩어 **우수수 쏟아지게** 만들되,
+        // 하한(0.55)을 둬서 세계 스크롤에 뒤처져 남는 놈이 없게 한다
         motes.push({ x: clamp(orb.x + Math.cos(a2)*rr2, 12, W-12), y: orb.y + Math.sin(a2)*rr2*.8,
-                     ph: Math.random()*6.28, w: .28 + Math.random()*.95 });
+                     ph: Math.random()*6.28, w: .55 + Math.random()*1.0 });
       }
       floater(w2.x, w2.y - 18, '별무리', '#FFD05C', 17, .9);
       rings.push({ x: orb.x, y: orb.y, r0: 14, r1: WH_R, col: '#FFD05C', lw: 5, life: .42, t: 0 });   // 터져 나가고
@@ -2943,6 +2988,10 @@ window.ASEUL = {
   get whs(){ return whs.length; },                 // 검증용: 별무리 — 필드 수 · 끌어당기는 잔여
   get whPull(){ return +whPull.toFixed(2); },
   dropWh(){ if(orb) whs.push({ x: orb.x, y: orb.y - 120, ph: 0 }); },
+  moteList(){ return motes.map(m => ({ x: Math.round(m.x), y: Math.round(m.y), burst: !!m.w })); },  // 검증용: 벽 겹침 검사
+  /* 검증용: 줄마다 **벽이 실제로 차지한 사각형**(blockGeom 기준). gaps()는 30px 미만 틈을
+     걸러 버려서 겹침 검사에 쓰면 정상 배치도 겹침으로 잡힌다 — 겹침은 이걸로 재야 한다 */
+  rowRects(){ return rows.map(r => ({ y: r.y, b: r.blocks.map(b => { const g = blockGeom(r, b); return [g.x, g.x + g.w]; }) })); },
   get gds(){ return gds.length; },                 // 검증용: 수호별 — 필드 수 · 함께 나는 잔여
   get guard(){ return +guard.toFixed(2); },
   dropGd(){ if(orb) gds.push({ x: orb.x, y: orb.y - 120, ph: 0 }); },
