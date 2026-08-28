@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.80</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.81</div>
 </div>
 
 <script>
@@ -2475,6 +2475,25 @@ function draw(){
         ctx.fillStyle = gg;
         ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*1.7, 0, 6.283); ctx.fill();
         ctx.restore();
+        /* 날개 — **몸 뒤**에 깔아야 등에서 돋은 것으로 읽힌다.
+           날갯짓(fl)이 곧 살아 있다는 신호고, 본체가 옆을 볼 때는 wt로 접혀 함께 돈다 */
+        const fl = .80 + .20*Math.sin(elapsed*8.4);
+        const wt = .70 + .30*Math.abs(Math.cos(orb.turn * .7));
+        ctx.save();
+        ctx.translate(gdP.x, gdP.y);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = Math.min(1, (.52 + .26*bl) * gdP.s);
+        ctx.fillStyle = gdFlash > .3 ? '#FFFFFF' : '#FFF4D2';
+        for(let d = -1; d <= 1; d += 2){
+          /* 몸(24px)보다 **넓게** 뻗어야 날개로 읽힌다 — 몸 폭 안에 들어가면 그냥 가려진다 */
+          const ww = gs*1.18*fl*wt;
+          ctx.beginPath();
+          ctx.moveTo(0, gs*.06);
+          ctx.quadraticCurveTo(d*ww*.46, -gs*.74, d*ww, -gs*.34);   // 위로 크게 젖혔다가
+          ctx.quadraticCurveTo(d*ww*.60,  gs*.32,  0,  gs*.28);     // 아래로 오므린다
+          ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
         ctx.save();
         ctx.translate(gdP.x, gdP.y);
         ctx.globalAlpha = gdP.s;                                     // 몸은 불투명 — 꼬리가 비치지 않는다
@@ -2484,21 +2503,18 @@ function draw(){
         ctx.drawImage(CHAR_IMG, gt.a.f*FR, 0, FR, FR, -gs/2, -gs/2, gs, gs);
         ctx.restore();
         ctx.shadowBlur = 0;
-        // 금빛 고리 — 본체의 판정 링과 같은 언어. 또렷한 테두리가 흐릿한 꼬리와 갈라 준다
-        ctx.globalAlpha = Math.min(1, (.82 + gdFlash*.18) * gdP.s);
-        ctx.strokeStyle = gdFlash > .3 ? '#FFFFFF' : '#FFDF8C';
-        ctx.lineWidth = 2 + gdFlash*1.4;
-        ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*.58, 0, 6.283); ctx.stroke();
-        /* 고리를 도는 작은 빛 셋 — 정지한 고리는 조준선처럼 보이지만, 도는 순간
-           "살아서 함께 나는 것"이 된다. 움직임이 곧 존재의 신호다 */
-        ctx.globalAlpha = Math.min(1, (.7 + gdFlash*.3) * gdP.s);
-        ctx.fillStyle = gdFlash > .3 ? '#FFFFFF' : '#FFF3C4';
-        for(let k = 0; k < 3; k++){
-          const sa = elapsed*2.2 + k*2.094, sr = gs*.58;
-          ctx.beginPath();
-          ctx.arc(gdP.x + Math.cos(sa)*sr, gdP.y + Math.sin(sa)*sr*.62, 1.5 + gdFlash*1.2, 0, 6.283);
-          ctx.fill();
-        }
+        /* 몸을 **감싸는** 고리는 쓰지 않는다 — 유저: "버블에 갇힌 것처럼". 갇힌 것으로 읽히는 데다
+           본체의 판정 링과 같은 모양이라 주인공과 눈길을 다툰다(주인공이 제일 잘 보여야 한다).
+           천사의 기호는 감싸지 않는다: 링은 머리 위, 날개는 등 뒤 — 둘 다 몸 **밖**에 있어서
+           실루엣만으로 "도우러 온 것"이 읽히고, 가운데는 비워 두니 별똥별이 가려지지 않는다 */
+        ctx.globalAlpha = Math.min(1, (.62 + gdFlash*.38) * gdP.s);
+        ctx.strokeStyle = gdFlash > .3 ? '#FFFFFF' : '#FFE59A';
+        ctx.lineWidth = 1.5 + gdFlash*1.2;
+        ctx.beginPath();
+        /* 머리 **바로 위**(.66 = 정수리에서 4px). 더 띄우면 본체와 분신 사이 꼬리에 낀 고리로
+           보이고, 머리에 걸치면 띠처럼 보인다. 날개가 생긴 뒤로는 이 높이가 천사링으로 읽힌다 */
+        ctx.ellipse(gdP.x, gdP.y - gs*.66, gs*.40, gs*.12 + gdFlash*.06, 0, 0, 6.283);
+        ctx.stroke();
         if(gdFlash > .02){                                           // 벌었을 때 하얗게 덧씌운다
           ctx.globalAlpha = gdFlash * .5 * gdP.s;
           ctx.fillStyle = '#FFFFFF';
