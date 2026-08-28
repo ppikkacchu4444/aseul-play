@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.78</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.79</div>
 </div>
 
 <script>
@@ -2426,26 +2426,15 @@ function draw(){
       const tcol = ashen ? '#7C86AC' : maxed ? '#FF7DA0' : hsAll > .4 ? '#FF5C7A' : hsAll > .12 ? '#FFB454' : '#9BE8FF';
       const core = ashen ? '#C3CCE4' : maxed ? (Math.sin(elapsed*16) > 0 ? '#FFFFFF' : '#FFE9C4') : hsAll > .12 ? '#FFF3DC' : '#EAFBFF';
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      /* 수호별이 있으면 **꼬리가 그 자리를 비켜 간다.**
-         분신은 바로 뒤(같은 라인)에 있어야 "함께 난다"로 읽히는데, 그 자리가 곧 꼬리 한복판이라
-         z를 위로 올려도 밝은 빛줄기에 파묻힌다. 옆으로 빼봤더니 이번엔 "같이 나는" 느낌이 죽었다.
-         그래서 자리는 뒤로 되돌리고, 대신 **꼬리에 구멍을 낸다** — 분신 주위 한 뼘을 건너뛰면
-         빛줄기가 그를 감싸고 지나가는 그림이 되고, 뒤쪽 꼬리는 그대로 이어진다 */
-      const hole = (guard > 0 && gdP) ? 26 : 0;
       for(let pass = 0; pass < 2; pass++){
         for(let i = 0; i < orb.trail.length-1; i++){
-          const p0 = orb.trail[i], p1 = orb.trail[i+1];
-          if(hole){
-            const mx2 = (p0.x + p1.x)/2, my2 = (p0.y + p1.y)/2;
-            if(Math.hypot(mx2 - gdP.x, my2 - gdP.y) < hole) continue;
-          }
           const a = 1 - i/orb.trail.length;
           ctx.globalAlpha = a * (pass ? .5 : .16) * (.7 + hsAll*.6) * gut;
           ctx.strokeStyle = pass ? core : tcol;
           ctx.lineWidth = (pass ? ORB_R*.5 : ORB_R*1.5) * a * (1 + hsAll*.45);
           ctx.beginPath();
-          ctx.moveTo(p0.x, p0.y);
-          ctx.lineTo(p1.x, p1.y);
+          ctx.moveTo(orb.trail[i].x, orb.trail[i].y);
+          ctx.lineTo(orb.trail[i+1].x, orb.trail[i+1].y);
           ctx.stroke();
         }
       }
@@ -2463,17 +2452,23 @@ function draw(){
        크기는 본체의 2/3, 위치는 뒤 44px. 판정에는 아무 관여도 하지 않는다 */
     if(guard > 0 && gdP && state === 'play' && charImgOk){
       /* 점수 2배는 아주 센 효과다 — **세 보여야** 한다(§7-B 보상은 눈에 보이는 크기로).
-         ①크기를 본체에 가깝게(23px) ②상시 맥동 + 줄을 벌 때마다 번쩍(gdFlash)
-         ③뒤로 금빛 후광을 깔아 어두운 벽 위에서도 실루엣이 뜨게 */
+         분신은 바로 뒤(같은 라인)에 있어야 "함께 난다"로 읽히는데, 그 자리가 곧 꼬리 한복판이다.
+         v0.78에서 꼬리에 구멍을 내봤더니 **꼬리가 잘려 보여서** 더 나빴다(유저 보고).
+         진짜 원인은 분신이 반투명(α .8)이라 **꼬리가 몸을 통과해 비쳤던 것** —
+         꼬리를 건드릴 게 아니라 분신을 불투명하게 만들면 된다:
+         ①어두운 받침을 한 겹 깔아 그 자리의 빛줄기를 눌러 주고 ②금빛 후광 ③불투명한 몸 */
       const bl = .55 + .45*Math.sin(elapsed*7.5) + gdFlash*1.4;     // 번쩍임
-      const gs = 23 * gdP.s * (1 + gdFlash*.18);
+      const gs = 24 * gdP.s * (1 + gdFlash*.18);
       if(gs > .5){
-        ctx.globalAlpha = (.12 + .1*bl) * gdP.s;                     // 후광
+        ctx.globalAlpha = .5 * gdP.s;                                // 받침 — 꼬리를 통과시키지 않는다
+        ctx.fillStyle = '#0B1024';
+        ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*.62, 0, 6.283); ctx.fill();
+        ctx.globalAlpha = (.16 + .14*bl) * gdP.s;                    // 후광
         ctx.fillStyle = '#FFE9A0';
-        ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*.95 + 8, 0, 6.283); ctx.fill();
+        ctx.beginPath(); ctx.arc(gdP.x, gdP.y, gs*.72 + 5, 0, 6.283); ctx.fill();   // 본체보다 커 보이지 않게
         ctx.save();
         ctx.translate(gdP.x, gdP.y);
-        ctx.globalAlpha = Math.min(1, (.8 + gdFlash*.2) * gdP.s);
+        ctx.globalAlpha = gdP.s;                                     // 몸은 불투명 — 꼬리가 비치지 않는다
         ctx.shadowColor = '#FFF3C4'; ctx.shadowBlur = 14 + bl*16;
         const gt = turnPose(orb.turn * .7);                 // 본체와 같은 방향을 보되 덜 꺾인다
         ctx.scale(gt.a.m ? -gt.sa : gt.sa, 1);
