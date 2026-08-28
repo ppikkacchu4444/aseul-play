@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.73</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.74</div>
 </div>
 
 <script>
@@ -761,6 +761,13 @@ let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
 let glints = [];               // 스침 섬광 — 폭발과 구분되는 '긁힘'의 언어
 let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
 let nebs = [], neb = 0, nebGap = 0, nebOut = 0;  // 성운 조각 · 부푼 시간 잔여 · 출현 쿨다운 · 마무리(링으로 빨려드는) 잔여
+/* 소용돌이 (v0.74) — **성운과 반대 언어의 아이템.** 성운이 조용히 부푸는 지속형이라면
+   이건 확 빨아들이는 순간형이다. 버프를 하나 더 얹으면 게임이 "버프 줍기"가 되고,
+   성운이 특별한 이유(하나뿐이라 사건이다)가 사라진다. 그래서 **배수는 건드리지 않는다** —
+   콤보는 오직 벽 스침으로만이라는 v0.19 원칙 그대로다. 이건 재화(별가루)를 한 번에 쓸어 담는
+   순간이고, 그 별가루가 §1-B에서 새 하늘을 여는 값이 된다 */
+let whs = [], whPull = 0, whGap = 0;             // 소용돌이 조각 · 끌어당기는 시간 잔여 · 출현 쿨다운
+const WH_T = 2.6, WH_R = 210;                    // 끌어당기는 시간(초) · 사정거리(px)
 let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
 let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
 let bandSnap, bandTo, bandT, bandCur;   // 하늘의 여정 — 고도 배경 블렌드
@@ -824,6 +831,7 @@ function reset(){
   rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0; glints = [];
   motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
   nebs = []; neb = 0; nebGap = 0; nebOut = 0;
+  whs = []; whPull = 0; whGap = 8;                       // 첫 소용돌이는 성운보다 늦게 (8초 뒤부터)
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
   bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
@@ -945,12 +953,18 @@ const ZONE_DEFS = {
   basic:  { name:'워밍업',    col:'#3A4680', type:'basic',  gapMul:1.0,  spdMul:1.0 },
   zigzag: { name:'지그재그',  col:'#2E5F6E', type:'zigzag', gapMul:1.0,  spdMul:1.0 },
   island: { name:'별 소나기', col:'#6E5230', type:'island', gapMul:1.12, spdMul:1.0 },
+  /* 빗발 (v0.74) — **줄 간격**을 좁힌 존. 통로 폭이 아니라 간격을 좁히는 게 핵심이다:
+     폭을 좁히면 안전 차선이 사라져 "붙는 것"이 선택이 아니게 되고(20조), 그건 이미
+     좁은 골목 기믹이다. 간격을 좁히면 벽이 연달아 빗발쳐 **스침이 촘촘해지고 배수가 빨리 오른다**
+     — 초신성까지 가는 길이 짧아지는 구간. 통로는 오히려 넓혀(gapMul 1.15) 선택을 살려 두고,
+     속도를 살짝 낮춰(spdMul .92) 읽을 수 있게 만든다 */
+  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:.92, spaceMul:.6 },
   fork:   { name:'갈림길',    col:'#3F6045', type:'fork',   gapMul:1.0,  spdMul:.97 },
   mover:  { name:'무빙워크',  col:'#4A3E86', type:'mover',  gapMul:1.06, spdMul:1.0 },
   narrow: { name:'좁은 골목', col:'#5C3550', type:'narrow', gapMul:.88,  spdMul:.94 },
   closer: { name:'닫히는 문', col:'#6E3A3A', type:'closer', gapMul:1.0,  spdMul:.96 },
 };
-const BASE_ROTATION = ['basic', 'zigzag', 'island'];
+const BASE_ROTATION = ['basic', 'zigzag', 'swarm', 'island'];   // v0.74: 빗발 추가 — 4존 순환
 
 /* ── 코스의 작곡: 손으로 짠 프레이즈 — 같은 조작이 놓이는 맥락을 안무한다 ──
    g = 통로 폭(지름 배수), c = 통로 중심(화면 비율). 랜덤 나열이 못 만드는 긴장의 드라마 */
@@ -1124,6 +1138,15 @@ function spawnRow(y = -BLOCK_H - 6){
       const nx = b.x <= 1 ? b.x + b.w + 22 : b.x + b.w >= W - 1 ? b.x - 22 : (rng() < .5 ? b.x - 22 : b.x + b.w + 22);
       if(nx > 14 && nx < W - 14){ nebs.push({ x: nx, y, ph: rng()*6.28 }); nebGap = 18; }
     }
+  }
+  /* 소용돌이 — 성운과 **엇갈린 주기(22초)**로 둔다. 같이 나오면 둘 다 흔해 보인다.
+     자리는 통로 안이되 **한복판에서 비켜** 둔다: 정중앙에 두면 가만히 있어도 먹혀서
+     "받은 것"이 아니라 "지나간 것"이 된다. 그렇다고 벽에 붙이면 성운과 역할이 겹친다 —
+     성운은 위험을 요구하고, 이건 **알아보고 손을 뻗으면 주는 것**이다 */
+  if(!gateRow && rowsSpawned >= 12 && whGap <= 0 && nebGap > 4 && row.blocks.length === 2){
+    const l = row.blocks[0].w, r2 = row.blocks[1].x;
+    const c = l + (r2 - l)/2 + (rng() < .5 ? -1 : 1) * (r2 - l) * .3;
+    whs.push({ x: clamp(c, l + ORB_R + 6, r2 - ORB_R - 6), y, ph: rng()*6.28 }); whGap = 22;
   }
   row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; b.cornerHit = false; });
   rows.push(row);
@@ -1686,7 +1709,7 @@ function update(sdt, rawDt){
     distAcc += spd * sdt;
     if(distAcc >= nextSpace){
       distAcc = 0;
-      nextSpace = lerp(T.space0, T.space1, diff());
+      nextSpace = lerp(T.space0, T.space1, diff()) * (zone().spaceMul || 1);   // 존이 줄 간격을 정한다(빗발)
       spawnRow();
     }
     // 이동
@@ -1762,6 +1785,13 @@ function update(sdt, rawDt){
   for(let i = motes.length - 1; i >= 0; i--){
     const mt = motes[i];
     mt.y += spd * sdt;
+    if(whPull > 0){                                   // 소용돌이 — 사정거리 안의 부스러기가 끌려온다
+      const dx = orb.x - mt.x, dy = orb.y - mt.y, dd = Math.hypot(dx, dy);
+      if(dd < WH_R && dd > .5){
+        const k = Math.min(1, sdt * (5 + (1 - dd/WH_R) * 16));   // 가까울수록 급해진다
+        mt.x += dx * k; mt.y += dy * k;
+      }
+    }
     if(mt.y > H + 20){ motes.splice(i, 1); continue; }
     if(Math.hypot(orb.x - mt.x, orb.y - mt.y) < ORB_R + 12){
       motes.splice(i, 1);
@@ -1771,6 +1801,27 @@ function update(sdt, rawDt){
       sparks(mt.x, mt.y, 4, '#FFD98A', .6);
       if(nova <= 0) floater(mt.x, mt.y - 12, '+5', '#FFD98A', 11, .45);   // 소나기 중엔 텍스트 생략 — 소리와 불꽃만
       tone(1568, .07, 'triangle', .12); tone(2093, .09, 'sine', .08, .04);   // 동전 반짝 — 스침 음계와 구분
+    }
+  }
+
+  /* 소용돌이 — 지나면 흩어진 부스러기가 한 번에 빨려온다 (배수는 절대 안 건드린다) */
+  if(whPull > 0) whPull = Math.max(0, whPull - sdt);
+  if(whGap > 0) whGap = Math.max(0, whGap - sdt);
+  for(let i = whs.length - 1; i >= 0; i--){
+    const w2 = whs[i];
+    w2.y += spd * sdt;
+    if(w2.y > H + 30){ whs.splice(i, 1); continue; }
+    if(Math.hypot(orb.x - w2.x, orb.y - w2.y) < ORB_R + 16){
+      whs.splice(i, 1);
+      whPull = WH_T;
+      floater(w2.x, w2.y - 16, '소용돌이', '#C79BFF', 15, .9);
+      rings.push({ x: orb.x, y: orb.y, r0: WH_R, r1: 12, col: '#C79BFF', lw: 4, life: .5, t: 0 });  // 안으로 조여드는 링
+      sparks(w2.x, w2.y, 14, '#C79BFF', 1.2);
+      if(!REDUCED){ shake = Math.max(shake, 6); zoom = Math.max(zoom, 1.06); }
+      // 낮게 떨어졌다 부풀어오르는 소리 — 성운의 상승 스윕, 별가루의 동전음과 겹치지 않게
+      tone(196, .3, 'sine', .16); tone(98, .34, 'triangle', .12, .02);
+      for(let k = 0; k < 3; k++) tone(392 * Math.pow(1.26, k), .18, 'sine', .07, .09 + k*.05);
+      buzz(45);
     }
   }
 
@@ -2204,6 +2255,27 @@ function draw(){
     ctx.shadowBlur = 0;
     ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.arc(nb.x, nb.y, 4.2*pu, rot, rot + 4.2); ctx.stroke(); // 안쪽 호 — 돌아간다
+  }
+  /* 소용돌이 — 세 번째 언어. 별가루 = 금빛 별(먹는 것) / 성운 = 청록 고리(지나면 부푼다) /
+     소용돌이 = **보랏빛 소용돌이**(지나면 빨아들인다). 색도 모양도 셋 다 겹치지 않는다 */
+  for(const w2 of whs){
+    const sp = w2.ph - elapsed*3.4;                                   // 안으로 감기는 방향
+    ctx.globalAlpha = .2 + .1*Math.sin(elapsed*2.6 + w2.ph);
+    ctx.fillStyle = '#C79BFF';
+    ctx.beginPath(); ctx.arc(w2.x, w2.y, 15, 0, 6.283); ctx.fill();
+    ctx.shadowColor = '#C79BFF'; ctx.shadowBlur = 12;
+    ctx.globalAlpha = .95; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    for(let a = 0; a < 2; a++){                                       // 두 갈래 나선
+      ctx.strokeStyle = a ? '#E7D2FF' : '#B78CFF';
+      ctx.beginPath();
+      for(let s = 0; s <= 14; s++){
+        const t2 = s/14, ang = sp + a*3.14 + t2*3.6, rr2 = 2 + t2*8.5;
+        const px = w2.x + Math.cos(ang)*rr2, py = w2.y + Math.sin(ang)*rr2;
+        s ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
   }
   ctx.globalAlpha = 1;
 
@@ -2750,6 +2822,11 @@ window.ASEUL = {
   get neb(){ return +neb.toFixed(2); },           // 검증용: 성운 잔여 초 · 필드의 성운 수 · 현재 판정 폭
   get nebs(){ return nebs.length; },
   get nebOut(){ return +nebOut.toFixed(3); },      // 검증용: 링으로 빨려드는 마무리 잔여
+  get whs(){ return whs.length; },                 // 검증용: 소용돌이 — 필드 수 · 끌어당기는 잔여
+  get whPull(){ return +whPull.toFixed(2); },
+  dropWh(){ if(orb) whs.push({ x: orb.x, y: orb.y - 120, ph: 0 }); },
+  get zone(){ return zone().name; },               // 검증용: 현재 존 이름 (빗발 순환 확인)
+  get space(){ return +(lerp(T.space0, T.space1, diff()) * (zone().spaceMul || 1)).toFixed(1); },
   get auraR(){ return +(neb > 0 ? ORB_R + bandNow() : nebOut > 0 ? ORB_R + BAND*(nebOut/NEB_OUT) : 0).toFixed(1); },
   get band(){ return +bandNow().toFixed(1); },
   get deep(){ return +deepNow().toFixed(1); },
