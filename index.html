@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.74</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.75</div>
 </div>
 
 <script>
@@ -766,8 +766,14 @@ let nebs = [], neb = 0, nebGap = 0, nebOut = 0;  // 성운 조각 · 부푼 시�
    성운이 특별한 이유(하나뿐이라 사건이다)가 사라진다. 그래서 **배수는 건드리지 않는다** —
    콤보는 오직 벽 스침으로만이라는 v0.19 원칙 그대로다. 이건 재화(별가루)를 한 번에 쓸어 담는
    순간이고, 그 별가루가 §1-B에서 새 하늘을 여는 값이 된다 */
-let whs = [], whPull = 0, whGap = 0;             // 소용돌이 조각 · 끌어당기는 시간 잔여 · 출현 쿨다운
-const WH_T = 2.6, WH_R = 210;                    // 끌어당기는 시간(초) · 사정거리(px)
+let whs = [], whPull = 0, whGap = 0;             // 별무리 조각 · 끌어당기는 시간 잔여 · 출현 쿨다운
+const WH_T = 2.6, WH_R = 210, WH_N = 20;         // 끌어당기는 시간(초) · 사정거리(px) · 터져 나오는 별가루 수
+/* 수호별 (v0.75) — 5초간 **분신이 뒤를 따라 날며 통과 점수를 두 배로** 만든다.
+   앞이 아니라 **뒤**에 두는 이유: 앞에 두면 다가오는 벽을 가려 헌법 4조(위쪽 시야)에 걸린다.
+   배수는 건드리지 않는다(콤보는 벽 스침으로만, v0.19) — 커지는 건 점수 쪽뿐이다.
+   그리고 이 아이템의 진짜 피드백은 배수가 아니라 **곁에 하나가 더 생겼다는 사실**이다 */
+let gds = [], guard = 0, gdGap = 0, gdP = null;  // 수호별 조각 · 함께 나는 시간 잔여 · 출현 쿨다운 · 분신 위치
+const GD_T = 5;
 let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
 let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
 let bandSnap, bandTo, bandT, bandCur;   // 하늘의 여정 — 고도 배경 블렌드
@@ -831,7 +837,8 @@ function reset(){
   rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0; glints = [];
   motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
   nebs = []; neb = 0; nebGap = 0; nebOut = 0;
-  whs = []; whPull = 0; whGap = 8;                       // 첫 소용돌이는 성운보다 늦게 (8초 뒤부터)
+  whs = []; whPull = 0; whGap = 8;                       // 첫 별무리는 성운보다 늦게 (8초 뒤부터)
+  gds = []; guard = 0; gdGap = 14; gdP = null;           // 수호별은 셋 중 가장 늦게 등장
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
   bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
@@ -1139,14 +1146,25 @@ function spawnRow(y = -BLOCK_H - 6){
       if(nx > 14 && nx < W - 14){ nebs.push({ x: nx, y, ph: rng()*6.28 }); nebGap = 18; }
     }
   }
-  /* 소용돌이 — 성운과 **엇갈린 주기(22초)**로 둔다. 같이 나오면 둘 다 흔해 보인다.
-     자리는 통로 안이되 **한복판에서 비켜** 둔다: 정중앙에 두면 가만히 있어도 먹혀서
-     "받은 것"이 아니라 "지나간 것"이 된다. 그렇다고 벽에 붙이면 성운과 역할이 겹친다 —
-     성운은 위험을 요구하고, 이건 **알아보고 손을 뻗으면 주는 것**이다 */
-  if(!gateRow && rowsSpawned >= 12 && whGap <= 0 && nebGap > 4 && row.blocks.length === 2){
-    const l = row.blocks[0].w, r2 = row.blocks[1].x;
-    const c = l + (r2 - l)/2 + (rng() < .5 ? -1 : 1) * (r2 - l) * .3;
-    whs.push({ x: clamp(c, l + ORB_R + 6, r2 - ORB_R - 6), y, ph: rng()*6.28 }); whGap = 22;
+  /* 별무리·수호별 — 셋 다 **벽 옆에** 둔다 (v0.75 교정).
+     아이템의 진짜 쓸모는 미끼다. 무조건 좋아야 목숨 걸고 아슬아슬한 데로 가고,
+     안전한 자리에 두면 부품으로서 값어치가 0이다. v0.74에서 별무리를 통로 한복판에 뒀던 게
+     설계 오류였다 — 가만히 있어도 먹히면 "받은 것"이 아니라 "지나간 것"이 된다.
+     주기는 성운 18 / 별무리 22 / 수호별 26으로 엇갈려, 셋이 같이 나와 흔해 보이지 않게 한다 */
+  const byWall = () => {
+    const cbs = row.blocks.filter(b => !b.amp && !b.dyn);
+    if(!cbs.length) return null;
+    const b = cbs[(rng() * cbs.length)|0];
+    const x = b.x <= 1 ? b.x + b.w + 22 : b.x + b.w >= W - 1 ? b.x - 22 : (rng() < .5 ? b.x - 22 : b.x + b.w + 22);
+    return (x > 14 && x < W - 14) ? x : null;
+  };
+  if(!gateRow && rowsSpawned >= 12 && whGap <= 0 && nebGap > 4 && row.blocks.length){
+    const x = byWall();
+    if(x !== null){ whs.push({ x, y, ph: rng()*6.28 }); whGap = 22; }
+  }
+  if(!gateRow && rowsSpawned >= 16 && gdGap <= 0 && nebGap > 5 && whGap > 5 && row.blocks.length){
+    const x = byWall();
+    if(x !== null){ gds.push({ x, y, ph: rng()*6.28 }); gdGap = 26; }
   }
   row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; b.cornerHit = false; });
   rows.push(row);
@@ -1720,11 +1738,13 @@ function update(sdt, rawDt){
   // 통과 점수 — 한 만큼 즉시 정산한다 (번 것은 빼앗지 않는다)
   const payPass = () => {
     passed++;
-    const gain = 10 * mult;
+    const dbl = guard > 0;                                // 수호별 — 곁의 하나가 몫을 같이 번다
+    const gain = 10 * mult * (dbl ? 2 : 1);
     score += gain;
-    floater(orb.x, orb.y - 34, '+' + gain,
+    floater(orb.x, orb.y - 34, (dbl ? '×2  +' : '+') + gain,
+      dbl ? '#FFE9A0' :
       mult >= 40 ? '#FFDF6B' : mult >= 10 ? '#FF5C7A' : mult >= 5 ? '#FF8E4F' : '#FFD98A',
-      Math.min(13 + mult, 30), .7);
+      Math.min(13 + mult, 30) * (dbl ? 1.15 : 1), .7);
     spawnStars(W/2, 46, Math.min(3 + (mult >> 3), 6));   // 별은 점수판에서 터진다 — 시야 보호
     sfx.pass(mult);
     scoreEl.classList.remove('bump'); void scoreEl.offsetWidth; scoreEl.classList.add('bump');
@@ -1804,7 +1824,34 @@ function update(sdt, rawDt){
     }
   }
 
-  /* 소용돌이 — 지나면 흩어진 부스러기가 한 번에 빨려온다 (배수는 절대 안 건드린다) */
+  /* 수호별 — 5초간 분신이 뒤를 따라 난다. 통과 점수가 두 배 */
+  if(gdGap > 0) gdGap = Math.max(0, gdGap - sdt);
+  if(guard > 0){
+    guard = Math.max(0, guard - sdt);
+    if(!gdP) gdP = { x: orb.x, y: orb.y + 44, s: 0 };
+    gdP.x += (orb.x - gdP.x) * Math.min(1, sdt * 7);      // 가로는 늦게 따라온다 — 뒤따르는 느낌
+    gdP.y = orb.y + 44;
+    gdP.s += ((guard > .55 ? 1 : guard / .55) - gdP.s) * Math.min(1, sdt * 9);   // 올 땐 커지고 갈 땐 작아진다
+    if(guard === 0) gdP = null;
+  }
+  for(let i = gds.length - 1; i >= 0; i--){
+    const gd = gds[i];
+    gd.y += spd * sdt;
+    if(gd.y > H + 30){ gds.splice(i, 1); continue; }
+    if(Math.hypot(orb.x - gd.x, orb.y - gd.y) < ORB_R + 16){
+      gds.splice(i, 1);
+      guard = GD_T;
+      gdP = { x: gd.x, y: orb.y + 44, s: 0 };              // 주운 자리에서 날아와 뒤에 붙는다
+      floater(orb.x, orb.y - 52, '수호별 — 함께 난다', '#FFE9A0', 16, 1.1);
+      rings.push({ x: orb.x, y: orb.y, r0: 10, r1: 78, col: '#FFE9A0', lw: 3, life: .45, t: 0 });
+      sparks(gd.x, gd.y, 14, '#FFE9A0', 1.1); spawnStars(gd.x, gd.y, 4);
+      if(!REDUCED) zoom = Math.max(zoom, 1.05);
+      tone(659.3, .16, 'sine', .13); tone(987.8, .22, 'sine', .11, .08);   // 둘이 겹치는 화음 — "하나 더 왔다"
+      buzz(30);
+    }
+  }
+
+  /* 별무리 — 지나면 부스러기가 터져 나와 한 번에 빨려온다 (배수는 절대 안 건드린다) */
   if(whPull > 0) whPull = Math.max(0, whPull - sdt);
   if(whGap > 0) whGap = Math.max(0, whGap - sdt);
   for(let i = whs.length - 1; i >= 0; i--){
@@ -1814,14 +1861,23 @@ function update(sdt, rawDt){
     if(Math.hypot(orb.x - w2.x, orb.y - w2.y) < ORB_R + 16){
       whs.splice(i, 1);
       whPull = WH_T;
-      floater(w2.x, w2.y - 16, '소용돌이', '#C79BFF', 15, .9);
-      rings.push({ x: orb.x, y: orb.y, r0: WH_R, r1: 12, col: '#C79BFF', lw: 4, life: .5, t: 0 });  // 안으로 조여드는 링
-      sparks(w2.x, w2.y, 14, '#C79BFF', 1.2);
-      if(!REDUCED){ shake = Math.max(shake, 6); zoom = Math.max(zoom, 1.06); }
+      /* v0.74의 실패: 빨아들이기만 해서 **빨아들일 게 없을 때가 대부분**이었다.
+         이제 **직접 터뜨려 놓고 빨아들인다** — 세계 상태에 의존하지 않는다.
+         반지름을 넓게 흩어 놓아 도착 시각이 벌어지고, 동전음이 한꺼번에 뭉개지지 않고
+         우수수 쏟아지는 소리가 된다 */
+      for(let k = 0; k < WH_N; k++){
+        const a2 = (k / WH_N) * 6.283 + Math.random()*.5, rr2 = 70 + Math.random()*130;
+        motes.push({ x: clamp(orb.x + Math.cos(a2)*rr2, 12, W-12), y: orb.y + Math.sin(a2)*rr2*.8, ph: Math.random()*6.28 });
+      }
+      floater(w2.x, w2.y - 18, '별무리', '#C79BFF', 16, .9);
+      rings.push({ x: orb.x, y: orb.y, r0: 14, r1: WH_R, col: '#C79BFF', lw: 5, life: .42, t: 0 });   // 터져 나가고
+      rings.push({ x: orb.x, y: orb.y, r0: WH_R, r1: 14, col: '#E7D2FF', lw: 3, life: .62, t: 0 });   // 다시 조여든다
+      sparks(w2.x, w2.y, 22, '#C79BFF', 1.4); sparks(w2.x, w2.y, 10, '#FFFFFF', 1.0);
+      if(!REDUCED){ shake = Math.max(shake, 9); zoom = Math.max(zoom, 1.08); flash = Math.max(flash, .35); }
       // 낮게 떨어졌다 부풀어오르는 소리 — 성운의 상승 스윕, 별가루의 동전음과 겹치지 않게
-      tone(196, .3, 'sine', .16); tone(98, .34, 'triangle', .12, .02);
-      for(let k = 0; k < 3; k++) tone(392 * Math.pow(1.26, k), .18, 'sine', .07, .09 + k*.05);
-      buzz(45);
+      tone(196, .34, 'sine', .18); tone(98, .38, 'triangle', .14, .02);
+      for(let k = 0; k < 4; k++) tone(392 * Math.pow(1.26, k), .2, 'sine', .08, .09 + k*.05);
+      buzz(60);
     }
   }
 
@@ -2256,8 +2312,20 @@ function draw(){
     ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.arc(nb.x, nb.y, 4.2*pu, rot, rot + 4.2); ctx.stroke(); // 안쪽 호 — 돌아간다
   }
-  /* 소용돌이 — 세 번째 언어. 별가루 = 금빛 별(먹는 것) / 성운 = 청록 고리(지나면 부푼다) /
-     소용돌이 = **보랏빛 소용돌이**(지나면 빨아들인다). 색도 모양도 셋 다 겹치지 않는다 */
+  /* 수호별 조각 — 네 번째 언어. 나와 같은 금빛이되 **별 모양이 아니라 겹친 두 개의 고리**:
+     "하나가 더 있다"가 모양으로 읽혀야 한다 */
+  for(const gd of gds){
+    const pu = .88 + .12*Math.sin(elapsed*3 + gd.ph);
+    ctx.globalAlpha = .22 * pu; ctx.fillStyle = '#FFE9A0';
+    ctx.beginPath(); ctx.arc(gd.x, gd.y, 15*pu, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = .95; ctx.shadowColor = '#FFE9A0'; ctx.shadowBlur = 12;
+    ctx.strokeStyle = '#FFF3C4'; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(gd.x - 3.4, gd.y, 6*pu, 0, 6.283); ctx.stroke();
+    ctx.beginPath(); ctx.arc(gd.x + 3.4, gd.y, 6*pu, 0, 6.283); ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  /* 별무리 — 세 번째 언어. 별가루 = 금빛 별(먹는 것) / 성운 = 청록 고리(지나면 부푼다) /
+     별무리 = **보랏빛 나선**(지나면 터뜨려 빨아들인다). 색도 모양도 넷 다 겹치지 않는다 */
   for(const w2 of whs){
     const sp = w2.ph - elapsed*3.4;                                   // 안으로 감기는 방향
     ctx.globalAlpha = .2 + .1*Math.sin(elapsed*2.6 + w2.ph);
@@ -2317,6 +2385,22 @@ function draw(){
     }
     ctx.globalAlpha = 1;
 
+    /* 수호별 — 분신은 **캐릭터보다 먼저** 그린다(뒤에 있으니 아래 레이어).
+       크기는 본체의 2/3, 위치는 뒤 44px. 판정에는 아무 관여도 하지 않는다 */
+    if(guard > 0 && gdP && state === 'play' && charImgOk){
+      const gs = 17 * gdP.s;
+      if(gs > .5){
+        ctx.save();
+        ctx.translate(gdP.x, gdP.y);
+        ctx.globalAlpha = .82 * gdP.s;
+        ctx.shadowColor = '#FFE9A0'; ctx.shadowBlur = 16 + Math.sin(elapsed*6)*4;
+        const gt = turnPose(orb.turn * .7);                 // 본체와 같은 방향을 보되 덜 꺾인다
+        ctx.scale(gt.a.m ? -gt.sa : gt.sa, 1);
+        ctx.drawImage(CHAR_IMG, gt.a.f*FR, 0, FR, FR, -gs/2, -gs/2, gs, gs);
+        ctx.restore();
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      }
+    }
     if(state === 'play'){
       const inB = sinceGraze < .25;
       // 초신성 꺼짐 박자 — 화면 점멸·액자 게이지·캐릭터가 이 한 값을 공유한다(6펄스)
@@ -2822,9 +2906,12 @@ window.ASEUL = {
   get neb(){ return +neb.toFixed(2); },           // 검증용: 성운 잔여 초 · 필드의 성운 수 · 현재 판정 폭
   get nebs(){ return nebs.length; },
   get nebOut(){ return +nebOut.toFixed(3); },      // 검증용: 링으로 빨려드는 마무리 잔여
-  get whs(){ return whs.length; },                 // 검증용: 소용돌이 — 필드 수 · 끌어당기는 잔여
+  get whs(){ return whs.length; },                 // 검증용: 별무리 — 필드 수 · 끌어당기는 잔여
   get whPull(){ return +whPull.toFixed(2); },
   dropWh(){ if(orb) whs.push({ x: orb.x, y: orb.y - 120, ph: 0 }); },
+  get gds(){ return gds.length; },                 // 검증용: 수호별 — 필드 수 · 함께 나는 잔여
+  get guard(){ return +guard.toFixed(2); },
+  dropGd(){ if(orb) gds.push({ x: orb.x, y: orb.y - 120, ph: 0 }); },
   get zone(){ return zone().name; },               // 검증용: 현재 존 이름 (빗발 순환 확인)
   get space(){ return +(lerp(T.space0, T.space1, diff()) * (zone().spaceMul || 1)).toFixed(1); },
   get auraR(){ return +(neb > 0 ? ORB_R + bandNow() : nebOut > 0 ? ORB_R + BAND*(nebOut/NEB_OUT) : 0).toFixed(1); },
