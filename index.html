@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.88</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.89</div>
 </div>
 
 <script>
@@ -828,6 +828,10 @@ let held = false;              // 손가락이 닿아 있는가 — reset()이 �
    ⚠ 선언은 반드시 여기(reset() 위)에 둔다. reset()이 모듈 로드 시 바로 돌기 때문에
    아래쪽에 let으로 두면 TDZ로 스크립트가 통째로 죽는다 (held와 같은 사고) */
 let CANYON = false;  // 이번 판이 협곡 하늘인가 — reset()에서 선택된 하늘로 정해진다
+/* ⚠ **reset()보다 위에 있어야 한다.** reset()은 모듈 로드 시점에 한 번 돌기 때문에,
+   여기서 쓰는 상태를 아래쪽에 let으로 선언하면 TDZ("Cannot access before initialization")로
+   초기화 전체가 무너진다 — 이 저장소에서 held·CANYON에 이어 세 번째다 */
+let diffCur = 0;                                 // 현재 난이도 단(기어) — 목표 단으로 미끄러진다
 const CSEG  = 26;    // 폴리라인 표본 간격 — **그리는 선과 판정선이 같은 값**이어야 한다(보이는 대로 죽는다)
 const CTICK = 140;   // 붙어서 이만큼 가면 스침 1회 (기존은 줄당 1회 ≈ 190px)
                      // 100으로 두니 완벽히 붙는 봇이 20초 만에 ×50에 닿아 판 전체가 상한에 눌어붙었다
@@ -871,7 +875,7 @@ function reset(){
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
   bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
-  elapsed = 0; distAcc = 0; nextSpace = 0;
+  elapsed = 0; distAcc = 0; nextSpace = 0; diffCur = 0;
   score = 0; dispScore = 0; grazes = 0; passed = 0;
   heat = CH().heat0; mult = 1 + Math.floor(heat); peakMult = mult;   // 잿불별은 ×5에서 출발
   dustRun = 0;
@@ -984,13 +988,19 @@ const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
    그리고 **최고 속도에서 멈춘다.** 예전엔 램프 뒤로도 초당 1.1px씩 영원히 붙었는데,
    그러면 끝이 실력이 아니라 시간이 정한다. 상한이 있어야 기록이 실력의 척도가 되고,
    판은 "언젠가 실수해서" 끝난다 — 속도가 불가능해져서가 아니라 */
-/* 몇 바퀴에 최고 속도에 닿는가 (튜닝 손잡이 — `ASEUL.setRampLoops(n)`로 판중에도 바꾼다).
-   3 = 최고 속도까지 약 72초. 4로 늘리면 96초인데, 한 판이 그전에 끝나는 경우가 많아
-   **대부분의 플레이어가 최고 속도를 한 번도 못 보는** 곡선이 된다 — 1·2·3바퀴로 오르고
-   3바퀴째부터 전력, 이후로는 그 속도를 유지한다 */
-let rampLoops = 3;
-const zonesPerLoop = () => (STAGES[currentSky].zones || BASE_ROTATION).length;
-function diff(){ return clamp((rowsSpawned || 0) / (rampLoops * zonesPerLoop() * ROWS_PER_ZONE), 0, 1); }
+const ZONE_ONCE = 1;                       // 순환 앞의 몇 개를 판에 한 번만 쓰는가 (= 워밍업)
+/* 몇 바퀴에 최고 속도에 닿는가 (튜닝 손잡이 — `ASEUL.setRampLoops(n)`로 판중에도 바꾼다) */
+let rampLoops = 4;
+const cycleLen = () => Math.max(1, (STAGES[currentSky].zones || BASE_ROTATION).length - ZONE_ONCE);
+/* 몇 바퀴째인가 — **워밍업이 0단, 한 바퀴 돌 때마다 한 단**. 워밍업은 판에 한 번뿐이라
+   그 자체가 가장 느린 기어이고("말 그대로 레벨 워밍업"), 이후는 순환 한 바퀴 = 한 기어다 */
+const cycleIdx = () => zoneIdx < ZONE_ONCE ? 0 : Math.floor((zoneIdx - ZONE_ONCE) / cycleLen()) + 1;
+/* 🔴 난이도는 **루프 단위 계단**이다 (v0.89).
+   줄마다 조금씩 오르면 어디서 올랐는지 알 수 없고, 존마다 다르면 빨라졌다 느려졌다 한다.
+   한 바퀴에 한 칸씩 올리면 존 배너와 함께 **기어가 바뀌는 순간**이 명확히 읽힌다.
+   계단을 그대로 쓰면 뚝 끊기므로 0.45초에 걸쳐 미끄러뜨린다 — 변속이지 순간이동이 아니다 */
+const diffTarget = () => clamp(cycleIdx() / rampLoops, 0, 1);
+function diff(){ return diffCur; }
 function speed(){
   return lerp(T.speed0, T.speed1, diff()) * zone().spdMul
     * (1 + Math.min(heat, capH()) / capH() * .12)         // 폭주 — 뜨거울수록 세계가 빨라진다 (최대 +12%)
@@ -1017,14 +1027,16 @@ const ZONE_DEFS = {
      통로를 화면 전체에 무작위로 놓으면 엄지 예산(reach) 안이긴 해도 초당 대여섯 번
      최대치로 뛰어야 해서 손이 먼저 지친다(15조는 "가능한가"가 아니라 "아픈가"를 묻는다).
      그래서 여긴 통로를 **이전 줄 근처(±46px)에** 놓는다 — 벽은 빗발치되 길은 완만히 굽는다 */
-  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:.92, spaceMul:.63, drift:46 },
-  /* ── 기본 하늘의 리듬 존 둘 (v0.88) ──
+  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:1.0, spaceMul:.68, drift:46 },
+  /* ── 기본 하늘의 리듬 존 (v0.88 → v0.89 속도 통일) ──
      스테이지 존들은 **벽의 문법**(갈림길·움직임·닫힘)으로 다르지만, 기본 하늘의 존은
-     같은 문법 위에서 **리듬**만 다르다 — 얼마나 자주 오고, 얼마나 넓고, 얼마나 빠르고,
-     길이 얼마나 굽는가. 기믹이 없으니 배우는 것도 없고, 그냥 **다른 박자**로 느껴진다.
-     빗발(촘촘·완만)의 반대편 둘을 채워 넣은 것: 순풍(빠름·곧음) / 성긴 하늘(드묾·큰 이동) */
-  draft:  { name:'순풍',     col:'#2E7A6B', type:'basic',  gapMul:1.18, spdMul:1.15, spaceMul:1.15, drift:78 },
-  sparse: { name:'성긴 하늘', col:'#6E4A3A', type:'basic',  gapMul:1.0,  spdMul:1.0,  spaceMul:1.4 },
+     같은 문법 위에서 **리듬**만 다르다 — 얼마나 자주 오고, 얼마나 넓고, 길이 얼마나 굽는가.
+     🔴 **속도는 존마다 다르지 않다 (v0.89).** 한 존만 빨랐다가 다음 존에서 되돌아오면
+     그건 단계가 아니라 진동이고, "갈수록 빨라진다"가 깨진다(유저 보고).
+     속도는 **루프를 넘을 때만** 오르고(기어), 존은 속도 말고 나머지로만 다르다.
+     그래서 순풍은 '빠른 존'이 아니라 **넓고 곧은 활주로**가 됐다 — 붙기 제일 좋은 구간 */
+  draft:  { name:'순풍',     col:'#2E7A6B', type:'basic',  gapMul:1.22, spdMul:1.0, spaceMul:1.0, drift:85 },
+  sparse: { name:'성긴 하늘', col:'#6E4A3A', type:'basic',  gapMul:1.0,  spdMul:1.0, spaceMul:1.4 },
   fork:   { name:'갈림길',    col:'#3F6045', type:'fork',   gapMul:1.0,  spdMul:.97 },
   mover:  { name:'무빙워크',  col:'#4A3E86', type:'mover',  gapMul:1.06, spdMul:1.0 },
   narrow: { name:'좁은 골목', col:'#5C3550', type:'narrow', gapMul:.88,  spdMul:.94 },
@@ -1036,7 +1048,6 @@ const ZONE_DEFS = {
    워밍업은 이름 그대로 몸 푸는 자리라 매 바퀴 반복할 이유가 없고, 빼면 순환이
    지그재그 → … → 성긴 하늘 → 지그재그의 **다섯 존**이 되어 주기도 어긋난다(6과 5) */
 const BASE_ROTATION = ['basic', 'zigzag', 'island', 'swarm', 'draft', 'sparse'];
-const BASE_ONCE = 1;                                            // 앞 1개(워밍업)는 한 번만
 
 /* ── 코스의 작곡: 손으로 짠 프레이즈 — 같은 조작이 놓이는 맥락을 안무한다 ──
    g = 통로 폭(지름 배수), c = 통로 중심(화면 비율). 랜덤 나열이 못 만드는 긴장의 드라마 */
@@ -1049,11 +1060,10 @@ const PHRASES = [
 ];
 const ROWS_PER_ZONE = 13;
 function zone(){
-  const st = STAGES[currentSky], list = st.zones || BASE_ROTATION;
-  /* 스테이지는 워밍업이 **서명 존 사이의 숨 고르기**라 계속 돌아야 한다(빼면 갈림길만 줄줄이
-     이어져 쉴 자리가 없다). 한 번만 도는 규칙은 기본 하늘에만 건다 */
-  const once = st.zones ? 0 : BASE_ONCE;
-  const i = zoneIdx < once ? zoneIdx : once + ((zoneIdx - once) % (list.length - once));
+  const list = STAGES[currentSky].zones || BASE_ROTATION;
+  /* 워밍업은 **모든 하늘에서** 판에 한 번뿐이다(v0.89). 숨 고르기가 필요하면 워밍업을
+     되풀이할 게 아니라 **그 하늘의 첫 존을 쉽게 짜면 된다**(유저 확정) */
+  const i = zoneIdx < ZONE_ONCE ? zoneIdx : ZONE_ONCE + ((zoneIdx - ZONE_ONCE) % cycleLen());
   return ZONE_DEFS[list[i]];                       // 모든 하늘이 무한 순환 — 코어는 어디서든 같다
 }
 
@@ -1808,6 +1818,8 @@ function update(sdt, rawDt){
     return;
   }
   elapsed += sdt;
+  /* 기어 변속 — 목표 단으로 0.45초에 걸쳐 미끄러진다(v0.89). 계단을 그대로 쓰면 뚝 끊긴다 */
+  diffCur += (diffTarget() - diffCur) * Math.min(1, sdt * 2.2);
   const spd = speed();
 
   // 스폰
@@ -1855,7 +1867,7 @@ function update(sdt, rawDt){
     let guard = 0;
     /* 협곡엔 줄이 없으니 rowsSpawned도 안 오른다 — 난이도가 줄에 물린 뒤로는(v0.87)
        그대로 두면 협곡만 영원히 초기 속도에 머문다. **같은 거리 = 같은 한 줄**로 세어 준다 */
-    while(cScoreAcc >= need && guard++ < 8){ cScoreAcc -= need; rowsSpawned++; payPass(); }
+    while(cScoreAcc >= need && guard++ < 8){ cScoreAcc -= need; rowsSpawned++; if(rowsSpawned % ROWS_PER_ZONE === 0) zoneIdx++; payPass(); }
   } else {
     for(const row of rows){
       if(!row.scored && row.y > orb.y + ORB_R){ row.scored = true; payPass(); }
@@ -3233,8 +3245,12 @@ window.ASEUL = {
   warp(s){ if(state === 'play') elapsed = Math.max(elapsed, s); },   // 검증용: 경과 시간만 감는다(연출·기록용)
   /* 검증용: 난이도는 v0.87부터 **줄**에 물려 있다 — 후반을 보려면 이걸로 감아야 한다.
      루프 단위로 감아 두면 "n바퀴째의 속도"를 그대로 재현할 수 있다 */
-  warpLoop(n){ if(state === 'play'){ rowsSpawned = Math.max(rowsSpawned, Math.round(n * zonesPerLoop() * ROWS_PER_ZONE)); zoneIdx = Math.floor(rowsSpawned / ROWS_PER_ZONE); } },
-  get loop(){ return +((rowsSpawned || 0) / (zonesPerLoop() * ROWS_PER_ZONE)).toFixed(2); },
+  warpLoop(n){ if(state !== 'play') return;                       // n바퀴째로 감는다 (0 = 워밍업)
+    zoneIdx = n <= 0 ? 0 : ZONE_ONCE + Math.max(0, n - 1) * cycleLen();
+    rowsSpawned = zoneIdx * ROWS_PER_ZONE;
+    diffCur = diffTarget(); },                                     // 변속을 기다리지 않고 바로 그 단으로
+  get loop(){ return cycleIdx(); },
+  get zoneName(){ return zone().name; },
   get diff(){ return +diff().toFixed(3); },
   get spd(){ return +speed().toFixed(0); },
   get rampLoops(){ return rampLoops; },
