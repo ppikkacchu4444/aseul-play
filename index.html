@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.86</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.87</div>
 </div>
 
 <script>
@@ -951,9 +951,23 @@ function startRun(){
 /* ═══════════════ 패턴 생성 ═══════════════ */
 const lerp = (a,b,t) => a + (b-a)*t;
 const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
-function diff(){ return clamp(elapsed / T.rampSec, 0, 1); }
+/* ── 난이도는 **시간이 아니라 줄**로 오른다 (v0.87) ──
+   초에 물려 있으면 루프와 속도가 우연히만 맞물린다 — 빨라질수록 줄이 더 빨리 지나가니
+   같은 64초라도 어떤 판은 2바퀴, 어떤 판은 3바퀴 반을 돈 상태로 최고 속도를 맞는다.
+   줄에 물리면 **"n바퀴 돌면 최고 속도"**가 정확히 성립하고, 플레이어가 세는 단위(존 루프)와
+   난이도 곡선의 단위가 같아진다.
+   그리고 **최고 속도에서 멈춘다.** 예전엔 램프 뒤로도 초당 1.1px씩 영원히 붙었는데,
+   그러면 끝이 실력이 아니라 시간이 정한다. 상한이 있어야 기록이 실력의 척도가 되고,
+   판은 "언젠가 실수해서" 끝난다 — 속도가 불가능해져서가 아니라 */
+/* 몇 바퀴에 최고 속도에 닿는가 (튜닝 손잡이 — `ASEUL.setRampLoops(n)`로 판중에도 바꾼다).
+   3 = 최고 속도까지 약 72초. 4로 늘리면 96초인데, 한 판이 그전에 끝나는 경우가 많아
+   **대부분의 플레이어가 최고 속도를 한 번도 못 보는** 곡선이 된다 — 1·2·3바퀴로 오르고
+   3바퀴째부터 전력, 이후로는 그 속도를 유지한다 */
+let rampLoops = 3;
+const zonesPerLoop = () => (STAGES[currentSky].zones || BASE_ROTATION).length;
+function diff(){ return clamp((rowsSpawned || 0) / (rampLoops * zonesPerLoop() * ROWS_PER_ZONE), 0, 1); }
 function speed(){
-  return (lerp(T.speed0, T.speed1, diff()) + Math.max(0, elapsed - T.rampSec) * 1.1) * zone().spdMul
+  return lerp(T.speed0, T.speed1, diff()) * zone().spdMul
     * (1 + Math.min(heat, capH()) / capH() * .12)         // 폭주 — 뜨거울수록 세계가 빨라진다 (최대 +12%)
     * (nova > 0 ? 1.25 : 1);                              // 초신성 — 질주
 }
@@ -1799,7 +1813,9 @@ function update(sdt, rawDt){
     cScoreAcc += spd * sdt;
     const need = lerp(T.space0, T.space1, diff());
     let guard = 0;
-    while(cScoreAcc >= need && guard++ < 8){ cScoreAcc -= need; payPass(); }
+    /* 협곡엔 줄이 없으니 rowsSpawned도 안 오른다 — 난이도가 줄에 물린 뒤로는(v0.87)
+       그대로 두면 협곡만 영원히 초기 속도에 머문다. **같은 거리 = 같은 한 줄**로 세어 준다 */
+    while(cScoreAcc >= need && guard++ < 8){ cScoreAcc -= need; rowsSpawned++; payPass(); }
   } else {
     for(const row of rows){
       if(!row.scored && row.y > orb.y + ORB_R){ row.scored = true; payPass(); }
@@ -3174,7 +3190,15 @@ window.ASEUL = {
   boost(){ heat = capH(); sinceGraze = 0; },      // 검증용: 다음 프레임 상한 도달 → 초신성 발동
   setHeat(h){ heat = Math.min(h, capH()); sinceGraze = 0; },   // 검증용: 열기 임의 설정
   chill(){ sinceGraze = delayNow() + .01; },      // 검증용: 즉시 냉각 상태로 (가터링·하강음 확인)
-  warp(s){ if(state === 'play') elapsed = Math.max(elapsed, s); },   // 검증용: 난이도 램프 앞으로 감기 (후반 코스·엄지 이동량 확인)
+  warp(s){ if(state === 'play') elapsed = Math.max(elapsed, s); },   // 검증용: 경과 시간만 감는다(연출·기록용)
+  /* 검증용: 난이도는 v0.87부터 **줄**에 물려 있다 — 후반을 보려면 이걸로 감아야 한다.
+     루프 단위로 감아 두면 "n바퀴째의 속도"를 그대로 재현할 수 있다 */
+  warpLoop(n){ if(state === 'play'){ rowsSpawned = Math.max(rowsSpawned, Math.round(n * zonesPerLoop() * ROWS_PER_ZONE)); zoneIdx = Math.floor(rowsSpawned / ROWS_PER_ZONE); } },
+  get loop(){ return +((rowsSpawned || 0) / (zonesPerLoop() * ROWS_PER_ZONE)).toFixed(2); },
+  get diff(){ return +diff().toFixed(3); },
+  get spd(){ return +speed().toFixed(0); },
+  get rampLoops(){ return rampLoops; },
+  setRampLoops(n){ rampLoops = Math.max(1, n); },        // 튜닝용: 몇 바퀴에 최고 속도에 닿는가
   gapCenters(){                                   // 검증용: 현재 줄들의 통로 중심 (엄지 이동량 측정)
     return rows.filter(r => r.blocks.length === 2 && r.blocks[0].x === 0 && !r.blocks[0].dyn)
       .map(r => Math.round(r.blocks[0].w + (r.blocks[1].x - r.blocks[0].w) / 2));
