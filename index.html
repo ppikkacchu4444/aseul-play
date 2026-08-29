@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.84</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.85</div>
 </div>
 
 <script>
@@ -440,7 +440,11 @@ const T = {
      폭으로 난이도를 만들면 후반에 안전 구간이 0%가 되어 "붙는다"가 선택이 아니게 된다.
      폭은 언제나 '안 스치고 갈 수 있는 차선'이 남을 만큼 유지하고, 난이도는 속도·줄 간격·조임목이 맡는다 */
   gap0: 4.3,  gap1: 4.0,                   // (v0.68: 2.15 → 4.0)
-  space0: 225, space1: 152,                // 줄 간격(px)
+  /* 줄 간격(px) — **좁은 간격은 존의 특징이지 기본값이 아니다 (v0.85)**.
+     152는 후반(694px/s)에 반응 창이 0.219초라 모든 존이 숨 가빴다. 190이면 0.274초.
+     좁히는 건 빗발이 맡고(spaceMul), 기본은 읽을 수 있어야 한다 — 유저: "다 좁으면
+     난이도가 너무 올라가는 느낌" */
+  space0: 225, space1: 190,
   heatCap: 49,                             // 최대 배수 = 1 + heatCap = ×50
   decayDelay: 1.4,                         // 안 스치고 버틸 수 있는 유예(초)
   decayRate: 1.0, decayHeat: .13,          // 냉각 = 초당 1 + 0.13×열기 — 높을수록 빨리 식는다
@@ -959,13 +963,19 @@ function speed(){
 const ZONE_DEFS = {
   basic:  { name:'워밍업',    col:'#3A4680', type:'basic',  gapMul:1.0,  spdMul:1.0 },
   zigzag: { name:'지그재그',  col:'#2E5F6E', type:'zigzag', gapMul:1.0,  spdMul:1.0 },
-  island: { name:'별 소나기', col:'#6E5230', type:'island', gapMul:1.12, spdMul:1.0 },
+  /* 별 소나기 (v0.85) — **여기만 줄 간격을 넓힌다.** 이 존은 줄마다 떠 있는 섬을 끼고
+     옆으로 붙어야 해서, 같은 반응 창에 다른 존보다 **더 많이 움직여야** 한다. 간격이 같으면
+     그 차이가 그대로 조급함이 된다(유저: "다음 벽까지 간격이 너무 좁다").
+     넓히는 건 봐주는 게 아니라 **붙을 시간을 주는 것** — 여긴 그레이즈 파티다 */
+  island: { name:'별 소나기', col:'#6E5230', type:'island', gapMul:1.12, spdMul:1.0, spaceMul:1.15 },
   /* 빗발 (v0.74) — **줄 간격**을 좁힌 존. 통로 폭이 아니라 간격을 좁히는 게 핵심이다:
      폭을 좁히면 안전 차선이 사라져 "붙는 것"이 선택이 아니게 되고(20조), 그건 이미
      좁은 골목 기믹이다. 간격을 좁히면 벽이 연달아 빗발쳐 **스침이 촘촘해지고 배수가 빨리 오른다**
      — 초신성까지 가는 길이 짧아지는 구간. 통로는 오히려 넓혀(gapMul 1.15) 선택을 살려 두고,
      속도를 살짝 낮춰(spdMul .92) 읽을 수 있게 만든다 */
-  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:.92, spaceMul:.6 },
+  /* v0.85: 기본 간격을 152→190으로 넓혔으므로 배율을 .6→.5로 낮춰 **절대 간격을 유지**한다
+     (후반 91px → 95px). 빗발이 좁은 게 아니라 기본이 좁았던 것이라, 기본만 풀고 여긴 그대로 둔다 */
+  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:.92, spaceMul:.5 },
   fork:   { name:'갈림길',    col:'#3F6045', type:'fork',   gapMul:1.0,  spdMul:.97 },
   mover:  { name:'무빙워크',  col:'#4A3E86', type:'mover',  gapMul:1.06, spdMul:1.0 },
   narrow: { name:'좁은 골목', col:'#5C3550', type:'narrow', gapMul:.88,  spdMul:.94 },
