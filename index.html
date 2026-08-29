@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.89</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.90</div>
 </div>
 
 <script>
@@ -581,8 +581,17 @@ const HAZE = []; for(let i=0;i<4;i++) HAZE.push({ y: .12+i*.2+Math.random()*.05,
 
 /* ═══════════════ 사운드 (WebAudio 신스, 에셋 0) ═══════════════ */
 let AC = null, muted = localStorage.getItem('aseul-muted') === '1';
-const PENTA = [523,587,659,784,880,1046,1174,1318,1568,1760,2093,2349];
+const PENTA = [523,587,659,784,880,1046,1174,1318,1568,1760,2093,2349];   // C 메이저 펜타토닉 — 어느 화음 위에도 얹힌다
 let lastMaxIdx = -1;   // 절정 스침음이 같은 음을 연달아 내지 않게
+/* ── 스침의 가락 (v0.90) ──
+   v0.89까지 음높이는 **열기 하나로만** 정해졌다. 열기는 스침당 +1이라 사다리 칸은
+   두세 번에 한 번씩만 바뀌고, 그 사이 스침은 **같은 음을 되풀이한다** — 오르는 느낌은
+   있어도 가락은 아니다(유저: "정말 멜로디처럼 이어질 수 있으면").
+   두 축으로 가른다: **열기 = 음역**(어디쯤 높은가) / **스침 순번 = 가락**(어떻게 움직이는가).
+   MOTIF는 오르내리는 12걸음이고 같은 자리가 연달아 오지 않는다. 체인이 끊기면 가락도
+   처음으로 돌아가 — 다시 붙기 시작하면 **같은 프레이즈를 다시 부른다**(반복이 곧 후렴이다) */
+const MOTIF = [0, 2, 1, 3, 2, 4, 3, 1, 4, 2, 5, 3];
+let melodyStep = 0;
 function ac(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC && AC.state==='suspended') AC.resume(); return AC; }
 function tone(freq, dur, type, gain, when=0){
   const a = AC; if(!a || muted) return;
@@ -690,9 +699,20 @@ function startMusic(){
         voice(BEAT.next, ch.arp[ARP_ORDER[i]] * 4, .26, 'sine', .05 * q);
         if(i % 4 === 2) voice(BEAT.next + spb/4, ch.arp[ARP_ORDER[(i+3) % 8]] * 4, .34, 'triangle', .035 * q);
       }
+      /* 수호별이 곁에 나는 소리 — **홀리하고 든든하게** 세 겹 (v0.90).
+         한 겹(5도 동행 성부)만으로는 "하나 더 있다"는 알겠는데 **천사로는 안 들렸다**(유저 보고).
+         ①마디마다 깔리는 근음+5도 지속음 = 바닥을 받치는 든든함(성가대의 오르간 같은 자리)
+         ②5도 위 동행 성부를 종소리(sine)로 바꿔 여운을 길게 — 옆에서 같이 부르는 목소리
+         ③두 옥타브 위 종이 화음을 **타고 올라간다** = 반짝임, 날갯짓
+         전부 남은 시간에 비례해 옅어져 떠나는 것까지 들린다 */
       if(guard > 0){
         const q = Math.min(1, guard / GD_T);
-        if(i % 2 === 0) voice(BEAT.next, ch.arp[ARP_ORDER[i]] * 1.5, .3, 'triangle', .06 * q);
+        if(i === 0){                                       // 마디 머리에 한 번만 — 겹쳐 쌓이지 않게
+          voice(BEAT.next, ch.bass * 2, spb * 4, 'sine', .05 * q);
+          voice(BEAT.next, ch.bass * 3, spb * 4, 'sine', .034 * q);
+        }
+        if(i % 2 === 0) voice(BEAT.next, ch.arp[ARP_ORDER[i]] * 1.5, .38, 'sine', .055 * q);
+        voice(BEAT.next + spb/4, ch.arp[BEAT.n % 4] * 4, .32, 'sine', .03 * q);   // 올라가는 종
       }
       BEAT.next += spb/2; BEAT.n++;
     }
@@ -706,14 +726,24 @@ function beatPulse(){
 }
 const sfx = {
   graze(h, deep, gold, chain){
-    let idx = Math.min(11, Math.floor(Math.sqrt(h / capH()) * 11.99));  // 음계 사다리를 자기 등반 전체에 펼친다
-    if(h >= capH()){                              // 최고 화력: 고음역 6개 랜덤, 직전 음 반복 금지
-      do { idx = 6 + (Math.random()*6|0); } while(idx === lastMaxIdx);
+    /* 음역은 열기가, 걸음은 가락이 정한다 — 둘을 더해 한 음을 고른다 */
+    const reg = Math.min(6, Math.floor(Math.sqrt(h / capH()) * 6.99));
+    const mv  = MOTIF[melodyStep % MOTIF.length];
+    melodyStep = chain ? melodyStep + 1 : 0;      // 체인이 끊기면 후렴을 처음부터 다시
+    let idx = Math.min(11, reg + mv);
+    if(h >= capH()){                              // 절정에서도 **가락으로** 오른다 — 예전엔 무작위였다
+      idx = 6 + (mv % 6);
+      if(idx === lastMaxIdx) idx = 6 + ((mv + 2) % 6);
       lastMaxIdx = idx;
     }
     const f = PENTA[idx];
     tone(f,.13,'triangle', deep ? .4 : .3);
     tone(f*2,.09,'sine', deep ? .17 : .1);
+    /* 아슬은 **두 음**으로 답한다 — 3도 위를 살짝 늦게 얹으면 한 음짜리 스침과 확실히 갈린다.
+       크기가 아니라 **음의 수**로 잘한 정도를 말하는 것(18조) */
+    if(deep) tone(PENTA[Math.min(11, idx + 2)], .16, 'triangle', .26, .045);
+    /* 체인이 길어지면 아래로 한 겹 — 가락에 몸이 붙는다 */
+    if(chain && h >= 12) tone(PENTA[Math.max(0, idx - 3)] * .5, .18, 'sine', .075, .01);
     if(h >= 24) tone(f*1.5,.07,'sine',.055,.03);  // 콤보 중반부터 반짝임 한 겹
     if(h >= capH()) tone(f*1.5,.1,'sine',.1,.05); // 절정 반짝임 레이어
     if(chain && AC && !muted) hat(AC.currentTime+.03,.11);  // 연속 스침 체인 틱
@@ -875,7 +905,7 @@ function reset(){
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
   bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
-  elapsed = 0; distAcc = 0; nextSpace = 0; diffCur = 0;
+  elapsed = 0; distAcc = 0; nextSpace = 0; diffCur = 0; melodyStep = 0; lastMaxIdx = -1;
   score = 0; dispScore = 0; grazes = 0; passed = 0;
   heat = CH().heat0; mult = 1 + Math.floor(heat); peakMult = mult;   // 잿불별은 ×5에서 출발
   dustRun = 0;
