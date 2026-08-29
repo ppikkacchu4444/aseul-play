@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.85</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.86</div>
 </div>
 
 <script>
@@ -973,15 +973,20 @@ const ZONE_DEFS = {
      좁은 골목 기믹이다. 간격을 좁히면 벽이 연달아 빗발쳐 **스침이 촘촘해지고 배수가 빨리 오른다**
      — 초신성까지 가는 길이 짧아지는 구간. 통로는 오히려 넓혀(gapMul 1.15) 선택을 살려 두고,
      속도를 살짝 낮춰(spdMul .92) 읽을 수 있게 만든다 */
-  /* v0.85: 기본 간격을 152→190으로 넓혔으므로 배율을 .6→.5로 낮춰 **절대 간격을 유지**한다
-     (후반 91px → 95px). 빗발이 좁은 게 아니라 기본이 좁았던 것이라, 기본만 풀고 여긴 그대로 둔다 */
-  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:.92, spaceMul:.5 },
+  /* v0.86: 간격 95 → **120px**(spaceMul .63), 그리고 `drift` 신설.
+     좁은 간격의 긴장은 **자주 오는 것**이 만들지 **멀리 가는 것**이 만들지 않는다.
+     통로를 화면 전체에 무작위로 놓으면 엄지 예산(reach) 안이긴 해도 초당 대여섯 번
+     최대치로 뛰어야 해서 손이 먼저 지친다(15조는 "가능한가"가 아니라 "아픈가"를 묻는다).
+     그래서 여긴 통로를 **이전 줄 근처(±46px)에** 놓는다 — 벽은 빗발치되 길은 완만히 굽는다 */
+  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:.92, spaceMul:.63, drift:46 },
   fork:   { name:'갈림길',    col:'#3F6045', type:'fork',   gapMul:1.0,  spdMul:.97 },
   mover:  { name:'무빙워크',  col:'#4A3E86', type:'mover',  gapMul:1.06, spdMul:1.0 },
   narrow: { name:'좁은 골목', col:'#5C3550', type:'narrow', gapMul:.88,  spdMul:.94 },
   closer: { name:'닫히는 문', col:'#6E3A3A', type:'closer', gapMul:1.0,  spdMul:.96 },
 };
-const BASE_ROTATION = ['basic', 'zigzag', 'swarm', 'island'];   // v0.74: 빗발 추가 — 4존 순환
+/* v0.86: 빗발을 셋째 → **넷째**로 미뤘다. 넷 중 가장 조이는 존이라 27줄째에 오면
+   아직 손이 안 풀린 채로 만난다. 가장 넉넉한 별 소나기 바로 뒤에 두면 대비도 커진다 */
+const BASE_ROTATION = ['basic', 'zigzag', 'island', 'swarm'];
 
 /* ── 코스의 작곡: 손으로 짠 프레이즈 — 같은 조작이 놓이는 맥락을 안무한다 ──
    g = 통로 폭(지름 배수), c = 통로 중심(화면 비율). 랜덤 나열이 못 만드는 긴장의 드라마 */
@@ -1103,6 +1108,11 @@ function spawnRow(y = -BLOCK_H - 6){
       const bw = clamp(W - 2*gapW, 60, W*.55);
       island(row, bw, lerp(gapW*.7, W - gapW*.7 - bw, rng()), 0);
     }
+  } else if(z.drift){
+    /* 촘촘한 존(빗발) — **섬을 쓰지 않고** 통로를 이전 줄 근처에 놓는다.
+       섬은 좌우 중 한쪽을 고르게 만들어 한 번에 크게 옮기라고 요구하는데,
+       줄이 0.2초마다 오는 곳에서 그건 손을 갈아 넣으라는 말이 된다 */
+    gate(row, gapW, lastGapC + (rng()*2 - 1) * z.drift);
   } else {                                               // basic: 게이트+섬 혼합
     if(r < .55) gate(row, gapW, lerp(gapW, W - gapW, rng()));
     else {
