@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.91</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.92</div>
 </div>
 
 <script>
@@ -667,7 +667,18 @@ const ARP_ORDER = [0,2,1,3,2,0,3,1];
 const BEAT = { next:0, n:0, timer:null, lastKick:0, spb:.6 };
 /* BPM 104→147 (자기 상한 비율). 초신성 동안은 여기서 한 단계 더 올라간다 —
    동사가 하나뿐인 게임이라 손맛·눈·귀 세 채널을 동시에 최대로 밀어야 절정이 절정으로 읽힌다 */
-function bpmNow(){ return (104 + (Math.min(heat, capH()) / capH()) * 43) * (nova > 0 ? 1.2 : 1); }
+/* 🔴 **템포가 곧 기어다 (v0.92).** 예전엔 BPM이 열기를 따라갔는데, 벽이 박자 위에 오게 된
+   이상 그러면 **잘할수록 벽이 빨라진다** — 23조가 금지하는 되먹임이다. 템포는 기어만 따르고,
+   열기는 악기를 더 얹는 것으로 보상한다(heat >= 8/12/24/36 레이어는 그대로).
+   덕분에 **기어가 귀에 들린다** — 한 바퀴 돌면 곡이 한 단 빨라진다 */
+function bpmNow(){ return lerp(96, 152, diff()) * (nova > 0 ? 1.2 : 1); }
+/* 벽 하나가 오는 간격(박) — 존의 음표 x 기어. 기어가 5단 계단이라 **박자도 5단으로 고정**되고,
+   한 기어 안에서는 언제나 같은 맥이라 몸이 배울 수 있다. 1/8박 격자에 스냅해 음표로 떨어뜨린다 */
+function rowBeats(){
+  const b = (zone().beats || .75) * lerp(2, 1, diff());
+  return Math.max(.25, Math.round(b * 8) / 8);
+}
+const rowSecNow = () => rowBeats() * (60 / bpmNow());
 function startMusic(){
   if(!ac() || BEAT.timer) return;
   BEAT.next = AC.currentTime + .06; BEAT.n = 0;
@@ -869,6 +880,7 @@ let CANYON = false;  // 이번 판이 협곡 하늘인가 — reset()에서 선�
    여기서 쓰는 상태를 아래쪽에 let으로 선언하면 TDZ("Cannot access before initialization")로
    초기화 전체가 무너진다 — 이 저장소에서 held·CANYON에 이어 세 번째다 */
 let diffCur = 0;                                 // 현재 난이도 단(기어) — 목표 단으로 미끄러진다
+let rowClock = 0, rowSec = .8, restBeats = 0;    // 박자 시계 · 이번 줄까지의 간격(초) · 존 전환 쉼표(박)
 const CSEG  = 26;    // 폴리라인 표본 간격 — **그리는 선과 판정선이 같은 값**이어야 한다(보이는 대로 죽는다)
 const CTICK = 140;   // 붙어서 이만큼 가면 스침 1회 (기존은 줄당 1회 ≈ 190px)
                      // 100으로 두니 완벽히 붙는 봇이 20초 만에 ×50에 닿아 판 전체가 상한에 눌어붙었다
@@ -913,6 +925,7 @@ function reset(){
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
   bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
   elapsed = 0; distAcc = 0; nextSpace = 0; diffCur = 0; melodyStep = 0; lastNoteIdx = -1;
+  rowClock = 0; rowSec = .1; restBeats = 0;        // 첫 줄은 곧바로 — 판이 시작하자마자 박이 선다
   score = 0; dispScore = 0; grazes = 0; passed = 0;
   heat = CH().heat0; mult = 1 + Math.floor(heat); peakMult = mult;   // 잿불별은 ×5에서 출발
   dustRun = 0;
@@ -1047,13 +1060,17 @@ function speed(){
 /* ── ZONE 시스템: 13줄마다 페이지가 넘어가듯 테마가 바뀐다 ── */
 /* 존 사전 — 기본 하늘은 순한 3존 순환, 특성 기믹 4종은 스테이지 하늘 전용 */
 const ZONE_DEFS = {
-  basic:  { name:'워밍업',    col:'#3A4680', type:'basic',  gapMul:1.0,  spdMul:1.0 },
-  zigzag: { name:'지그재그',  col:'#2E5F6E', type:'zigzag', gapMul:1.0,  spdMul:1.0 },
+  /* ── 존이 곧 **박자**다 (v0.92) ──
+     `beats` = 벽 하나가 오는 간격을 **음표**로 적은 것(최고 기어 기준). 기어가 낮으면
+     같은 음표가 길게 늘어난다(gearBeatMul). 픽셀 간격은 이제 결과값이다 — 속도 x 시간.
+     이래야 존이 바뀔 때 '간격이 달라졌다'가 아니라 **'박자가 바뀌었다'**로 읽힌다 */
+  basic:  { name:'워밍업',    col:'#3A4680', type:'basic',  gapMul:1.0,  spdMul:1.0, beats:.75 },
+  zigzag: { name:'지그재그',  col:'#2E5F6E', type:'zigzag', gapMul:1.0,  spdMul:1.0, beats:.75 },   // 점8분
   /* 별 소나기 (v0.85) — **여기만 줄 간격을 넓힌다.** 이 존은 줄마다 떠 있는 섬을 끼고
      옆으로 붙어야 해서, 같은 반응 창에 다른 존보다 **더 많이 움직여야** 한다. 간격이 같으면
      그 차이가 그대로 조급함이 된다(유저: "다음 벽까지 간격이 너무 좁다").
      넓히는 건 봐주는 게 아니라 **붙을 시간을 주는 것** — 여긴 그레이즈 파티다 */
-  island: { name:'별 소나기', col:'#6E5230', type:'island', gapMul:1.12, spdMul:1.0, spaceMul:1.15 },
+  island: { name:'별 소나기', col:'#6E5230', type:'island', gapMul:1.12, spdMul:1.0, beats:1 },     // 4분
   /* 빗발 (v0.74) — **줄 간격**을 좁힌 존. 통로 폭이 아니라 간격을 좁히는 게 핵심이다:
      폭을 좁히면 안전 차선이 사라져 "붙는 것"이 선택이 아니게 되고(20조), 그건 이미
      좁은 골목 기믹이다. 간격을 좁히면 벽이 연달아 빗발쳐 **스침이 촘촘해지고 배수가 빨리 오른다**
@@ -1064,7 +1081,7 @@ const ZONE_DEFS = {
      통로를 화면 전체에 무작위로 놓으면 엄지 예산(reach) 안이긴 해도 초당 대여섯 번
      최대치로 뛰어야 해서 손이 먼저 지친다(15조는 "가능한가"가 아니라 "아픈가"를 묻는다).
      그래서 여긴 통로를 **이전 줄 근처(±46px)에** 놓는다 — 벽은 빗발치되 길은 완만히 굽는다 */
-  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:1.0, spaceMul:.68, drift:46 },
+  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:1.0, beats:.5, drift:46 },   // 8분 — 다다다다
   /* ── 기본 하늘의 리듬 존 (v0.88 → v0.89 속도 통일) ──
      스테이지 존들은 **벽의 문법**(갈림길·움직임·닫힘)으로 다르지만, 기본 하늘의 존은
      같은 문법 위에서 **리듬**만 다르다 — 얼마나 자주 오고, 얼마나 넓고, 길이 얼마나 굽는가.
@@ -1072,8 +1089,8 @@ const ZONE_DEFS = {
      그건 단계가 아니라 진동이고, "갈수록 빨라진다"가 깨진다(유저 보고).
      속도는 **루프를 넘을 때만** 오르고(기어), 존은 속도 말고 나머지로만 다르다.
      그래서 순풍은 '빠른 존'이 아니라 **넓고 곧은 활주로**가 됐다 — 붙기 제일 좋은 구간 */
-  draft:  { name:'순풍',     col:'#2E7A6B', type:'basic',  gapMul:1.22, spdMul:1.0, spaceMul:1.0, drift:85 },
-  sparse: { name:'성긴 하늘', col:'#6E4A3A', type:'basic',  gapMul:1.0,  spdMul:1.0, spaceMul:1.4 },
+  draft:  { name:'순풍',     col:'#2E7A6B', type:'basic',  gapMul:1.22, spdMul:1.0, beats:.75, drift:85 },  // 점8분
+  sparse: { name:'성긴 하늘', col:'#6E4A3A', type:'basic',  gapMul:1.0,  spdMul:1.0, beats:1.5 },   // 점4분 — 쿠웅 … 쿠웅
   fork:   { name:'갈림길',    col:'#3F6045', type:'fork',   gapMul:1.0,  spdMul:.97 },
   mover:  { name:'무빙워크',  col:'#4A3E86', type:'mover',  gapMul:1.06, spdMul:1.0 },
   narrow: { name:'좁은 골목', col:'#5C3550', type:'narrow', gapMul:.88,  spdMul:.94 },
@@ -1320,7 +1337,7 @@ function spawnRow(y = -BLOCK_H - 6){
     }
     floater(W/2, H*.36, 'ZONE ' + (zoneIdx+1) + ' · ' + nz.name, '#7DF3FF', 26, 1.5);
     rings.push({x:W/2, y:H*.5, r0:20, r1:W*.7, col:'#7DF3FF', lw:3, life:.6, t:0});
-    nextSpace += 250;                                    // 한 박자 쉼표
+    restBeats = 1;                                       // 존이 바뀌는 자리에 **한 박 쉼표** — 픽셀이 아니라 박이다
     if(AC && !muted){ hat(AC.currentTime,.12); hat(AC.currentTime+.09,.12); hat(AC.currentTime+.18,.18); kick(AC.currentTime+.27); }
   }
 }
@@ -1866,10 +1883,17 @@ function update(sdt, rawDt){
     cBlk[0].flash = Math.max(0, cBlk[0].flash - sdt*2.4);
     cBlk[1].flash = Math.max(0, cBlk[1].flash - sdt*2.4);
   } else {
-    distAcc += spd * sdt;
-    if(distAcc >= nextSpace){
-      distAcc = 0;
-      nextSpace = lerp(T.space0, T.space1, diff()) * (zone().spaceMul || 1);   // 존이 줄 간격을 정한다(빗발)
+    /* 🔴 **벽은 거리가 아니라 박자 위에 온다 (v0.92).**
+       예전엔 "몇 px 갔으면 한 줄"이라 벽과 음악이 0.68박씩 어긋나며 계속 미끄러졌다 —
+       거의 맞는데 절대 안 맞는 상태라 몸이 박자를 잡으려다 매번 실패했다.
+       이제 "몇 박 지났으면 한 줄"이다. **다음 벽이 언제 올지 몸이 안다.**
+       남는 시간은 다음 칸으로 넘겨(rowClock -= rowSec) 박자가 조금씩 밀리지 않게 한다 */
+    rowClock += sdt;
+    if(rowClock >= rowSec){
+      rowClock -= rowSec;
+      rowSec = (rowBeats() + restBeats) * (60 / bpmNow());
+      restBeats = 0;
+      nextSpace = spd * rowSec;      // 픽셀 간격은 **결과값** — 엄지 예산·별가루 배치가 이걸 쓴다
       spawnRow();
     }
     // 이동
@@ -1900,7 +1924,7 @@ function update(sdt, rawDt){
   if(CANYON){
     // 협곡엔 '줄'이 없다 — 같은 거리를 지날 때마다 같은 값을 준다(경제는 그대로)
     cScoreAcc += spd * sdt;
-    const need = lerp(T.space0, T.space1, diff());
+    const need = spd * rowSecNow();          // 협곡도 같은 박자로 센다 — 한 박 = 한 줄
     let guard = 0;
     /* 협곡엔 줄이 없으니 rowsSpawned도 안 오른다 — 난이도가 줄에 물린 뒤로는(v0.87)
        그대로 두면 협곡만 영원히 초기 속도에 머문다. **같은 거리 = 같은 한 줄**로 세어 준다 */
@@ -3288,6 +3312,8 @@ window.ASEUL = {
     diffCur = diffTarget(); },                                     // 변속을 기다리지 않고 바로 그 단으로
   get loop(){ return cycleIdx(); },
   get zoneName(){ return zone().name; },
+  get beats(){ return rowBeats(); },               // 검증용: 이 존의 음표 값(박)
+  get rowSec(){ return +rowSecNow().toFixed(3); }, // 검증용: 벽 하나가 오는 간격(초)
   get diff(){ return +diff().toFixed(3); },
   get spd(){ return +speed().toFixed(0); },
   get rampLoops(){ return rampLoops; },
