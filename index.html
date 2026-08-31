@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.92</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.94</div>
 </div>
 
 <script>
@@ -432,6 +432,14 @@ const nebQ = () => {
 };
 const bandNow = () => BAND * (1 + (NEB_MUL - 1) * nebQ());
 const deepNow = () => DEEP * (1 + (NEB_MUL - 1) * nebQ());
+/* ── 간발 (v0.94) — 이 게임의 이름이 규칙이 된다 ──
+   계측이 구멍을 보여줬다: **여유 0.1px과 여유 11.9px이 똑같이 +2**였다.
+   안전 마진을 120배 줄여도 보상이 한 푼도 안 늘어나니, 최적 플레이는 밴드 **바깥쪽**에
+   앉아 있는 것이었다 — 게임 이름이 아슬아슬인데 규칙이 아슬아슬함을 말리고 있었다.
+   새 규칙이 아니라 **빠진 칸**이다: 스침 → 아슬로 오르던 계단이 아슬에서 평평해지는데,
+   그 마지막 칸을 놓는다. 죽음 판정 13px은 그대로다(3조) — 기존 밴드 안을 나눌 뿐 */
+const HAIR = 3;         // 죽음까지 남은 여유(px)가 이 안이면 '간발'
+const hairNow = () => HAIR * (1 + (NEB_MUL - 1) * nebQ());   // 성운은 여기도 넓혀 준다
 const BLOCK_H = 26;
 const WALL_R  = 11;      // 벽 모서리 라운드 — 그림과 충돌 판정이 같은 값을 쓴다 ("보이는 대로 죽는다")
 const T = {
@@ -860,6 +868,7 @@ let orb, elapsed, distAcc, nextSpace, score, dispScore, heat, mult, peakMult, gr
 let dustRun;                   // 이번 판에 주운 별가루 — 죽음 정산에서 지갑으로
 let runMinDist, runMinSpd;     // 아슬아슬 기록 — 이번 판 최고 근접(가장자리 기준 px)과 그 순간의 속도
 let maxChain, curChain, deepCount, goldCount, pierceCount, novaCount;
+let hairCount = 0, runHairBest = 999;   // 간발 횟수 · 이번 판 최소 여유(px)
 let zc = null;                 // 죽음 하이라이트 — 줌 중심점
 let tut = false;               // 역발상 온보딩 — 첫 두 판, "벽 옆이 살 길"을 몸으로
 let path = [], lastPathT = 0;           // 절정 카드용 경량 궤적 (0.05초당 x 1점)
@@ -931,6 +940,7 @@ function reset(){
   dustRun = 0;
   runMinDist = 999; runMinSpd = 1; maxChain = 0; curChain = 0;
   deepCount = 0; goldCount = 0; pierceCount = 0; novaCount = 0; zc = null;
+  hairCount = 0; runHairBest = 999;
   tut = +(localStorage.getItem('aseul-runs') || 0) < 2;
   handHint = tut;
   path = []; lastPathT = 0;
@@ -1383,12 +1393,15 @@ function spawnStars(x, y, n){
    플로터·소리·판정은 평소와 완전히 동일 — 무엇을 해서 얼마를 벌었는지가 똑같이 읽혀야 한다 */
 function grazeEvent(cx, cy, deep, b){
   const gold = !!b.gold;
+  /* 여유 거리 = 최근접 거리 − 별의 반지름. 0이면 닿은 것 */
+  const clear = (b.minDist !== undefined ? b.minDist : 999) - ORB_R;
+  const hair = deep && clear < hairNow();
   const chain = sinceGraze < .9;   // 콤보가 '거듭되는' 중 — 룰은 그대로, 연출만 세진다
   const pierce = (elapsed - lastG.t < .28) && lastG.b !== b;   // 관통 — 서로 다른 두 벽을 한 호흡에 꿰다
   lastG = { t: elapsed, b };
   const nv = nova > 0;                                          // 초신성 = 배수 대신 점수로 나가는 구간
   // 배수 공식(어린이 암산 가능): 스침/아슬은 캐릭터 값 · 골드 +5(고정) · 관통 +2 · 상한은 캐릭터별
-  const base = gold ? 5 : deep ? CH().deep : CH().graze;
+  const base = gold ? 5 : hair ? CH().deep + 3 : deep ? CH().deep : CH().graze;   // 간발 = 아슬 +3 (기본별 2 → 5)
   const pay = n => (n * 10 * mult).toLocaleString();            // 배수 증가분 → 점수 환산
   if(nv) score += (base + (pierce ? 2 : 0)) * 10 * mult;
   else heat = Math.min(heat + base + (pierce ? 2 : 0), capH());
@@ -1403,20 +1416,31 @@ function grazeEvent(cx, cy, deep, b){
   else if(secondGrazeT === null) secondGrazeT = elapsed;
   curChain = chain ? curChain + 1 : 1; maxChain = Math.max(maxChain, curChain);   // 연속 스침 기록
   if(deep) deepCount++;
+  if(hair){ hairCount++; runHairBest = Math.min(runHairBest, clear); }
   if(gold) goldCount++;
   if(pierce) pierceCount++;
   const m = 1 + Math.floor(heat);
-  const col = gold ? '#FFDF6B' : deep ? '#FF5C7A' : '#FFB454';
+  const col = hair ? '#FFFFFF' : gold ? '#FFDF6B' : deep ? '#FF5C7A' : '#FFB454';
   /* 피드백의 크기는 잘한 정도에 비례해야 한다.
      일반 스침은 "체크" 한 번 — 섬광 하나와 불티 몇 점이면 충분하다.
      매번 화려하면 아슬·골드가 특별해지지 않고, 초신성 벽 파괴와도 구분이 안 된다.
      불티는 아래로 흘리며 튄다 — 긁고 지나간 방향이 남는다 */
-  glint(cx, cy, gold ? 26 : deep ? 22 : 14, gold ? '#FFE9A0' : deep ? '#FFD2E2' : '#FFE2B8', deep || gold ? .3 : .22);
-  sparks(cx, cy, gold ? 9 : deep ? 6 : 3, col, deep ? .85 : .6, 90);
+  glint(cx, cy, hair ? 34 : gold ? 26 : deep ? 22 : 14,
+        hair ? '#FFFFFF' : gold ? '#FFE9A0' : deep ? '#FFD2E2' : '#FFE2B8', hair ? .42 : deep || gold ? .3 : .22);
+  sparks(cx, cy, hair ? 14 : gold ? 9 : deep ? 6 : 3, col, hair ? 1.1 : deep ? .85 : .6, 90);
+  if(hair){
+    /* 🔴 **간발은 사건이다.** 숫자만 더 주면 그냥 큰 아슬이다 — 시간이 멎고, 하얗게 터지고,
+       **죽음까지 남은 거리를 그 자리에서 보여준다.** 이 게임이 매 프레임 재고 있으면서도
+       죽어야만 보여주던 숫자다(죽음 화면의 "죽음에서 4px"). 살아서 보는 순간 이름이 규칙이 된다 */
+    rings.push({ x: cx, y: cy, r0: 6, r1: 110, col: '#FFFFFF', lw: 4, life: .38, t: 0 });
+    rings.push({ x: cx, y: cy, r0: 90, r1: 14, col: '#FFF3C4', lw: 2.5, life: .5, t: 0 });
+  }
   // 배수 이벤트는 '이유 + 증가량'으로 표기 — 초신성 중엔 같은 이유에 점수가 붙는다
-  const why = gold ? '골드' : deep ? '아슬' : '스침';
+  /* 간발은 **거리를 이름에 넣는다** — 죽어야만 보던 숫자를 그 자리에서 보여주는 게 요점이라
+     따로 띄우면 두 줄이 겹쳐 둘 다 못 읽는다(렌더로 확인). 한 줄로 합친다 */
+  const why = hair ? ('간발 ' + clear.toFixed(1) + 'px') : gold ? '골드' : deep ? '아슬' : '스침';
   floater(cx, cy - 16, nv ? why + ' +' + pay(base) : why + ' +' + base, col,
-    (deep || gold ? 19 : 14) + (chain ? 2 : 0) + (nv ? 6 : 0), deep || gold ? .95 : .7);
+    (hair ? 24 : deep || gold ? 19 : 14) + (chain ? 2 : 0) + (nv ? 6 : 0), hair ? 1.05 : deep || gold ? .95 : .7);
   sfx.graze(Math.floor(heat), deep, gold, chain);
   if(!localStorage.getItem('aseul-firstgraze')){       // 생애 첫 스침 — 문법을 몸으로 깨닫는 순간을 축하한다
     try{ localStorage.setItem('aseul-firstgraze', '1'); }catch(e){}
@@ -1424,16 +1448,18 @@ function grazeEvent(cx, cy, deep, b){
     rings.push({x: cx, y: cy, r0: 8, r1: 120, col: '#FFDF6B', lw: 4, life: .6, t: 0});
   }
   if(melody.length < 900) melody.push({ e: elapsed, h: Math.floor(heat), d: deep, g: gold });   // 이 판의 악보
-  buzz(deep ? 25 : 10);
+  buzz(hair ? 45 : deep ? 25 : 10);
+  if(hair){ tone(2637, .09, 'sine', .2); tone(3520, .14, 'sine', .13); tone(1760, .2, 'triangle', .1); }   // 전용 고음 — 스침 음계 위로 솟는다
   // 링(충격파)은 관통·초신성처럼 '터지는' 사건에만 남긴다 — 스침은 링을 쓰지 않는다
   if(b.cornerHit){                               // 모서리를 감아 돈 스침은 그 자리가 하얗게 반짝인다
     glint(cx, cy, 30, '#FFFFFF', .26);
     tone(2093,.07,'sine',.09,.02);
   }
   if(!REDUCED){
-    timeScale = nv ? (deep ? .6 : .78) : (deep ? .32 : .5);   // 초신성 중엔 슬로모를 얕게 — 질주감을 끊지 않는다
-    zoom = deep ? 1.055 : 1.03;
-    if(deep) vign = .55;
+    timeScale = nv ? (hair ? .5 : deep ? .6 : .78) : (hair ? .16 : deep ? .32 : .5);   // 초신성 중엔 슬로모를 얕게 — 질주감을 끊지 않는다
+    zoom = hair ? 1.09 : deep ? 1.055 : 1.03;
+    if(deep) vign = hair ? .8 : .55;
+    if(hair){ shake = Math.max(shake, 7); flash = Math.max(flash, .3); }
   }
 }
 
