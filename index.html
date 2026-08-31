@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.92</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.93</div>
 </div>
 
 <script>
@@ -1151,7 +1151,7 @@ function island(row, bw, bx, amp){
 
 function spawnRow(y = -BLOCK_H - 6){
   const d = diff(), z = zone();
-  const row = { y, blocks: [], scored: false, col: z.col };
+  const row = { y, blocks: [], scored: false, col: z.col, hold: false, touched: false };
   const r = rng();                                       // 배치 난수는 전부 rng — 오늘 안에서 코스가 고정된다
   const gateRow = (rowsSpawned + 1) % ROWS_PER_ZONE === 0;
   /* ── 조임목 (v0.68) — 통로를 상시 좁히는 대신 **가끔** 조인다 ──
@@ -1160,6 +1160,13 @@ function spawnRow(y = -BLOCK_H - 6){
      그러면 배수가 오르는 건 잘해서가 아니라 살아 있어서고, 정체성이 지형으로 내려앉는다.
      넓은 구간에서는 "붙을지 말지"가 선택으로 살아 있고, 조임목이 긴장과 리듬을 맡는다 */
   const pinch = (!gateRow && rowsSpawned % 7 === 5) ? lerp(.9, .54, d) : 1;
+  /* ── 잠든 소원 (v0.93) — 이 게임이 한 번도 안 해본 말: **하지 마** ──
+     30초 내내 "더 붙어라"만 훈련시켜 놓고, 존마다 한 줄 **참으라고** 묻는다.
+     손이 먼저 가는 걸 참는 것 — 그게 시험이다. 벌칙은 없다(6조): 스치면 그냥 못 받는다.
+     세계관: 벽은 멈춘 소원인데, 그중엔 **아직 때가 안 된 것**도 있다. 건드리지 않고
+     지나가 주면 그 소원이 스스로 빛나며 따라온다 — 스치는 것 말고 두 번째 미덕 */
+  const holdRow = !gateRow && rowsSpawned >= 14 && rowsSpawned % ROWS_PER_ZONE === 8;
+  row.hold = holdRow;
   const gapW = lerp(T.gap0, T.gap1, d) * ORB_R * 2 * z.gapMul * pinch;
 
   // 프레이즈 시작 판정 — 조용한 존들에서 가끔, 작곡된 5~6줄이 끼어든다
@@ -1323,7 +1330,8 @@ function spawnRow(y = -BLOCK_H - 6){
       if(mt.x > g.x - 7 && mt.x < g.x + g.w + 7){ motes.splice(i, 1); break; }
     }
   }
-  row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; b.cornerHit = false; });
+  row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; b.cornerHit = false;
+    b.hold = holdRow; b.row = row; b.holdSaid = false; b.recoil = 0; });   // 잠든 소원은 블록에서도 알아야 한다(판정이 블록 단위)
   rows.push(row);
 
   rowsSpawned++;
@@ -1382,6 +1390,22 @@ function spawnStars(x, y, n){
    스침 +1 → 10×배수 · 아슬 +2 → 20×배수 · 골드 +5 → 50×배수 · 관통 +2 → 20×배수 추가.
    플로터·소리·판정은 평소와 완전히 동일 — 무엇을 해서 얼마를 벌었는지가 똑같이 읽혀야 한다 */
 function grazeEvent(cx, cy, deep, b){
+  /* 🔴 **잠든 소원은 스쳐도 아무것도 주지 않는다 (v0.93).**
+     벌하지 않는다 — 배수도 점수도 깎지 않는다(6조). 다만 **"아니야"라고 말한다**:
+     벽이 흠칫 물러나며 식고, 소리도 스침 음계가 아니라 낮게 잦아든다.
+     크게 혼내면 무서워서 안 붙게 되고, 아무 말도 안 하면 참을 이유가 없다.
+     이 줄에서 한 번이라도 스치면 통과 보너스가 사라진다 — 그게 유일한 대가다 */
+  if(b.hold){
+    if(!b.holdSaid){
+      b.holdSaid = true;
+      if(b.row) b.row.touched = true;
+      b.flash = 0; b.recoil = 1;
+      floater(cx, cy - 16, '…', '#7C86C8', 15, .5);
+      tone(196, .18, 'sine', .12); tone(147, .22, 'triangle', .08);
+      sparks(cx, cy, 2, '#7C86C8', .4, 90);
+    }
+    return;
+  }
   const gold = !!b.gold;
   const chain = sinceGraze < .9;   // 콤보가 '거듭되는' 중 — 룰은 그대로, 연출만 세진다
   const pierce = (elapsed - lastG.t < .28) && lastG.b !== b;   // 관통 — 서로 다른 두 벽을 한 호흡에 꿰다
@@ -1902,8 +1926,26 @@ function update(sdt, rawDt){
   }
 
   // 통과 점수 — 한 만큼 즉시 정산한다 (번 것은 빼앗지 않는다)
-  const payPass = () => {
+  const payPass = (row) => {
     passed++;
+    /* 🔴 **참고 지나가면 소원이 스스로 온다 (v0.93).** 배수 +5는 아슬 2.5회분이라 세다 —
+       존당 한 번뿐이니 드물고 크게 줘야 사건이 된다. 통과 점수도 3배.
+       초신성 중엔 배수가 오를 자리가 없으니 점수로 나간다(§7-B 출구만 바꾼다) */
+    if(row && row.hold && !row.touched){
+      const nv = nova > 0;
+      if(nv) score += 5 * 10 * mult;
+      else heat = Math.min(heat + 5, capH());
+      floater(orb.x, orb.y - 58, nv ? '지나가 줌 +' + (5*10*mult).toLocaleString() : '지나가 줌 +5', '#BFC8FF', 21, 1.1);
+      rings.push({ x: orb.x, y: orb.y, r0: 10, r1: 120, col: '#BFC8FF', lw: 3.5, life: .5, t: 0 });
+      for(const b of row.blocks){                       // 잠든 소원이 깨어나 나에게 온다
+        const g = blockGeom(row, b);
+        sparks(g.x + g.w/2, row.y + BLOCK_H/2, 7, '#BFC8FF', 1.1);
+        b.woke = 1;
+      }
+      spawnStars(orb.x, orb.y, 5);
+      tone(659.25, .16, 'sine', .16); tone(987.77, .2, 'sine', .13); tone(1318.5, .3, 'sine', .1);
+      buzz(24);
+    }
     const dbl = guard > 0;                                // 수호별 — 곁의 하나가 몫을 같이 번다
     if(dbl){                                              // 벌 때마다 분신이 번쩍인다 — "쟤가 일하고 있다"가 보여야 한다
       gdFlash = 1;
@@ -1931,7 +1973,7 @@ function update(sdt, rawDt){
     while(cScoreAcc >= need && guard++ < 8){ cScoreAcc -= need; rowsSpawned++; if(rowsSpawned % ROWS_PER_ZONE === 0) zoneIdx++; payPass(); }
   } else {
     for(const row of rows){
-      if(!row.scored && row.y > orb.y + ORB_R){ row.scored = true; payPass(); }
+      if(!row.scored && row.y > orb.y + ORB_R){ row.scored = true; payPass(row); }
     }
   }
 
@@ -2238,7 +2280,9 @@ function updateFx(sdt){
   glints = glints.filter(g => g.t < g.life);
   if(state !== 'dying') zoom += (1 - zoom) * Math.min(1, sdt*6);   // 죽음 중엔 dying 루프가 줌을 몬다
   vign = Math.max(0, vign - sdt*2.2);
-  for(const row of rows) for(const b of row.blocks) b.flash = Math.max(0, b.flash - sdt*2.4);
+  for(const row of rows) for(const b of row.blocks){ b.flash = Math.max(0, b.flash - sdt*2.4);
+    if(b.recoil) b.recoil = Math.max(0, b.recoil - sdt*1.6);
+    if(b.woke) b.woke = Math.max(0, b.woke - sdt*1.1); }
   shake = Math.max(0, shake - sdt*46);
   flash = Math.max(0, flash - sdt*2.2);
   wmPop = Math.max(0, wmPop - sdt*5);
@@ -2529,6 +2573,30 @@ function draw(){
         prox = hx * hx * hy;                             // 붙을수록 급격히 달아오른다
       }
       const glow = prox * (nova > 0 ? .45 : 1);          // 초신성 땐 화면이 이미 금빛이라 절제
+      if(row.hold){
+        /* ── 잠든 소원 (v0.93) — **반대로 그린다** ──
+           보통 벽은 가까이 갈수록 달아오른다("붙어라"). 이건 가까이 갈수록 **식으며 움츠러든다**
+           — 룰이 반대니 그림도 반대여야 한다(2조). 색은 차가운 남보라: 금빛 = 스치는 것,
+           남보라 = 지나가 주는 것. 화면 위에서부터 **천천히 숨 쉬며** 내려와 0.7초 전에 읽힌다 */
+        const br = .5 + .5*Math.sin(elapsed*2.1 + row.y*.01);   // 잠든 숨
+        const shy = 1 - prox * .8;                              // 다가가면 움츠러든다
+        const wk = b.woke || 0;
+        ctx.shadowColor = wk > .01 ? `rgba(191,200,255,${(.5 + wk*.5).toFixed(3)})`
+                                   : `rgba(130,142,235,${(.22 + br*.26) * shy})`;
+        ctx.shadowBlur = BAND * (.5 + br*.5) * shy + wk * 30;
+        ctx.fillStyle = '#141830';                      // 거의 검다 — 존 색과 밝기로 갈린다
+        rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = wk > .01 ? `rgba(226,231,255,${(.45 + wk*.55).toFixed(3)})`
+                                   : `rgba(168,178,255,${((.45 + br*.38) * shy).toFixed(3)})`;
+        ctx.lineWidth = 1.8;
+        rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.stroke();
+        if(b.recoil > .01){                              // 건드렸다 — 흠칫 물러난 자국
+          ctx.fillStyle = `rgba(124,134,200,${(b.recoil*.3).toFixed(3)})`;
+          rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
+        }
+        continue;
+      }
       // 벽 = 덩어리 하나 + 금빛 후광 한 겹(스침 구간). 골드 벽은 잭팟
       ctx.shadowColor = b.gold
         ? `rgba(255,215,90,${.75 + b.flash*.25})`
