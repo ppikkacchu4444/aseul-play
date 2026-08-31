@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.96</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.97</div>
 </div>
 
 <script>
@@ -2872,9 +2872,14 @@ function draw(){
           ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = lw;
           ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.283); ctx.stroke();
         };
-        ring(neb > 0 ? ORB_R + bandNow() : ORB_R + BAND * q, [3, 6], '#7DF3FF', .42 + .12*pul, 1);    // 스침
-        ring(neb > 0 ? ORB_R + deepNow() : ORB_R + DEEP * q, [5, 4], '#9BF6FF', .60 + .16*pul, 1.3);  // 아슬
-        ring(neb > 0 ? ORB_R + hairNow() : ORB_R + HAIR * q, [2, 3], '#FFFFFF', .80 + .20*pul, 1.5);  // 간발
+        /* 🔴 **고리 색 = 등급 색 (v0.97).** 예전엔 성운의 색(청록)으로 그렸는데, 고리가 하는 말은
+           "성운이 켜졌다"가 아니라 **"이 선을 넘으면 아슬"**이다. 등급 색은 이미 플로터·글린트·
+           불티 **세 곳**에서 주황(스침) → 분홍(아슬) → 흰색(간발)으로 정해져 있으니, 하나뿐인
+           고리가 그쪽에 맞춘다. 성운이 켜졌다는 신호는 **고리가 나타난다는 것 자체**로 충분하다.
+           선은 더 얇게 — 등급을 읽는 눈금이지 별을 가두는 테두리가 아니다(유저 보고) */
+        ring(neb > 0 ? ORB_R + bandNow() : ORB_R + BAND * q, [3, 6], '#FFB454', .52 + .14*pul, .9);   // 스침
+        ring(neb > 0 ? ORB_R + deepNow() : ORB_R + DEEP * q, [5, 4], '#FF5C7A', .66 + .16*pul, 1.1);  // 아슬
+        ring(neb > 0 ? ORB_R + hairNow() : ORB_R + HAIR * q, [2, 3], '#FFFFFF', .82 + .18*pul, 1.2);  // 간발
         ctx.setLineDash([]); ctx.lineDashOffset = 0;
         ctx.globalAlpha = 1;
       }
