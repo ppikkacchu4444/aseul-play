@@ -3302,6 +3302,7 @@ window.ASEUL = {
   get auraR(){ return +(neb > 0 ? ORB_R + bandNow() : nebOut > 0 ? ORB_R + BAND*(nebOut/NEB_OUT) : 0).toFixed(1); },
   get band(){ return +bandNow().toFixed(1); },
   get deep(){ return +deepNow().toFixed(1); },
+  get hair(){ return +hairNow().toFixed(2); },   // 검증용: 간발 판정 폭(성운이 넓힌다)
   setNeb(s){ neb = s; },                          // 검증용: 성운 효과 강제
   dropNeb(){ if(orb) nebs.push({ x: orb.x, y: orb.y - 120, ph: 0 }); },
   get canyon(){ return CANYON; },                 // 검증용: 협곡 모서리 위치·붙어 간 거리
