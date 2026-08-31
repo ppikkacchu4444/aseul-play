@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.97</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.98</div>
 </div>
 
 <script>
@@ -417,14 +417,25 @@ const DEEP    = 12;      // 아슬 판정 폭(px) — 이 안이면 '아슬' (v0
    5초간 별이 부풀어 **더 멀리서도 스친다**(밴드·아슬 판정 1.5배). 즉 같은 코스가
    잠깐 나에게 가까워진다 — 규칙을 바꾸는 게 아니라 **거리를 바꾸는** 방식이라
    룰 3줄은 그대로다. 죽음 판정 13px은 성운 중에도 절대 안 늘어난다 */
-const NEB_T = 5, NEB_HOLD = 3.6, NEB_MUL = 1.5, NEB_OUT = .28;
+/* v0.98: 지속 5 → **6.2초**. 앞에 '벌어지는' 0.38초가 생겼으니 유지 구간을 그만큼 이상 늘려
+   확실히 보여준다(유저 지시). 점유율 5/18 = 28% → 6.2/18 = 34% */
+const NEB_T = 6.2, NEB_HOLD = 4.8, NEB_MUL = 1.5, NEB_OUT = .28;
+const NEB_IN = .38;     // **밖으로 벌어지는 데 걸리는 시간** — 이 0.38초가 곧 "넓어졌다"는 설명이다
 /* 앞 3.6초는 **그대로 유지**하고, 남은 1.4초에 **빠르게** 평상 크기로 돌아온다.
    느리게 줄이면(3초에 걸쳐) 변화율이 너무 낮아 "돌아오는 중"으로 안 읽히고,
    그 상태에서 사라지니 **덜 줄어든 채 끊긴 것**처럼 보인다 — 유저 지시: "빨리 줄어도 되니까
    줄어서 깔끔하게 원래대로 돌아가는 모습이 다 보이게". 되돌아오는 구간은 짧고 또렷해야 한다.
    그리고 이 값이 곧 화면에 그려지는 아우라 반지름이다 — 보이는 것과 판정은 언제나 같다 */
+/* 🔴 **벌어지는 과정을 보여준다 (v0.98).**
+   고리가 성운 때만 나타나니 "생겼다"로만 읽히고 **"넓어졌다"가 전달되지 않았다**(유저 보고) —
+   §7-B "비교 대상이 있어야 속도가 존재한다"와 같은 문제다. 비교 대상을 상시로 깔면 평상시
+   화면이 시끄럽고, 간발 고리(16px)는 별 몸통(13px) 바로 밖이라 방금 걷어낸 판정 링처럼 보인다.
+   그래서 **그 순간에** 비교를 만든다: 평상 크기에서 출발해 밖으로 밀려나가고,
+   벌어지는 동안 **평상 크기 잔상**을 함께 남긴다 — 두 자리가 한 화면에 같이 보인다.
+   판정도 같이 자란다(§2.5b: 보이는 것이 곧 판정) — 그림만 커지면 거짓말이 된다 */
 const nebQ = () => {
   if(neb <= 0) return 0;
+  if(nebIn > 0){ const p = 1 - nebIn / NEB_IN; return p * p * (3 - 2 * p); }   // 벌어지는 중
   const fade = NEB_T - NEB_HOLD;                  // 되돌아오는 데 쓰는 시간(1.4초)
   if(neb >= fade) return 1;                       // 앞 3.6초 — 그대로
   const p = neb / fade;
@@ -845,7 +856,7 @@ let state = 'title';           // title | play | dying | dead
 let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
 let glints = [];               // 스침 섬광 — 폭발과 구분되는 '긁힘'의 언어
 let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
-let nebs = [], neb = 0, nebGap = 0, nebOut = 0;  // 성운 조각 · 부푼 시간 잔여 · 출현 쿨다운 · 마무리(링으로 빨려드는) 잔여
+let nebs = [], neb = 0, nebGap = 0, nebOut = 0, nebIn = 0;  // 성운 조각 · 부푼 시간 잔여 · 출현 쿨다운 · 마무리(링으로 빨려드는) 잔여
 /* 소용돌이 (v0.74) — **성운과 반대 언어의 아이템.** 성운이 조용히 부푸는 지속형이라면
    이건 확 빨아들이는 순간형이다. 버프를 하나 더 얹으면 게임이 "버프 줍기"가 되고,
    성운이 특별한 이유(하나뿐이라 사건이다)가 사라진다. 그래서 **배수는 건드리지 않는다** —
@@ -927,7 +938,7 @@ function reset(){
   const stg = STAGES[currentSky];
   rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0; glints = [];
   motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
-  nebs = []; neb = 0; nebGap = 0; nebOut = 0;
+  nebs = []; neb = 0; nebGap = 0; nebOut = 0; nebIn = 0;
   whs = []; whPull = 0; whGap = 8;                       // 첫 별무리는 성운보다 늦게 (8초 뒤부터)
   gds = []; guard = 0; gdGap = 14; gdP = null; gdFlash = 0;   // 수호별은 셋 중 가장 늦게 등장
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
@@ -2119,6 +2130,7 @@ function update(sdt, rawDt){
 
   /* 성운 — 지나면 별이 부푼다. 5초간 더 멀리서도 스친다 */
   if(neb > 0){
+    if(nebIn > 0) nebIn = Math.max(0, nebIn - sdt);
     neb = Math.max(0, neb - sdt);
     if(neb === 0) nebOut = NEB_OUT;                      // 평상 크기에 닿은 뒤, 링까지 마저 빨려든다
   } else if(nebOut > 0) nebOut = Math.max(0, nebOut - sdt);
@@ -2129,7 +2141,7 @@ function update(sdt, rawDt){
     if(nb.y > H + 30){ nebs.splice(i, 1); continue; }
     if(Math.hypot(orb.x - nb.x, orb.y - nb.y) < ORB_R + 16){
       nebs.splice(i, 1);
-      neb = NEB_T;                                    // 겹쳐 먹어도 늘어나지 않고 다시 5초 — 암산 가능하게
+      neb = NEB_T; nebIn = NEB_IN;                    // 겹쳐 먹어도 늘어나지 않고 다시 처음부터 — 암산 가능하게
       floater(nb.x, nb.y - 16, '성운 — 더 멀리서도 스친다', '#7DF3FF', 15, .9);
       rings.push({ x: orb.x, y: orb.y, r0: 6, r1: ORB_R + BAND*NEB_MUL, col: '#7DF3FF', lw: 3, life: .45, t: 0 });
       sparks(nb.x, nb.y, 12, '#7DF3FF', 1.1); sparks(nb.x, nb.y, 6, '#FFFFFF', .8);
@@ -2877,9 +2889,21 @@ function draw(){
            불티 **세 곳**에서 주황(스침) → 분홍(아슬) → 흰색(간발)으로 정해져 있으니, 하나뿐인
            고리가 그쪽에 맞춘다. 성운이 켜졌다는 신호는 **고리가 나타난다는 것 자체**로 충분하다.
            선은 더 얇게 — 등급을 읽는 눈금이지 별을 가두는 테두리가 아니다(유저 보고) */
-        ring(neb > 0 ? ORB_R + bandNow() : ORB_R + BAND * q, [3, 6], '#FFB454', .52 + .14*pul, .9);   // 스침
-        ring(neb > 0 ? ORB_R + deepNow() : ORB_R + DEEP * q, [5, 4], '#FF5C7A', .66 + .16*pul, 1.1);  // 아슬
-        ring(neb > 0 ? ORB_R + hairNow() : ORB_R + HAIR * q, [2, 3], '#FFFFFF', .82 + .18*pul, 1.2);  // 간발
+        /* 벌어지는 동안 **평상 크기 잔상**을 함께 남긴다 — "여기였는데 여기까지"가 한 화면에 보인다.
+           이게 없으면 고리는 그냥 '큰 채로 나타난' 것이고, 커졌다는 사실이 어디에도 안 남는다 */
+        if(nebIn > 0){
+          const gz = nebIn / NEB_IN;                       // 벌어질수록 옅어진다
+          ctx.setLineDash([2, 5]); ctx.lineDashOffset = 0;
+          ctx.lineWidth = 1;
+          for(const [r0, c0] of [[ORB_R + BAND, '#FFB454'], [ORB_R + DEEP, '#FF5C7A'], [ORB_R + HAIR, '#FFFFFF']]){
+            ctx.globalAlpha = gz * .5; ctx.strokeStyle = c0;
+            ctx.beginPath(); ctx.arc(0, 0, r0, 0, 6.283); ctx.stroke();
+          }
+        }
+        const grow = nebIn > 0 ? 1 + (nebIn / NEB_IN) * .6 : 1;   // 벌어지는 순간엔 선이 굵고 진하다
+        ring(neb > 0 ? ORB_R + bandNow() : ORB_R + BAND * q, [3, 6], '#FFB454', Math.min(1, (.52 + .14*pul) * grow), .9 * grow);   // 스침
+        ring(neb > 0 ? ORB_R + deepNow() : ORB_R + DEEP * q, [5, 4], '#FF5C7A', Math.min(1, (.66 + .16*pul) * grow), 1.1 * grow);  // 아슬
+        ring(neb > 0 ? ORB_R + hairNow() : ORB_R + HAIR * q, [2, 3], '#FFFFFF', Math.min(1, (.82 + .18*pul) * grow), 1.2 * grow);  // 간발
         ctx.setLineDash([]); ctx.lineDashOffset = 0;
         ctx.globalAlpha = 1;
       }
@@ -3319,7 +3343,7 @@ window.ASEUL = {
   get band(){ return +bandNow().toFixed(1); },
   get deep(){ return +deepNow().toFixed(1); },
   get hair(){ return +hairNow().toFixed(2); },   // 검증용: 간발 판정 폭(성운이 넓힌다)
-  setNeb(s){ neb = s; },                          // 검증용: 성운 효과 강제
+  setNeb(s){ neb = s; nebIn = NEB_IN; },   // 실제 획득과 같게 — 벌어짐부터 시작한다                          // 검증용: 성운 효과 강제
   dropNeb(){ if(orb) nebs.push({ x: orb.x, y: orb.y - 120, ph: 0 }); },
   get canyon(){ return CANYON; },                 // 검증용: 협곡 모서리 위치·붙어 간 거리
   cEdge(y){ return CANYON ? { l: cEdgeX(y === undefined ? orb.y : y, 0), r: cEdgeX(y === undefined ? orb.y : y, 1) } : null; },
