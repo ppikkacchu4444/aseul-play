@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.95</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v0.96</div>
 </div>
 
 <script>
@@ -2878,12 +2878,14 @@ function draw(){
         ctx.setLineDash([]); ctx.lineDashOffset = 0;
         ctx.globalAlpha = 1;
       }
-      // 판정 링 — 스침의 경계가 캐릭터를 감싼다 (13px 불변). 발진 중엔 자리를 잡으며 서서히 켜진다
-      ctx.globalAlpha = launch > 0 ? clamp((lq - .45) / .45, 0, 1) : 1;
-      ctx.strokeStyle = nova > 0 ? '#FFDF6B' : inB ? '#FFB454' : 'rgba(125,243,255,.85)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.stroke();
-      ctx.globalAlpha = 1;
+      /* 🔴 **판정 링을 걷었다 (v0.96).** v0.40부터 13px 원으로 히트박스를 그려 왔는데,
+         등급이 셋이 되고 성운 아우라가 점선 세 겹이 되자 화면에 원이 **넷**이 됐다 —
+         유저 보고: "링 때문에 저게 간발인가 헷갈린다".
+         걷어도 "보이는 대로 죽는다"는 안 깨진다: **캐릭터 스프라이트가 이미 26px**,
+         즉 판정 지름 그대로 그려지고 있어서 **별의 실루엣이 곧 히트박스**다.
+         원은 그 위에 한 겹 더 있던 중복이었고, 이제 원은 판정 등급 표시에만 쓴다.
+         잃은 것: 스친 직후 링이 호박색으로 번쩍이던 신호. 몸의 발광(shadowColor)과
+         접점의 글린트가 대신한다 — 아쉬우면 되돌리기 쉽다(이 블록만 복원) */
       ctx.restore();
     }
   }
