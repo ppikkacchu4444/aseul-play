@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.09</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.10</div>
 </div>
 
 <script>
@@ -1015,6 +1015,7 @@ for(let i=0;i<138;i++) dots.push({          // 하얗고 희미한 별은 많을
 
 function reset(){
   const stg = STAGES[currentSky];
+  for(const d of deep){ d.y = Math.random(); d.x = Math.random(); }   // 판마다 새 하늘
   rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0; glints = [];
   motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
   nebs = []; neb = 0; nebGap = 0; nebOut = 0; nebIn = 0;
@@ -2433,6 +2434,18 @@ function updateFx(sdt){
   wmPop = Math.max(0, wmPop - sdt*5);
   const sp = state==='play' ? speed() : 60;
   for(const l of lines){ l.y += (sp*l.v*sdt)/H; if(l.y > 1.16){ l.y = -.18; l.x = Math.random(); l.v = .3+Math.random()*.45; } }
+  /* 🔴 **하늘도 나와 함께 흐른다 (v1.10).** v1.09 는 elapsed 기반 고정 드리프트라
+     속도와 무관하게 늘 같은 느림이었고, 그래서 멈춰 있는 것처럼 보였다(유저).
+     이제 dots·lines 와 **같은 sp 에 묶는다** — 다만 계수가 훨씬 작아 맨 뒤 층이 된다:
+       deep .030~.088  <  dots .16~1.21  <  lines(속도선)
+     빠를수록 하늘도 같이 빨라지므로 '내가 이동하고 있다'가 배경으로도 읽힌다.
+     **감기는 자리는 화면 밖(±PAD)** — 별이 후광까지 완전히 나간 뒤에 감겨서 이음매가 없다.
+     화면 안에서 감으면(%1) 큰 별은 사라졌다 나타나는 게 그대로 보인다 */
+  const SKY_PAD = .045;                       // H 의 4.5% — 가장 큰 별의 후광보다 넉넉하다
+  for(const d of deep){
+    d.y += (sp * (.030 + d.v*.050) * sdt) / H;
+    if(d.y > 1 + SKY_PAD){ d.y = -SKY_PAD; d.x = Math.random(); }   // x 만 새로 — 크기·밝기는 유지해야 하늘이 일정하다
+  }
   // 가까운 별일수록 훨씬 빠르게 흐른다(z²) — 먼 별은 거의 멈춰 있어 깊이가 읽힌다
   for(const d0 of dots){
     d0.y += (sp * (.16 + d0.z*d0.z*1.05) * sdt) / H;
@@ -2748,7 +2761,7 @@ function draw(){
     const tw = .46 + .54*(.5 + .5*Math.sin(elapsed*d.w + d.ph));   // 부드러운 사인 — 깜빡이 아니라 숨
     const a = d.a * tw * dA;
     if(a < .02) continue;
-    const dy = ((d.y + elapsed*d.v*.006) % 1) * H, dx0 = d.x*W;    // 화면 한 바퀴에 3분쯤
+    const dy = d.y * H, dx0 = d.x*W;                               // 흐름은 update 가 맡는다
     const sz = d.s * (1 + tw*.16);
     ctx.globalAlpha = a;
     ctx.drawImage(SKY_SPR, dx0 - sz, dy - sz, sz*2, sz*2);
@@ -3706,6 +3719,7 @@ window.ASEUL = {
   get whs(){ return whs.length; },                 // 검증용: 별무리 — 필드 수 · 끌어당기는 잔여
   get whPull(){ return +whPull.toFixed(2); },
   dropWh(){ if(orb) whs.push({ x: orb.x, y: orb.y - 120, ph: 0 }); },
+  skyList(){ return deep.slice(0,6).map(d => ({ y: +d.y.toFixed(4), x: +d.x.toFixed(3), v: +d.v.toFixed(2) })); },   // 검증용: 깊은 하늘이 흐르는가
   moteList(){ return motes.map(m => ({ x: Math.round(m.x), y: Math.round(m.y), burst: !!m.w })); },  // 검증용: 벽 겹침 검사
   /* 검증용: 줄마다 **벽이 실제로 차지한 사각형**(blockGeom 기준). gaps()는 30px 미만 틈을
      걸러 버려서 겹침 검사에 쓰면 정상 배치도 겹침으로 잡힌다 — 겹침은 이걸로 재야 한다 */
