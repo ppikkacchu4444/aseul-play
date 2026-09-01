@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.15</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.16</div>
 </div>
 
 <script>
@@ -907,6 +907,7 @@ function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} 
 
 /* ═══════════════ 상태 ═══════════════ */
 let state = 'title';           // title | play | dying | dead
+let boom = null;               // 별이 터지는 순간 — {x,y,t,life}. 죽음마다 하나뿐이라 배열이 아니다
 let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
 let glints = [];               // 스침 섬광 — 폭발과 구분되는 '긁힘'의 언어
 let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
@@ -1015,6 +1016,7 @@ for(let i=0;i<138;i++) dots.push({          // 하얗고 희미한 별은 많을
 
 function reset(){
   const stg = STAGES[currentSky];
+  boom = null;
   for(const d of deep){ d.y = Math.random(); d.x = Math.random(); }   // 판마다 새 하늘
   rows = []; parts = []; floats = []; stars = []; rings = []; dust = []; dustT = 0; glints = [];
   motes = []; nova = 0; lastG = { t: -9, b: null }; novaRainT = 0;
@@ -1816,23 +1818,27 @@ function die(x, y){
   zc = { x, y };                                        // 죽음의 지점으로 카메라가 빨려 들어간다
   stopMusic();
   sfx.death(); buzz(70);
-  // 폭죽 — 별똥별은 꺼지는 게 아니라 터진다. 여러 색이 한 번에 피고, 잔불이 한 번 더 튄다
-  rings.push({x:orb.x, y:orb.y, r0:10, r1:215, col:'#FFFFFF', lw:5, life:.62, t:0});
-  rings.push({x:orb.x, y:orb.y, r0:6,  r1:132, col:'#FFDF6B', lw:3, life:.44, t:0});
-  sparks(orb.x, orb.y, 40, '#FFF3C4', 2.1);
-  sparks(orb.x, orb.y, 26, '#FFD98A', 1.6);
-  sparks(orb.x, orb.y, 22, '#9BE8FF', 1.3);
-  sparks(orb.x, orb.y, 16, '#FF9AC4', 1.1);
-  spawnStars(orb.x, orb.y, 14);
-  if(!REDUCED) setTimeout(() => {                       // 크래클 — 흩어진 자리에서 다시 한 번
+  /* 🔴 **별은 컨페티로 터지지 않는다 (v1.16).** 유저: "별이 빛나면서 터지는 것 처럼".
+     예전엔 금·노랑·청록·분홍 네 색이 한꺼번에 날아 **폭죽(잔치)** 이 됐다. 색이 여럿이면
+     조각이 보이고, 조각이 보이면 종이다. 별빛은 색을 나누지 않는다 — 흰빛에서 금빛으로
+     식을 뿐이다. 그래서 팔레트를 흰빛~금빛 하나로 좁히고, **터지는 주인공을 빛으로** 세운다:
+     ⓐ 눈이 멀 만큼 흰 심 ⓑ 사방으로 뻗는 광선(별의 언어) ⓒ 얇고 빠른 충격파 */
+  boom = { x: orb.x, y: orb.y, t: 0, life: .85 };
+  rings.push({x:orb.x, y:orb.y, r0:8,  r1:250, col:'#FFFFFF', lw:4, life:.5,  t:0});   // 충격파 — 얇고 빠르게
+  rings.push({x:orb.x, y:orb.y, r0:6,  r1:150, col:'#FFE9A8', lw:2.5, life:.72, t:0});
+  sparks(orb.x, orb.y, 34, '#FFFFFF', 2.3);
+  sparks(orb.x, orb.y, 30, '#FFF3C4', 1.7);
+  sparks(orb.x, orb.y, 20, '#FFCF72', 1.15);
+  spawnStars(orb.x, orb.y, 5);                          // 별 조각은 소수만 — 많으면 다시 컨페티다
+  if(!REDUCED) setTimeout(() => {                       // 여진 — 흩어진 자리에서 한 번 더 빛난다
     if(state !== 'dying') return;
     for(let i = 0; i < 3; i++){
-      const a2 = Math.random()*6.283, d2 = 32 + Math.random()*48;
+      const a2 = Math.random()*6.283, d2 = 34 + Math.random()*52;
       const bx = orb.x + Math.cos(a2)*d2, by = orb.y + Math.sin(a2)*d2;
-      sparks(bx, by, 10, ['#FFF3C4','#9BE8FF','#FFD98A'][i%3], 1.1);
-      rings.push({x:bx, y:by, r0:3, r1:54, col:'#FFF3C4', lw:2, life:.3, t:0});
+      sparks(bx, by, 8, i ? '#FFF3C4' : '#FFFFFF', 1.0);
+      rings.push({x:bx, y:by, r0:2, r1:46, col:'#FFF3C4', lw:1.6, life:.28, t:0});
     }
-  }, 150);
+  }, 140);
   if(runMinDist < 999)                                  // 하이라이트: 이번 판 최고 근접이 크게 뜬다
     floater(x, y - 48, Math.max(0, Math.round(runMinDist)) + 'px', '#FFDF6B', 36, 2.4);
   if(!REDUCED){ shake = 9; flash = .8; timeScale = .06; }
@@ -2423,6 +2429,7 @@ function updateFx(sdt){
   }
   stars = stars.filter(s => s.t < s.life);
   for(const q of rings) q.t += sdt;
+  if(boom){ boom.t += sdt; if(boom.t >= boom.life) boom = null; }
   rings = rings.filter(q => q.t < q.life);
   for(const g of glints){ g.t += sdt; g.y += (state === 'play' ? speed() : 0) * sdt * .35; }   // 살짝 흘러간다
   glints = glints.filter(g => g.t < g.life);
@@ -3075,9 +3082,10 @@ function draw(){
             const lg = ctx.createLinearGradient(px0, py0, px1, py1);
             lg.addColorStop(0, 'rgba(' + col + ',' + (al*.40).toFixed(3) + ')');   // 벽 쪽은 옅고
             lg.addColorStop(1, 'rgba(' + col + ',' + al.toFixed(3) + ')');         // 별 쪽으로 갈수록 진하다
-            /* 가닥은 스침 하나, 아슬부터 둘. 위상이 달라 서로 스치고 벌어져 **꼬이는**
-               것처럼 보인다 — 전류가 한 줄이면 그건 그냥 선이다 */
-            const PH = t1 ? [0] : [0, 2.4];
+            /* 🔴 **가닥은 하나다 (v1.16).** v1.14 는 아슬부터 두 가닥을 꼬았는데,
+               스트릭이 그 위를 지나가니 무엇이 흐르는 건지 안 읽혔다(유저: "깔끔하게").
+               길은 하나여야 그 위를 지나가는 빛이 보인다 */
+            const PH = [0];
             ctx.shadowColor = 'rgba(' + col + ',.95)'; ctx.shadowBlur = t3 ? 17 : t2 ? 13 : 9;
             ctx.strokeStyle = lg; ctx.lineWidth = lwO;
             for(const ph of PH) beam(ph);
@@ -3102,29 +3110,37 @@ function draw(){
           if(!REDUCED){
             /* 빨려드는 알갱이 — 상태를 안 들고 elapsed 로 위치를 만든다.
                별에 가까울수록 작아지고 밝아진다: 흡수는 **사라지면서** 끝나야 한다 */
-            const cnt = t3 ? 7 : t2 ? 5 : t1 ? 3 : 3;
-            const vel = t3 ? 2.7 : t2 ? 1.9 : 1.3;
+            /* 🔴 **동그란 알갱이는 떠 있고, 늘어난 빛은 빨려 든다 (v1.16).**
+               유저: "빛이 쉬익- 빨려들어가듯이". 점은 아무리 빨라도 점이라 속도가 안 보인다.
+               같은 것을 **진행 방향으로 늘려** 그리면 그 한 장에 이미 속도가 들어 있다 —
+               사진의 모션블러와 같은 원리다. 그래서 꼬리를 달고, 별에 가까울수록
+               더 길게 늘여(가속) 마지막엔 머리부터 사라지게 한다 */
+            const cnt = t3 ? 5 : t2 ? 4 : 3;
+            const vel = t3 ? 2.4 : t2 ? 1.8 : 1.3;
+            const ampS = near ? Math.min(t3 ? 1.6 : t2 ? 2.2 : 2.8, Math.hypot(px1-px0, py1-py0) * .13) : 0;
+            const onPath = (tt) => {                      // 스트릭도 선과 **같은 호** 위를 간다
+              const w2 = Math.sin(Math.PI * tt);
+              const o2 = ampS ? (Math.sin(tt*5.2 - elapsed*9)*.72 + Math.sin(tt*9.4 + elapsed*5.6)*.28) * ampS * w2 : 0;
+              return [px0 + (px1-px0)*tt - uy*o2, py0 + (py1-py0)*tt + ux*o2];
+            };
+            ctx.lineCap = 'round';
             for(let k = 0; k < cnt; k++){
               const tt = (elapsed*vel + k/cnt + b.aoff*.013) % 1;
               const e = tt*tt;                            // 가속 — 가까울수록 빨리 빨려든다
-              /* 알갱이는 **선 위**가 아니라 **호 위**를 간다. 선이 흔들리는데 알갱이만
-                 곧게 가면 둘이 다른 것으로 보인다. near 가 아닐 땐 호가 없으니 곧게 */
-              let mox = 0, moy = 0;
-              if(near){
-                const w2 = Math.sin(Math.PI * e);
-                const amp2 = Math.min(t3 ? 1.6 : t2 ? 2.2 : 2.8, Math.hypot(px1-px0, py1-py0) * .13);
-                const o2 = (Math.sin(e*5.2 - elapsed*9)*.72 + Math.sin(e*9.4 + elapsed*5.6)*.28) * amp2 * w2;
-                mox = -uy*o2; moy = ux*o2;
-              }
-              const mx = px0 + (px1 - px0)*e + mox, my = py0 + (py1 - py0)*e + moy;
-              const mr = (t3 ? 3.3 : t2 ? 2.7 : 2.1) * (1 - e*.55);
-              ctx.globalAlpha = q * (1 - e*e) * (near ? 1 : .8);
-              ctx.shadowColor = 'rgba(' + col + ',.95)'; ctx.shadowBlur = 7;   // 알갱이도 번져야 보인다
-              ctx.fillStyle = 'rgba(' + col + ',.95)';
-              ctx.beginPath(); ctx.arc(mx, my, mr, 0, 6.283); ctx.fill();
+              const tail = Math.max(0, e - (.11 + e*.34)); // 빨라질수록 꼬리가 길어진다
+              const [hx, hy] = onPath(e), [sx3, sy3] = onPath(tail);
+              const mw = (t3 ? 3.0 : t2 ? 2.5 : 2.0) * (1 - e*.45);
+              const aa = q * (1 - e*e) * (near ? 1 : .8);
+              const sg2 = ctx.createLinearGradient(sx3, sy3, hx, hy);
+              sg2.addColorStop(0, 'rgba(' + col + ',0)');            // 꼬리는 사라지고
+              sg2.addColorStop(1, 'rgba(' + col + ',.95)');          // 머리가 밝다
+              ctx.globalAlpha = aa;
+              ctx.shadowColor = 'rgba(' + col + ',.9)'; ctx.shadowBlur = 6;
+              ctx.strokeStyle = sg2; ctx.lineWidth = mw;
+              ctx.beginPath(); ctx.moveTo(sx3, sy3); ctx.lineTo(hx, hy); ctx.stroke();
               ctx.shadowBlur = 0;
-              ctx.fillStyle = 'rgba(255,255,255,.8)';                          // 흰 심 — 알갱이도 심지가 있어야 또렷하다
-              ctx.beginPath(); ctx.arc(mx, my, mr*.42, 0, 6.283); ctx.fill();
+              ctx.fillStyle = 'rgba(255,255,255,.85)';               // 머리 끝 흰 심
+              ctx.beginPath(); ctx.arc(hx, hy, mw*.40, 0, 6.283); ctx.fill();
             }
             ctx.globalAlpha = 1;
           }
@@ -3497,6 +3513,38 @@ function draw(){
     ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.283); ctx.stroke();
   }
   ctx.globalAlpha = 1;
+
+  /* 별 폭발 — 심 + 광선. 가산으로 얹어 겹칠수록 하얘진다(빛이 그렇다) */
+  if(boom){
+    const p = boom.t / boom.life, e = 1 - p;
+    ctx.globalCompositeOperation = 'lighter';
+    const cr = 16 + 92*(1 - Math.pow(1 - Math.min(1, p*2.6), 2));   // 앞에서 확 커지고 이내 멈춘다
+    const cg = ctx.createRadialGradient(boom.x, boom.y, 0, boom.x, boom.y, cr);
+    cg.addColorStop(0,   'rgba(255,255,255,' + (e*e*.95).toFixed(3) + ')');
+    cg.addColorStop(.28, 'rgba(255,246,214,' + (e*e*.45).toFixed(3) + ')');
+    cg.addColorStop(.62, 'rgba(255,207,114,' + (e*e*.16).toFixed(3) + ')');
+    cg.addColorStop(1,   'rgba(255,180,84,0)');
+    ctx.fillStyle = cg;
+    ctx.beginPath(); ctx.arc(boom.x, boom.y, cr, 0, 6.283); ctx.fill();
+    /* 광선 — 긴 넷(십자)과 짧은 여덟. 별을 별로 만드는 건 동그람이 아니라 뻗는 빛이다.
+       길이는 p 로 뻗었다가 알파로 사라진다 — 되돌아오면 빨려드는 것으로 읽힌다 */
+    const RY = 1 - Math.pow(1 - Math.min(1, p*1.9), 3);
+    ctx.lineCap = 'round';
+    for(let i = 0; i < 12; i++){
+      const a3 = i * .5236 + .2618;                    // 30도 간격
+      const lng = (i % 3 === 0) ? 1 : .44;             // 넷은 길게, 나머지는 짧게
+      const L = (34 + 176*lng) * RY;
+      const g3 = ctx.createLinearGradient(boom.x, boom.y, boom.x + Math.cos(a3)*L, boom.y + Math.sin(a3)*L);
+      g3.addColorStop(0, 'rgba(255,255,255,' + (e*e*.9).toFixed(3) + ')');
+      g3.addColorStop(.35, 'rgba(255,240,190,' + (e*e*.4).toFixed(3) + ')');
+      g3.addColorStop(1, 'rgba(255,196,96,0)');
+      ctx.strokeStyle = g3; ctx.lineWidth = (i % 3 === 0 ? 4.5 : 2.2) * e;
+      ctx.beginPath(); ctx.moveTo(boom.x, boom.y);
+      ctx.lineTo(boom.x + Math.cos(a3)*L, boom.y + Math.sin(a3)*L); ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
 
   // 점수 플로터
   ctx.textAlign = 'center';
