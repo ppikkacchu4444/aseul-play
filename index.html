@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.16</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.17</div>
 </div>
 
 <script>
@@ -1483,10 +1483,13 @@ function spawnRow(y = -BLOCK_H - 6){
 }
 
 /* ═══════════════ 파티클 & 플로터 ═══════════════ */
-function sparks(x, y, n, col, pow=1, biasY=0){
+/* k 를 주면 **동그라미가 아니라 빛**으로 그려진다 (v1.17).
+   'ray' = 날아가는 방향으로 늘어난 빛줄기 / 'star' = 십자로 뻗는 별빛.
+   기본값(k 없음)은 예전 그대로라 스침·초신성·아이템 연출은 하나도 안 변한다 */
+function sparks(x, y, n, col, pow=1, biasY=0, k){
   for(let i=0;i<n;i++){
     const a = Math.random()*6.283, s = (60+Math.random()*190)*pow;
-    parts.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s + biasY, life: .4+Math.random()*.35, t: 0, r: 1.4+Math.random()*2.2, col });
+    parts.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s + biasY, life: .4+Math.random()*.35, t: 0, r: 1.4+Math.random()*2.2, col, k });
   }
 }
 /* 섬광(glint) — 스침 전용 언어. 초신성 벽 파괴는 사방으로 터지는 '폭발'이고,
@@ -1823,19 +1826,19 @@ function die(x, y){
      조각이 보이고, 조각이 보이면 종이다. 별빛은 색을 나누지 않는다 — 흰빛에서 금빛으로
      식을 뿐이다. 그래서 팔레트를 흰빛~금빛 하나로 좁히고, **터지는 주인공을 빛으로** 세운다:
      ⓐ 눈이 멀 만큼 흰 심 ⓑ 사방으로 뻗는 광선(별의 언어) ⓒ 얇고 빠른 충격파 */
-  boom = { x: orb.x, y: orb.y, t: 0, life: .85 };
+  boom = { x: orb.x, y: orb.y, t: 0, life: 1.15 };       // 후광이 남는 만큼 길게(v1.17)
   rings.push({x:orb.x, y:orb.y, r0:8,  r1:250, col:'#FFFFFF', lw:4, life:.5,  t:0});   // 충격파 — 얇고 빠르게
   rings.push({x:orb.x, y:orb.y, r0:6,  r1:150, col:'#FFE9A8', lw:2.5, life:.72, t:0});
-  sparks(orb.x, orb.y, 34, '#FFFFFF', 2.3);
-  sparks(orb.x, orb.y, 30, '#FFF3C4', 1.7);
-  sparks(orb.x, orb.y, 20, '#FFCF72', 1.15);
+  sparks(orb.x, orb.y, 30, '#FFFFFF', 2.4, 0, 'ray');   // 사방으로 늘어나는 빛줄기
+  sparks(orb.x, orb.y, 26, '#FFF3C4', 1.7, 0, 'ray');
+  sparks(orb.x, orb.y, 14, '#FFCF72', 1.1, 0, 'star');  // 십자로 뻗는 별빛 몇 점
   spawnStars(orb.x, orb.y, 5);                          // 별 조각은 소수만 — 많으면 다시 컨페티다
   if(!REDUCED) setTimeout(() => {                       // 여진 — 흩어진 자리에서 한 번 더 빛난다
     if(state !== 'dying') return;
     for(let i = 0; i < 3; i++){
       const a2 = Math.random()*6.283, d2 = 34 + Math.random()*52;
       const bx = orb.x + Math.cos(a2)*d2, by = orb.y + Math.sin(a2)*d2;
-      sparks(bx, by, 8, i ? '#FFF3C4' : '#FFFFFF', 1.0);
+      sparks(bx, by, 7, i ? '#FFF3C4' : '#FFFFFF', 1.0, 0, i === 1 ? 'star' : 'ray');
       rings.push({x:bx, y:by, r0:2, r1:46, col:'#FFF3C4', lw:1.6, life:.28, t:0});
     }
   }, 140);
@@ -3473,9 +3476,39 @@ function draw(){
 
   // 파티클
   for(const p of parts){
-    ctx.globalAlpha = 1 - p.t/p.life;
-    ctx.fillStyle = p.col;
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
+    const pa = 1 - p.t/p.life;
+    ctx.globalAlpha = pa;
+    if(!p.k){                                        // 예전 그대로 — 동그란 불티
+      ctx.fillStyle = p.col;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
+      continue;
+    }
+    /* 🔴 **터지는 별에는 동그라미가 없다 (v1.17).** 유저: "동그란 것들은 다 없애".
+       동그란 점은 아무리 밝아도 **물체**로 보인다 — 날아간 조각. 빛은 물체가 아니라
+       방향이다. 그래서 속도 방향으로 늘이거나(ray) 십자로 뻗게(star) 그린다 */
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.shadowColor = p.col; ctx.shadowBlur = 10;
+    ctx.strokeStyle = p.col;
+    if(p.k === 'star'){
+      const L = p.r * 3.4 * (.45 + pa*.8);
+      ctx.lineWidth = p.r * .55;
+      ctx.beginPath();
+      ctx.moveTo(p.x - L, p.y);      ctx.lineTo(p.x + L, p.y);
+      ctx.moveTo(p.x, p.y - L*.58);  ctx.lineTo(p.x, p.y + L*.58);
+      ctx.stroke();
+    } else {
+      const sp2 = Math.hypot(p.vx, p.vy) || 1;
+      const ux2 = p.vx/sp2, uy2 = p.vy/sp2;
+      const L = Math.min(32, sp2*.055) * (.35 + pa*.9);   // 빠를수록 길다 — 한 장에 속도가 들어간다
+      ctx.lineWidth = p.r * (.5 + pa*.75);
+      ctx.beginPath();
+      ctx.moveTo(p.x - ux2*L, p.y - uy2*L);               // 꼬리는 지나온 쪽
+      ctx.lineTo(p.x + ux2*L*.2, p.y + uy2*L*.2);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalCompositeOperation = 'source-over';
   }
   ctx.globalAlpha = 1;
 
@@ -3518,6 +3551,16 @@ function draw(){
   if(boom){
     const p = boom.t / boom.life, e = 1 - p;
     ctx.globalCompositeOperation = 'lighter';
+    /* 넓은 후광 — 심보다 훨씬 크고 훨씬 옅게, 그리고 더 오래. 폭발이 커 보이는 건
+       심이 밝아서가 아니라 **그 둘레가 물들어서**다. 심만 키우면 흰 원반이 된다 */
+    const hr = 70 + 240*(1 - Math.pow(1 - Math.min(1, p*1.5), 2));
+    const hg = ctx.createRadialGradient(boom.x, boom.y, 0, boom.x, boom.y, hr);
+    hg.addColorStop(0,   'rgba(255,250,232,' + (e*e*.34).toFixed(3) + ')');
+    hg.addColorStop(.34, 'rgba(255,232,170,' + (e*e*.17).toFixed(3) + ')');
+    hg.addColorStop(.68, 'rgba(255,196,96,'  + (e*e*.06).toFixed(3) + ')');
+    hg.addColorStop(1,   'rgba(255,170,60,0)');
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(boom.x, boom.y, hr, 0, 6.283); ctx.fill();
     const cr = 16 + 92*(1 - Math.pow(1 - Math.min(1, p*2.6), 2));   // 앞에서 확 커지고 이내 멈춘다
     const cg = ctx.createRadialGradient(boom.x, boom.y, 0, boom.x, boom.y, cr);
     cg.addColorStop(0,   'rgba(255,255,255,' + (e*e*.95).toFixed(3) + ')');
