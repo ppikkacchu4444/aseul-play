@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.11</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.12</div>
 </div>
 
 <script>
@@ -2997,6 +2997,76 @@ function draw(){
         ctx.strokeStyle = `rgba(255,250,230,${(b.flash*.75).toFixed(3)})`;
         ctx.lineWidth = 1.2;
         rr(dx, row.y, dw, BLOCK_H, R); ctx.stroke();
+      }
+
+      /* 🔴 **흡수 광선 (v1.12)** — 붙는다는 것이 무슨 일인지를 그린다.
+         지금까지 근접은 **벽 쪽에서만** 말했다(몸이 달아오른다). 그러면 '벽이 위험하다'는
+         읽히는데 '내가 무언가를 얻고 있다'는 안 읽힌다. 배수가 오르는 이유가 화면에 없었다.
+         그래서 반대 방향을 그린다: **벽의 별빛이 별똥별로 빨려 들어간다.**
+         등급이 오를수록 선이 굵어지고, 빨려드는 알갱이가 많아지고, 빨라진다 —
+         압축되는 것이 곧 판정이 좁아지는 것이다.
+
+         **색은 등급의 색을 그대로 쓴다.** 스침 #FFB454 / 아슬 #FF5C7A / 간발 #FFFFFF —
+         콤보 글씨와 점선 고리가 이미 이 색이다(v0.97). 여기서 다른 색을 쓰면
+         같은 세 등급에 색 언어가 둘이 되어 v0.97 이 되돌려진다(7-B).
+
+         거리는 **지금 이 프레임의 거리**를 새로 잰다. b.minDist 는 벽이 사는 동안의
+         최소값이라(1795행) 지나간 뒤에도 남아 있어 광선이 안 꺼진다 */
+      if(state === 'play' && !b.gold){
+        const bcx = clamp(orb.x, geo.x + R, geo.x + geo.w - R);
+        const bcy = clamp(orb.y, row.y + R, row.y + BLOCK_H - R);
+        const bdx = orb.x - bcx, bdy = orb.y - bcy;
+        const blen = Math.hypot(bdx, bdy) || .001;
+        const clear = blen - R - ORB_R;                  // 표면에서 별 겉면까지 남은 거리
+        const band = bandNow();
+        if(clear < band * 1.75 && clear > -2){
+          const ux = bdx/blen, uy = bdy/blen;
+          const px0 = bcx + ux*R, py0 = bcy + uy*R;      // 벽 표면에서 빛이 빠져나오는 점
+          const px1 = orb.x - ux*ORB_R, py1 = orb.y - uy*ORB_R;   // 별 겉면 — 여기로 빨려든다
+          const t3 = clear < hairNow(), t2 = !t3 && clear < deepNow(), t1 = !t3 && !t2 && clear < band;
+          const col = t3 ? '255,255,255' : t2 ? '255,92,122' : '255,180,84';
+          /* 밴드 밖(가까워짐)은 선 없이 알갱이만 — '모이기 시작한다'까지만 말한다.
+             선을 미리 그으면 아직 아무 일도 없는데 점수가 난 것처럼 보인다 */
+          const near = t1 || t2 || t3;
+          const q = near ? 1 : clamp(1 - (clear - band) / (band * .75), 0, 1);
+          ctx.globalCompositeOperation = 'lighter';
+          if(near){
+            const lw = t3 ? 2.7 : t2 ? 1.8 : 1.0;
+            const al = t3 ? .95 : t2 ? .70 : .40;
+            const lg = ctx.createLinearGradient(px0, py0, px1, py1);
+            lg.addColorStop(0, 'rgba(' + col + ',' + (al*.34).toFixed(3) + ')');   // 벽 쪽은 옅고
+            lg.addColorStop(1, 'rgba(' + col + ',' + al.toFixed(3) + ')');         // 별 쪽으로 갈수록 진하다
+            ctx.strokeStyle = lg; ctx.lineWidth = lw; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(px0, py0); ctx.lineTo(px1, py1); ctx.stroke();
+            if(t3){                                       // 간발 — 압축 최대. 심지 한 겹을 더 얹는다
+              ctx.strokeStyle = 'rgba(255,255,255,' + (.5 + .3*Math.sin(elapsed*38)).toFixed(3) + ')';
+              ctx.lineWidth = 1.0;
+              ctx.beginPath(); ctx.moveTo(px0, py0); ctx.lineTo(px1, py1); ctx.stroke();
+            }
+            const wg = ctx.createRadialGradient(px0, py0, 0, px0, py0, t3 ? 9 : t2 ? 7 : 5);
+            wg.addColorStop(0, 'rgba(' + col + ',' + (al*.8).toFixed(3) + ')');
+            wg.addColorStop(1, 'rgba(' + col + ',0)');    // 빛이 빠져나오는 자리
+            ctx.fillStyle = wg;
+            ctx.beginPath(); ctx.arc(px0, py0, t3 ? 9 : t2 ? 7 : 5, 0, 6.283); ctx.fill();
+          }
+          if(!REDUCED){
+            /* 빨려드는 알갱이 — 상태를 안 들고 elapsed 로 위치를 만든다.
+               별에 가까울수록 작아지고 밝아진다: 흡수는 **사라지면서** 끝나야 한다 */
+            const cnt = t3 ? 7 : t2 ? 5 : t1 ? 3 : 3;
+            const vel = t3 ? 2.7 : t2 ? 1.9 : 1.3;
+            for(let k = 0; k < cnt; k++){
+              const tt = (elapsed*vel + k/cnt + b.aoff*.013) % 1;
+              const e = tt*tt;                            // 가속 — 가까울수록 빨리 빨려든다
+              const mx = px0 + (px1 - px0)*e, my = py0 + (py1 - py0)*e;
+              const mr = (t3 ? 2.1 : t2 ? 1.7 : 1.3) * (1 - e*.65);
+              ctx.globalAlpha = q * (1 - e*e) * (near ? .95 : .72);
+              ctx.fillStyle = 'rgba(' + col + ',.95)';
+              ctx.beginPath(); ctx.arc(mx, my, mr, 0, 6.283); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+          }
+          ctx.globalCompositeOperation = 'source-over';
+        }
       }
     }
   }
