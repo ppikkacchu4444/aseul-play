@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.13</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.14</div>
 </div>
 
 <script>
@@ -3040,15 +3040,43 @@ function draw(){
             const al  = t3 ? 1.0 : t2 ? .82 : .58;
             const core = t3 ? '255,255,255' : t2 ? '255,186,206' : '255,228,176';
             ctx.lineCap = 'round';
-            const beam = () => { ctx.beginPath(); ctx.moveTo(px0, py0); ctx.lineTo(px1, py1); ctx.stroke(); };
+            /* 🔴 **직선은 정직해서 죽어 있다 (v1.14).** 유저: "전류가 흐르듯이 가는 느낌".
+               빛이 빨려 든다면 그 길은 곧게 나 있을 이유가 없다 — 끌려가는 것은 흔들린다.
+               그래서 **양 끝이 고정된 진동하는 호**로 긋는다:
+                 · sin(πt) 로 폭을 감싸 **양 끝은 정확히 0** — 벽과 별에는 붙어 있어야 한다.
+                   안 그러면 빛이 벽에서 떨어져 나와 허공에 떠 있는 것으로 보인다
+                 · 파수가 다른 두 사인을 섞어 반복이 안 읽히게 하고, 하나는 시간에
+                   **빼고**(위로 흐름) 하나는 **더해**(반대로 흐름) 서로 스쳐 지나가게 한다
+                 · 진폭은 길이에 비례(22%)하되 등급 상한을 둔다. 간발은 광선이 2~3px 라
+                   흔들 자리가 없고, 흔들면 오히려 붙어 있는 게 안 보인다 */
+            const blen2 = Math.hypot(px1 - px0, py1 - py0);
+            const amp = Math.min(t3 ? 3.0 : t2 ? 4.2 : 5.0, blen2 * .22);
+            const arcOff = (tt, ph) => {
+              const w = Math.sin(Math.PI * tt);
+              return (Math.sin(tt*9.2 - elapsed*13 + ph)*.60
+                    + Math.sin(tt*17.3 + elapsed*8.1 + ph*1.7)*.40) * amp * w;
+            };
+            const beam = (ph) => {
+              ctx.beginPath(); ctx.moveTo(px0, py0);
+              for(let i = 1; i < 10; i++){
+                const tt = i/10, o = arcOff(tt, ph);
+                ctx.lineTo(px0 + (px1-px0)*tt - uy*o, py0 + (py1-py0)*tt + ux*o);
+              }
+              ctx.lineTo(px1, py1); ctx.stroke();
+            };
             const lg = ctx.createLinearGradient(px0, py0, px1, py1);
             lg.addColorStop(0, 'rgba(' + col + ',' + (al*.40).toFixed(3) + ')');   // 벽 쪽은 옅고
             lg.addColorStop(1, 'rgba(' + col + ',' + al.toFixed(3) + ')');         // 별 쪽으로 갈수록 진하다
+            /* 가닥은 스침 하나, 아슬부터 둘. 위상이 달라 서로 스치고 벌어져 **꼬이는**
+               것처럼 보인다 — 전류가 한 줄이면 그건 그냥 선이다 */
+            const PH = t1 ? [0] : [0, 2.4];
             ctx.shadowColor = 'rgba(' + col + ',.95)'; ctx.shadowBlur = t3 ? 17 : t2 ? 13 : 9;
-            ctx.strokeStyle = lg; ctx.lineWidth = lwO; beam();
+            ctx.strokeStyle = lg; ctx.lineWidth = lwO;
+            for(const ph of PH) beam(ph);
             ctx.shadowBlur = 0;
             ctx.strokeStyle = 'rgba(' + core + ',' + (t3 ? (.72 + .28*Math.sin(elapsed*38)) : al*.9).toFixed(3) + ')';
-            ctx.lineWidth = lwC; beam();
+            ctx.lineWidth = lwC;
+            for(const ph of PH) beam(ph);
             const wr = t3 ? 13 : t2 ? 10 : 7;             // 빛이 빠져나오는 자리
             const wg = ctx.createRadialGradient(px0, py0, 0, px0, py0, wr);
             wg.addColorStop(0, 'rgba(' + core + ',' + (al*.85).toFixed(3) + ')');
@@ -3071,7 +3099,16 @@ function draw(){
             for(let k = 0; k < cnt; k++){
               const tt = (elapsed*vel + k/cnt + b.aoff*.013) % 1;
               const e = tt*tt;                            // 가속 — 가까울수록 빨리 빨려든다
-              const mx = px0 + (px1 - px0)*e, my = py0 + (py1 - py0)*e;
+              /* 알갱이는 **선 위**가 아니라 **호 위**를 간다. 선이 흔들리는데 알갱이만
+                 곧게 가면 둘이 다른 것으로 보인다. near 가 아닐 땐 호가 없으니 곧게 */
+              let mox = 0, moy = 0;
+              if(near){
+                const w2 = Math.sin(Math.PI * e);
+                const amp2 = Math.min(t3 ? 3.0 : t2 ? 4.2 : 5.0, Math.hypot(px1-px0, py1-py0) * .22);
+                const o2 = (Math.sin(e*9.2 - elapsed*13)*.60 + Math.sin(e*17.3 + elapsed*8.1)*.40) * amp2 * w2;
+                mox = -uy*o2; moy = ux*o2;
+              }
+              const mx = px0 + (px1 - px0)*e + mox, my = py0 + (py1 - py0)*e + moy;
               const mr = (t3 ? 3.3 : t2 ? 2.7 : 2.1) * (1 - e*.55);
               ctx.globalAlpha = q * (1 - e*e) * (near ? 1 : .8);
               ctx.shadowColor = 'rgba(' + col + ',.95)'; ctx.shadowBlur = 7;   // 알갱이도 번져야 보인다
