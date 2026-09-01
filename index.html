@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.08</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.09</div>
 </div>
 
 <script>
@@ -982,6 +982,31 @@ for(let i=0;i<54;i++) lines.push({
    은은하게 깔되 반짝임은 뾰족하게 — 평소엔 거의 안 보이다가 순간 빛난다.
    색은 차가운 계열로만 쓴다 — 금빛 별 모양은 '별가루(주울 수 있는 것)'의 전용 언어라 절대 침범하지 않는다 */
 const STAR_COLS = ['#EAF3FF', '#CFE3FF', '#AFC8FF', '#E7D9FF', '#BFEAFF'];   // 흰빛~푸른빛~옅은 보랏빛
+/* 🔴 **유성우 뒤에 가만히 있는 하늘이 있어야 한다 (v1.09).**
+   유저: "위로 날라가는 유성우만 있어서 좀 아쉽다."
+   dots 는 속도가 붙으면 전부 빛줄기(fillRect)로 바뀐다 — 그래서 빠를수록 하늘이 통째로
+   유성우가 되고 **배경이 사라진다**. 빠른 것이 빨라 보이려면 **안 빠른 것**이 뒤에 있어야 한다.
+   그래서 흐르지 않는 별을 한 겹 더 깐다: 줄기가 되지 않고, 아주 느리게 떠내려가고,
+   숨 쉬듯 밝기만 오간다. 별 하나를 스프라이트로 한 번만 구워 두고 blit 만 하므로
+   170개를 매 프레임 그려도 그라디언트 계산이 없다 */
+const SKY_SPR = document.createElement('canvas');
+(function(){
+  SKY_SPR.width = SKY_SPR.height = 24;
+  const g = SKY_SPR.getContext('2d');
+  const rg = g.createRadialGradient(12,12,0,12,12,12);
+  rg.addColorStop(0,'rgba(255,255,255,1)'); rg.addColorStop(.13,'rgba(255,255,255,.92)');
+  rg.addColorStop(.30,'rgba(236,246,255,.34)'); rg.addColorStop(.60,'rgba(198,222,255,.10)'); rg.addColorStop(1,'rgba(150,185,255,0)');
+  g.fillStyle = rg; g.fillRect(0,0,24,24);
+})();
+const deep = [];
+for(let i=0;i<215;i++) deep.push({
+  x:Math.random(), y:Math.random(),
+  v:.3 + Math.random()*.85,                 // 떠내려가는 속도 — 깊이가 다르면 같이 안 움직인다
+  s:1.0 + Math.pow(Math.random(),2.4)*5.0,  // 대부분 작고 아주 가끔 크다
+  a:.17 + Math.pow(Math.random(),1.6)*.62,
+  ph:Math.random()*6.28, w:.32 + Math.random()*.85,
+  cr:Math.random() < .07                    // 십자 섬광은 소수만 — 다 달면 장식이 된다
+});
 const dots = [];
 for(let i=0;i<138;i++) dots.push({          // 하얗고 희미한 별은 많을수록 밤하늘이 깊어진다
   x:Math.random(), y:Math.random(), z:Math.random(), ph:Math.random()*6.28,
@@ -2715,6 +2740,29 @@ function draw(){
   const skg = ctx.createLinearGradient(0, 0, 0, H);
   skg.addColorStop(0, cssv(bandCur.top)); skg.addColorStop(1, cssv(bandCur.bot));
   ctx.fillStyle = skg; ctx.fillRect(0, 0, W, H);
+
+  /* 깊은 하늘 — 줄기가 되지 않는 별들. 고도가 낮아도 완전히 사라지지 않게
+     starA 를 그대로 쓰지 않고 바닥을 깔아 둔다(.45 + .55*starA) */
+  const dA = .58 + .42*bandCur.starA;
+  for(const d of deep){
+    const tw = .46 + .54*(.5 + .5*Math.sin(elapsed*d.w + d.ph));   // 부드러운 사인 — 깜빡이 아니라 숨
+    const a = d.a * tw * dA;
+    if(a < .02) continue;
+    const dy = ((d.y + elapsed*d.v*.006) % 1) * H, dx0 = d.x*W;    // 화면 한 바퀴에 3분쯤
+    const sz = d.s * (1 + tw*.16);
+    ctx.globalAlpha = a;
+    ctx.drawImage(SKY_SPR, dx0 - sz, dy - sz, sz*2, sz*2);
+    if(d.cr && tw > .84){                                          // 가장 밝은 순간에만 십자가 뜬다
+      ctx.strokeStyle = 'rgba(226,240,255,' + (a*.55).toFixed(3) + ')';
+      ctx.lineWidth = .7;
+      ctx.beginPath();
+      ctx.moveTo(dx0 - sz*1.8, dy); ctx.lineTo(dx0 + sz*1.8, dy);
+      ctx.moveTo(dx0, dy - sz*1.8); ctx.lineTo(dx0, dy + sz*1.8);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+
   const bST2 = bandT*bandT*(3 - 2*bandT);
   drawDeco(bandSnap.deco, 1 - bST2);
   drawDeco(BANDS[bandTo].deco, bST2);
