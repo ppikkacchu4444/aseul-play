@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.02</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.03</div>
 </div>
 
 <script>
@@ -637,27 +637,40 @@ function noiseBuffer(){
    벽을 보고 있을 때는 **언제 좁아졌는지 모른다** — 정작 필요한 순간에 눈이 딸 곳에 있다.
    그래서 귀로 들려준다. **필터가 닫히는 것이 곧 판정이 닫히는 것**이다 */
 function nebClose(){
-  const a = AC; if(!a || muted) return;
-  const t0 = a.currentTime, T = NEB_FADE, N = 96;
-  /* 🔴 **링이 그리는 곡선을 그대로 소리에 먹인다 (v1.02).**
-     v1.01 은 소리를 지수 하강으로 그었는데, 링은 nebQ() 의 스무스스텝이라 앞
-     0.2초에 12%밖에 안 움직인다. 같은 순간 소리는 벌써 29% 내려가 있었고,
-     그래서 **링이 줄어들기 전에 소리부터 난다**(유저). 시작점을 맞추는 걸로는 부족하고
-     **진행 속도가 같아야** 한다 — 그래서 그려지는 식을 그대로 샘플해 먹인다. 어긋날 수가 없다.
-     음정 글라이드(2023→392)는 뺀다 — 유저가 들은 "피유욱"이 그것이고, 부탁받은 건
-     바람 소리(샥)이지 휘슬이 아니다 */
-  const fq = new Float32Array(N), gq = new Float32Array(N);
+  const T = NEB_FADE, N = 12;
+  /* 🔴 **줄어드는 소리는 늘어나는 소리와 같은 말투여야 한다 (v1.03).**
+     v1.01~02 는 노이즈(바람)를 썼는데, 이 게임의 음성언어는 사인/트라이앵글 순음이다.
+     확장이 반짝이는 순음인데 축소만 바람이면 **같은 아이템의 소리로 안 들린다**(유저).
+     그래서 확장과 **같은 음역(392↔2023)**, 같은 음색, 방향만 뒤집는다.
+
+     그리고 타이밍 — 곡선을 맞춰도 계속 일렀던 진짜 이유는 **강조점**이었다.
+     노이즈 스윕은 시작이 제일 크고 밝아서 귀가 "사건"으로 찍는 지점이 t=0 인데,
+     그때 링은 스무스스텝의 평평한 구간이라 **아직 안 움직인다**. 곡선을 아무리 맞춰도
+     landmark 가 앞에 있으면 이르게 들린다. 그래서 **쉬리릭은 작게 깔고 뿅을 끝에 크게**
+     둔다 — 귀가 찍는 순간이 곧 다 닫히는 순간이라 이를 수가 없다 */
   for(let i = 0; i < N; i++){
-    const p = 1 - i / (N - 1), q = p * p * (3 - 2 * p);   // nebQ() 의 오므라드는 구간과 같은 식
-    fq[i] = 300 * Math.pow(2600 / 300, q);               // 열린 대역 = 열린 판정. 닫힐수록 어두워진다
-    gq[i] = Math.max(.0001, .105 * q * Math.min(1, i / 5));  // 앞 5칸만 페이드인 — 시작 클릭 제거
+    const u = i / N;
+    const p = 1 - u, q = p * p * (3 - 2 * p);      // 그 순간 **링이 실제로 가 있는 자리**
+    const f = 392 * Math.pow(5.16, q);             // q=1 → 2023, q=0 → 392 (확장과 같은 양 끝)
+    tone(f, .15, 'sine', .052 - i * .0032, u * T);
+    if(i % 3 === 0) tone(f * 2, .10, 'sine', .016, u * T);   // 반짝임 한 겹
   }
-  const s = a.createBufferSource(); s.buffer = noiseBuffer(); s.loop = true;
-  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1.1;   // 대역통과는 휘슬이 된다
-  lp.frequency.setValueCurveAtTime(fq, t0, T);
-  const ng = a.createGain(); ng.gain.setValueCurveAtTime(gq, t0, T);
-  s.connect(lp).connect(ng).connect(a.destination);
-  s.start(t0); s.stop(t0 + T + .05);
+}
+/* 뿅 — 다 닫힌 자리에서 작게 튄다. 이 소리 하나가 "이제 평상 판정"이라는 신호라
+   쉬리릭보다 크다. 귀의 landmark 는 여기 하나뿐이어야 한다 */
+function nebPop(){
+  const a = AC; if(!a || muted) return;
+  const t0 = a.currentTime;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(1046, t0);
+  o.frequency.exponentialRampToValueAtTime(440, t0 + .085);   // 빠르게 떨어져야 '뿅'이 된다
+  g.gain.setValueAtTime(.0008, t0);
+  g.gain.linearRampToValueAtTime(.11, t0 + .012);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + .17);
+  o.connect(g).connect(a.destination);
+  o.start(t0); o.stop(t0 + .21);
+  tone(2093, .13, 'sine', .042);                              // 위에 얹는 반짝 한 점
 }
 function kick(t){
   if(muted) return;
@@ -2188,7 +2201,7 @@ function update(sdt, rawDt){
     if(wasN >= NEB_FADE && neb < NEB_FADE) nebClose();
     if(neb === 0){
       nebOut = NEB_OUT;                                  // 평상 크기에 닿은 뒤, 링까지 마저 빨려든다
-      tone(196, .22, 'sine', .045);                      // 다 닫혔다 — 낮고 작게. 버프가 가는 걸 축하할 일은 아니다
+      nebPop();                                          // 다 닫혔다 — 쉬리릭의 끝을 여기서 못 박는다
     }
   } else if(nebOut > 0) nebOut = Math.max(0, nebOut - sdt);
   if(nebGap > 0) nebGap = Math.max(0, nebGap - sdt);      // 출현 쿨다운(초)
