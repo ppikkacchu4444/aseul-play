@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.07</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.08</div>
 </div>
 
 <script>
@@ -2501,40 +2501,74 @@ function updateHud(){
    **띠를 세 장 미리 그려 두고 벽마다 다른 자리를 잘라 쓴다** — 폭이 변하는 벽
    (닫히는 문)도 자르는 위치만 달라질 뿐이라 그대로 굴러간다.
    코스 난수(rng)는 절대 건드리지 않는다. 한 번이라도 더 당기면 오늘의 코스가 바뀐다 */
-const WALL_ART = [];
+const WALL_ART = [], WALL_GLINT = [];   // 띠 3장 + 그 위에서 번갈아 켜지는 반짝임 6장
 function buildWallArt(){
-  WALL_ART.length = 0;
+  WALL_ART.length = 0; WALL_GLINT.length = 0;
   const CW = Math.max(360, Math.ceil(W) + 80);
   for(let v = 0; v < 3; v++){
     const c = document.createElement('canvas'); c.width = CW; c.height = BLOCK_H;
     const g = c.getContext('2d'), r = mulberry32(9173 + v*7717);
-    const cnt = Math.round(CW / 23), P = [];
+    g.globalCompositeOperation = 'lighter';
+    /* 🔴 **점 몇 개에 선을 그으면 도형이지 하늘이 아니다 (v1.08).**
+       유저: "그냥 점에 선그어진 느낌 밖에 안난다."
+       하늘로 읽히려면 **셀 수 없는 것이 먼저** 있어야 한다. 그래서 순서를 뒤집는다:
+       ① 셀 수 없는 별먼지를 깔고 ② 그 안에서 몇 개가 유난히 밝고 ③ 그 밝은 것들만
+       어렴풋이 이어진다. 별자리는 하늘 위에 그린 그림이 아니라 **하늘에서 골라낸 것**이다 */
+    const dust = Math.round(CW * BLOCK_H / 34);
+    for(let i = 0; i < dust; i++){
+      const x = r()*CW, y = r()*BLOCK_H, q = r()*r();          // q² — 대부분 아주 흐리고 가끔 밝다
+      g.fillStyle = 'rgba(' + (198+(r()*46|0)) + ',' + (212+(r()*34|0)) + ',255,' + (.05 + q*.34).toFixed(3) + ')';
+      g.beginPath(); g.arc(x, y, .28 + q*.62, 0, 6.283); g.fill();
+    }
+    // 중간 밝기 — 먼지와 꼭짓점 사이를 메워 층이 끊기지 않게 한다
+    for(let i = 0, m = Math.round(CW/13); i < m; i++){
+      const x = r()*CW, y = 1.5 + r()*(BLOCK_H-3), rad = .5 + r()*.42;
+      const rg = g.createRadialGradient(x,y,0,x,y,rad*4);
+      rg.addColorStop(0,'rgba(224,236,255,.42)'); rg.addColorStop(.42,'rgba(196,218,255,.10)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(x,y,rad*4,0,6.283); g.fill();
+      g.fillStyle = 'rgba(238,246,255,.58)'; g.beginPath(); g.arc(x,y,rad,0,6.283); g.fill();
+    }
+    // 별자리 꼭짓점 — 이 하늘에서 가장 밝은 것들
+    const cnt = Math.round(CW / 30), P = [];
     for(let i = 0; i < cnt; i++)
-      P.push({ x: (i + .12 + r()*.76) * CW/cnt, y: 3.5 + r()*(BLOCK_H - 7), s: r() });
-    /* 🔴 **선은 고르면 안 된다 (v1.07).** 한 알파로 죽 그으면 그려 넣은 도형처럼 보인다.
-       실제 별자리는 어떤 구간은 또렷하고 어떤 구간은 거의 안 보인다 — 이은 사람의 상상이니까.
-       그래서 **구간마다 다른 그라디언트**로 긋고, 가운데에 흐려지는 자리를 하나씩 둔다 */
-    g.lineWidth = .55;                          // 별자리인 줄만 알아보면 된다 — 읽히면 시끄럽다
+      P.push({ x: (i + .14 + r()*.72) * CW/cnt, y: 4 + r()*(BLOCK_H - 8), s: r() });
+    /* 선은 고르면 안 된다 — 어떤 구간은 또렷하고 어떤 구간은 거의 사라진다.
+       이은 사람의 상상이니까. 이제 먼지 위에 얹히므로 알파를 v1.07 보다 더 낮춘다 */
+    g.lineWidth = .55;
     const link = (a, b) => {
       const lg = g.createLinearGradient(a.x, a.y, b.x, b.y);
-      const a0 = .07 + r()*.16, a1 = .07 + r()*.16, mid = .015 + r()*.075;
-      lg.addColorStop(0, 'rgba(196,214,255,' + a0.toFixed(3) + ')');
-      lg.addColorStop(.30 + r()*.36, 'rgba(196,214,255,' + mid.toFixed(3) + ')');
-      lg.addColorStop(1, 'rgba(196,214,255,' + a1.toFixed(3) + ')');
+      lg.addColorStop(0, 'rgba(188,208,255,' + (.09 + r()*.15).toFixed(3) + ')');
+      lg.addColorStop(.28 + r()*.4, 'rgba(188,208,255,' + (.02 + r()*.062).toFixed(3) + ')');
+      lg.addColorStop(1, 'rgba(188,208,255,' + (.09 + r()*.15).toFixed(3) + ')');
       g.strokeStyle = lg;
       g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
     };
     for(let i = 1; i < cnt; i++) link(P[i-1], P[i]);
-    for(let k = 0; k + 3 < cnt; k += 3) link(P[k], P[k + 2 + (r() > .5 ? 1 : 0)]);   // 곁가지
-    g.globalCompositeOperation = 'lighter';
+    for(let k = 0; k + 3 < cnt; k += 3) link(P[k], P[k + 2 + (r() > .5 ? 1 : 0)]);
     for(const p of P){
-      const rad = p.s > .76 ? 1.0 : .62;
-      const rg = g.createRadialGradient(p.x,p.y,0,p.x,p.y,rad*4.2);
-      rg.addColorStop(0,'rgba(226,238,255,.62)'); rg.addColorStop(.4,'rgba(198,220,255,.16)'); rg.addColorStop(1,'rgba(0,0,0,0)');
-      g.fillStyle = rg; g.beginPath(); g.arc(p.x,p.y,rad*4.2,0,6.283); g.fill();
-      g.fillStyle = 'rgba(240,247,255,.82)'; g.beginPath(); g.arc(p.x,p.y,rad,0,6.283); g.fill();
+      const rad = p.s > .7 ? 1.05 : .72;
+      const rg = g.createRadialGradient(p.x,p.y,0,p.x,p.y,rad*5);
+      rg.addColorStop(0,'rgba(234,244,255,.72)'); rg.addColorStop(.36,'rgba(200,222,255,.17)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(p.x,p.y,rad*5,0,6.283); g.fill();
+      g.fillStyle = 'rgba(246,250,255,.88)'; g.beginPath(); g.arc(p.x,p.y,rad,0,6.283); g.fill();
     }
     WALL_ART.push(c);
+
+    /* 반짝임 두 겹 — 서로 다른 별들이 켜져 있다. 두 장을 엇갈려 페이드하면
+       벽마다 다른 별이 번갈아 타올라 **하늘이 숨 쉰다**. 매 프레임 그리는 것보다 싸다 */
+    for(let k = 0; k < 2; k++){
+      const gc = document.createElement('canvas'); gc.width = CW; gc.height = BLOCK_H;
+      const gg = gc.getContext('2d'); gg.globalCompositeOperation = 'lighter';
+      for(let i = 0, m = Math.round(CW/26); i < m; i++){
+        const x = r()*CW, y = 2 + r()*(BLOCK_H-4), sz = 1.5 + r()*1.9;
+        const rg = gg.createRadialGradient(x,y,0,x,y,sz*3.2);
+        rg.addColorStop(0,'rgba(255,255,255,.55)'); rg.addColorStop(.4,'rgba(206,228,255,.13)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+        gg.fillStyle = rg; gg.beginPath(); gg.arc(x,y,sz*3.2,0,6.283); gg.fill();
+        gg.strokeStyle = 'rgba(255,255,255,.62)'; gg.lineWidth = .55;   // 십자 섬광 — '반짝'의 모양
+        gg.beginPath(); gg.moveTo(x-sz,y); gg.lineTo(x+sz,y); gg.moveTo(x,y-sz*.72); gg.lineTo(x,y+sz*.72); gg.stroke();
+      }
+      WALL_GLINT.push(gc);
+    }
   }
 }
 /* ── 구름 — 고도마다 다른 색으로 한 장씩 구워 둔다 ──────────────────
@@ -2801,7 +2835,14 @@ function draw(){
          **테두리는 정체(벽이다), 몸의 발열은 신호(붙어 있다).** 채널을 갈라 두면
          네온 선이 조준선으로 안 읽힌다 — 늘 같은 밝기라 정보가 없기 때문이다 */
       if(WALL_ART.length && geo.w > 22){
-        const sx = geo.x + geo.w/2, sy = row.y + BLOCK_H/2;   // 별은 **보이는 부분**의 한가운데
+        /* 🔴 **별은 스칠 수 있는 끝에 선다 (v1.08).** 가장자리 벽은 한쪽 끝만 보이는데
+           별을 가운데 두면 화면 밖 절반까지 포함한 가운데라 어정쩡하게 밀려 보인다.
+           왼쪽 벽은 오른쪽 끝, 오른쪽 벽은 왼쪽 끝 — **보이는 마구리에 별이 선다**(유저 시안).
+           가운데 뜬 섬 벽은 양 끝이 다 보이므로 그대로 한가운데 */
+        const sr = Math.min(6.0, BLOCK_H*.24, geo.w*.13);      // 좁은 벽에선 알아서 작아진다
+        const inset = Math.min(geo.w*.5, R + sr*1.25);
+        const sx = atL ? geo.x + geo.w - inset : atR ? geo.x + inset : geo.x + geo.w/2;
+        const sy = row.y + BLOCK_H/2;
         ctx.save(); rr(dx, row.y, dw, BLOCK_H, R); ctx.clip();
         const rgb = b.gold ? '255,214,140' : (row.rgb || '170,190,255');
         ctx.globalCompositeOperation = 'lighter';
@@ -2822,36 +2863,33 @@ function draw(){
         fg.addColorStop(1, 'rgba(' + rgb + ',0)');
         ctx.fillStyle = fg; ctx.fillRect(dx, row.y, dw, BLOCK_H);
         ctx.globalCompositeOperation = 'source-over';
+        ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = b.gold ? .55 : 1;
         ctx.drawImage(WALL_ART[b.art], dx - b.aoff, row.y);
-        ctx.restore(); ctx.globalAlpha = 1;
-        const sr = Math.min(7.6, BLOCK_H*.31, geo.w*.16);      // 소원별 — 좁은 벽에선 알아서 작아진다
-        /* 후광은 **원반이 아니라 그림자로** 준다. 낮은 알파의 원을 깔면 어두운 배경 위에서
-           잿빛 접시가 된다 — v0.80·0.83·0.84 에서 같은 실패를 세 번 했다.
-           shadowBlur 는 가장자리가 0 으로 사라져 접시가 생기지 않는다 */
-        /* 🔴 **소원별은 금빛이면 안 된다.** 레퍼런스 시안은 금빛이었지만, 이 게임에서
-           금빛 별은 이미 뜻이 있다 — **별가루(먹는 것)**. 22조에 따라 별가루는 위험한 줄 위에
-           놓인 미끼이므로 금빛 별 = "이리 와"다. 그걸 벽 **안**에 넣으면 "이리 와 → 죽어"가 된다.
-           7-B: 같은 언어를 두 뜻으로 쓰지 않는다. 그래서 별자리와 같은 **차가운 흰빛**으로 간다 —
-           벽 속은 풍경(지나가는 것)이고 금빛은 전경(먹는 것)이다.
-           시안 그대로 금빛으로 되돌리려면 아래 두 색만 바꾸면 된다 */
+        /* 반짝임 — 두 장을 엇갈려(위상 π) 페이드. 어느 순간에도 한쪽이 타고 있어
+           끊기지 않고, 켜지는 별이 계속 바뀌어 같은 그림으로 안 보인다 */
+        ctx.globalCompositeOperation = 'lighter';
+        const tw = elapsed*1.15 + b.aoff*.11;
+        for(let k = 0; k < 2; k++){
+          const a = Math.max(0, Math.sin(tw + k*3.1416));
+          if(a < .04) continue;
+          ctx.globalAlpha = a * (b.gold ? .5 : .8);
+          ctx.drawImage(WALL_GLINT[b.art*2 + k], dx - b.aoff, row.y);
+        }
+        ctx.restore(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+        /* 벽에 담긴 소원별 — 유저 제작 아이콘. 시안대로 금빛으로 간다.
+           금빛은 이 게임에서 이미 뜻이 있다(별가루 = 먹는 것)지만, 벽 속 별은 5각 통통이,
+           별가루는 4각 뾰족이, 그리고 늘 밝은 테두리 안에 갇혀 있어 자리로도 갈린다.
+           그래도 폰에서 헷갈리면 색만 차갑게 돌리면 된다 — 아이콘은 그대로 두고 tint 한 겹 */
         if(wishOk){
-          /* 유저 아이콘. 크롭에 여백이 있어 sr 보다 크게 그려야 별 몸통이 제 크기가 된다.
-             후광은 shadowBlur 로 — 낮은 알파의 원을 깔면 잿빛 접시가 된다(세 번 당했다).
-             그 위에 숨 쉬는 겹 하나를 가산으로 얹어 **살아 있는 빛**을 만든다 */
-          const isz = sr * 2.75;
-          ctx.shadowColor = 'rgba(255,198,96,.95)'; ctx.shadowBlur = 8;
+          /* 후광은 뺐다 (v1.08, 유저: "어색하니까 일단 빼봐"). 아이콘 알파에 이미 빛이
+             구워져 있어 어두운 벽 위에서는 그것만으로 뜬다. 되돌리려면 shadowColor/
+             shadowBlur 한 줄과 가산 겹 한 줄이면 된다.
+             크롭에 여백이 있어 sr 보다 크게 그려야 별 몸통이 제 크기가 된다 */
+          const isz = sr * 2.5;
           ctx.drawImage(WISH_IMG, sx - isz/2, sy - isz/2, isz, isz);
-          ctx.shadowBlur = 0;
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.globalAlpha = .26 + .20*Math.sin(elapsed*2.1 + b.aoff*.7);
-          const bz = isz * 1.30;
-          ctx.drawImage(WISH_IMG, sx - bz/2, sy - bz/2, bz, bz);
-          ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
         } else {                                   // 이미지 로드 전/실패 시 폴백
-          ctx.shadowColor = 'rgba(255,210,120,.9)'; ctx.shadowBlur = 7;
           ctx.fillStyle = '#FFE9A8'; starPath(sx, sy, sr, 0); ctx.fill();
-          ctx.shadowBlur = 0;
           ctx.fillStyle = '#FFFFFF'; starPath(sx, sy, sr*.46, 0); ctx.fill();
         }
       }
