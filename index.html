@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.03</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.04</div>
 </div>
 
 <script>
@@ -914,7 +914,7 @@ let gds = [], guard = 0, gdGap = 0, gdP = null, gdFlash = 0;  // 수호별 조�
 const GD_T = 5;
 let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
 let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
-let bandSnap, bandTo, bandT, bandCur;   // 하늘의 여정 — 고도 배경 블렌드
+let bandSnap, bandTo, bandT, bandCur, bandFrom = 0;   // 하늘의 여정 — 고도 배경 블렌드(bandFrom = 떠나온 고도)
 let dust = [], dustT = 0;
 let lastMultShown = -1, zoom = 1, vign = 0;
 let orb, elapsed, distAcc, nextSpace, score, dispScore, heat, mult, peakMult, grazes, passed;
@@ -985,7 +985,7 @@ function reset(){
   gds = []; guard = 0; gdGap = 14; gdP = null; gdFlash = 0;   // 수호별은 셋 중 가장 늦게 등장
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
-  bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
+  bandFrom = bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
   elapsed = 0; distAcc = 0; nextSpace = 0; diffCur = 0; melodyStep = 0; lastNoteIdx = -1;
   rowClock = 0; rowSec = .1; restBeats = 0;        // 첫 줄은 곧바로 — 판이 시작하자마자 박이 선다
   score = 0; dispScore = 0; grazes = 0; passed = 0;
@@ -1212,6 +1212,25 @@ function island(row, bw, bx, amp){
   lastGapC = bx > W - (bx + bw) ? bx/2 : (bx + bw + W)/2;        // 넓은 쪽이 이번 줄의 통로 — 다음 줄 이동 계산의 기준
 }
 
+/* 존 색을 그대로 밝혀 테두리로 쓴다 — 색이 곧 존이라 존 구분이 흐려지지 않는다 */
+const RIM_CACHE = {}, BODY_CACHE = {};
+/* 🔴 **속은 어둡고 테두리가 색을 진다.** 속까지 존 색으로 채우면 (1)그 위에 얹는 별자리와
+   소원별이 안 보이고 (2)가산광이 중간톤 위에서 잿빛으로 뜬다 — v0.80/0.83/0.84 와 같은 실패.
+   어두운 밤하늘 위에 별을 얹어야 별이 별로 보인다 */
+function bodyOf(hex){
+  if(BODY_CACHE[hex]) return BODY_CACHE[hex];
+  const v = parseInt((hex || '#3A4680').slice(1), 16);
+  const c = 'rgb(' + Math.round((v>>16&255)*.38 + 5) + ',' + Math.round((v>>8&255)*.38 + 6) + ',' + Math.round((v&255)*.44 + 13) + ')';
+  BODY_CACHE[hex] = c; return c;
+}
+function rimOf(hex){
+  if(RIM_CACHE[hex]) return RIM_CACHE[hex];
+  const v = parseInt((hex || '#3A4680').slice(1), 16);
+  const r0 = v >> 16 & 255, g0 = v >> 8 & 255, b0 = v & 255, mx = Math.max(r0, g0, b0) || 1;
+  const k = 235 / mx;                          // 가장 밝은 채널을 235까지 — 색상은 지키고 밝기만 올린다
+  const c = 'rgba(' + Math.round(r0*k) + ',' + Math.round(g0*k) + ',' + Math.round(b0*k) + ',.72)';
+  RIM_CACHE[hex] = c; return c;
+}
 function spawnRow(y = -BLOCK_H - 6){
   const d = diff(), z = zone();
   const row = { y, blocks: [], scored: false, col: z.col };
@@ -1386,6 +1405,14 @@ function spawnRow(y = -BLOCK_H - 6){
       if(mt.x > g.x - 7 && mt.x < g.x + g.w + 7){ motes.splice(i, 1); break; }
     }
   }
+  /* 벽마다 띠의 다른 자리를 본다 — rng 를 쓰지 않고 위치.순번만으로 정한다.
+     난수를 한 번이라도 더 당기면 그날의 코스가 통째로 달라진다 */
+  row.blocks.forEach((b, bi) => {
+    const k = (rowsSpawned * 7 + bi * 53 + Math.round(b.x)) | 0;
+    b.art = ((k % 3) + 3) % 3;
+    b.aoff = ((k * 31) % 220 + 220) % 220;
+  });
+  row.rim = rimOf(row.col); row.body = bodyOf(row.col);
   row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; b.cornerHit = false; });
   rows.push(row);
 
@@ -1396,7 +1423,7 @@ function spawnRow(y = -BLOCK_H - 6){
     if(nz.type === 'fork') forkSafeLeft = rng() < .5;    // 이번 갈림길의 안전측 결정
     if(STAGES[currentSky].band === undefined){           // 1스테이지만 고도가 계속 내려간다 — 이후 별자리는 제 색 고정
       bandSnap = { top: bandCur.top, bot: bandCur.bot, starA: bandCur.starA, deco: BANDS[bandTo].deco };
-      bandTo = zoneIdx % BANDS.length; bandT = 0;
+      bandFrom = bandTo; bandTo = zoneIdx % BANDS.length; bandT = 0;
     }
     floater(W/2, H*.36, 'ZONE ' + (zoneIdx+1) + ' · ' + nz.name, '#7DF3FF', 26, 1.5);
     rings.push({x:W/2, y:H*.5, r0:20, r1:W*.7, col:'#7DF3FF', lw:3, life:.6, t:0});
@@ -2447,6 +2474,71 @@ function updateHud(){
 }
 
 /* ═══════════════ 렌더 ═══════════════ */
+/* ── 벽 안에 담긴 것 = 다른 이의 소원 ──────────────────────────────
+   벽마다 다른 별자리가 들어야 하는데 26px짜리를 매 프레임 그리면 낭비다.
+   **띠를 세 장 미리 그려 두고 벽마다 다른 자리를 잘라 쓴다** — 폭이 변하는 벽
+   (닫히는 문)도 자르는 위치만 달라질 뿐이라 그대로 굴러간다.
+   코스 난수(rng)는 절대 건드리지 않는다. 한 번이라도 더 당기면 오늘의 코스가 바뀐다 */
+const WALL_ART = [];
+function buildWallArt(){
+  WALL_ART.length = 0;
+  const CW = Math.max(360, Math.ceil(W) + 80);
+  for(let v = 0; v < 3; v++){
+    const c = document.createElement('canvas'); c.width = CW; c.height = BLOCK_H;
+    const g = c.getContext('2d'), r = mulberry32(9173 + v*7717);
+    const cnt = Math.round(CW / 23), P = [];
+    for(let i = 0; i < cnt; i++)
+      P.push({ x: (i + .12 + r()*.76) * CW/cnt, y: 3.5 + r()*(BLOCK_H - 7), s: r() });
+    g.strokeStyle = 'rgba(188,206,255,.34)'; g.lineWidth = .8;
+    g.beginPath(); P.forEach((p,i) => i ? g.lineTo(p.x,p.y) : g.moveTo(p.x,p.y)); g.stroke();
+    for(let k = 0; k + 3 < cnt; k += 3){        // 곁가지 — 한 줄만 이으면 별자리가 아니라 꺾은선 그래프다
+      const j = k + 2 + (r() > .5 ? 1 : 0);
+      g.beginPath(); g.moveTo(P[k].x,P[k].y); g.lineTo(P[j].x,P[j].y); g.stroke();
+    }
+    g.globalCompositeOperation = 'lighter';
+    for(const p of P){
+      const rad = p.s > .76 ? 1.5 : .95;
+      const rg = g.createRadialGradient(p.x,p.y,0,p.x,p.y,rad*4);
+      rg.addColorStop(0,'rgba(255,246,220,.92)'); rg.addColorStop(.4,'rgba(255,226,160,.26)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(p.x,p.y,rad*4,0,6.283); g.fill();
+      g.fillStyle = '#FFF8E4'; g.beginPath(); g.arc(p.x,p.y,rad,0,6.283); g.fill();
+    }
+    WALL_ART.push(c);
+  }
+}
+/* ── 구름 — 고도마다 다른 색으로 한 장씩 구워 둔다 ──────────────────
+   안개가 아니라 덩어리로 보이려면 실루엣을 먼저 만들고 **그 안에만** 명암을 넣어야 한다.
+   6개 고도 x 1회 = 초기 한 번. 매 프레임은 drawImage 두 장(현재 고도 + 다음 고도 크로스페이드).
+   화면 아래에만 깔린다 — 4조(위쪽 시야)는 벽이 오는 길이지 구름 자리가 아니다 */
+const CLOUD_CV = [];
+function buildClouds(){
+  CLOUD_CV.length = 0;
+  for(let bi = 0; bi < BANDS.length; bi++){
+    const CH = Math.ceil(H * .32), y0 = H - CH;          // 아래 32%만 — 위쪽은 벽이 오는 길이다(4조)
+    const c = document.createElement('canvas'); c.width = W; c.height = CH;
+    const g = c.getContext('2d'), base = BANDS[bi].bot;
+    const lay = [{y:CH+H*.005,sc:1.15,a:1,lift:1.8},{y:CH-H*.038,sc:.92,a:.8,lift:1.5},{y:CH-H*.082,sc:.72,a:.5,lift:1.25}];
+    for(const L of lay){
+      const m = document.createElement('canvas'); m.width = W; m.height = CH;
+      const mg = m.getContext('2d'), r = mulberry32(1301 + bi*97 + Math.round(L.sc*100));
+      mg.fillStyle = '#fff'; mg.beginPath(); mg.moveTo(-60, CH);
+      for(let x = -60; x < W + 60; ){
+        const bw = (46 + r()*84) * L.sc, bh = (34 + r()*58) * L.sc;
+        mg.ellipse(x + bw*.5, L.y - bh*.42, bw*.62, bh*.55, 0, Math.PI, 0);
+        x += bw*.72;
+      }
+      mg.lineTo(W + 60, CH); mg.closePath(); mg.fill();
+      mg.globalCompositeOperation = 'source-in';       // 실루엣 안에만 칠한다 — 이게 안개와 덩어리를 가른다
+      const lg = mg.createLinearGradient(0, L.y - 120*L.sc, 0, L.y + 30);
+      const hi = base.map(v => Math.min(255, Math.round(v * L.lift + 46)));
+      lg.addColorStop(0, cssv(hi)); lg.addColorStop(.38, cssv(base)); lg.addColorStop(1, cssv(base));
+      mg.fillStyle = lg; mg.fillRect(0,0,W,CH);
+      g.globalAlpha = L.a; g.drawImage(m,0,0); g.globalAlpha = 1;
+    }
+    c.__y = y0;
+    CLOUD_CV.push(c);
+  }
+}
 function rr(x,y,w,h,r){
   ctx.beginPath();
   ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
@@ -2539,7 +2631,12 @@ function itemBubble(x, y, k, rgb, inner){
   ctx.restore();
 }
 
+let artW = 0, artH = 0;
 function draw(){
+  /* 🔴 **여기서 굽는다 (v1.04).** resize()는 407행 — BLOCK_H·BANDS·mulberry32 보다 먼저
+     돌기 때문에 거기서 부르면 TDZ 로 초기화가 통째로 죽는다(v0.64·v0.66·v0.89 에서 세 번).
+     draw()는 rAF 뒤라 모든 선언이 끝나 있다 */
+  if(artW !== W || artH !== H){ artW = W; artH = H; buildWallArt(); buildClouds(); }
   ctx.clearRect(0,0,W,H);
   let sx = 0, sy = 0;
   if(shake > 0){ sx = (Math.random()-.5)*shake; sy = (Math.random()-.5)*shake; }
@@ -2556,6 +2653,14 @@ function draw(){
   const bST2 = bandT*bandT*(3 - 2*bandT);
   drawDeco(bandSnap.deco, 1 - bST2);
   drawDeco(BANDS[bandTo].deco, bST2);
+  /* 구름 — 고도가 바뀌면 색도 같이 바뀐다. 배경이 곧 "얼마나 올라왔나"이므로
+     구름만 늘 같은 보라면 여정이 멈춘 것처럼 보인다 */
+  if(CLOUD_CV.length){
+    const cA = CLOUD_CV[bandFrom], cB = CLOUD_CV[bandTo];
+    ctx.globalAlpha = .82 * (1 - bST2); ctx.drawImage(cA, 0, cA.__y);
+    ctx.globalAlpha = .82 * bST2;       ctx.drawImage(cB, 0, cB.__y);
+    ctx.globalAlpha = 1;
+  }
 
   const spNow = state === 'play' ? speed() : 80;
   const bp = beatPulse();
@@ -2649,9 +2754,39 @@ function draw(){
         ? `rgba(255,215,90,${.75 + b.flash*.25})`
         : `rgba(255,180,84,${.34 + glow*.52 + b.flash*.4 + bp*.1})`;
       ctx.shadowBlur = BAND * (.6 + glow*1.05 + b.flash*.45) * (b.gold ? 1.2 : 1);
-      ctx.fillStyle = b.gold ? '#C9992E' : (row.col || '#3A4680');
+      ctx.fillStyle = b.gold ? '#3A2708' : (row.body || '#161A33');
       rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.fill();
       ctx.shadowBlur = 0;
+      /* 담긴 소원 — 별자리 한 조각과 그 사람의 별.
+         **테두리는 정체(벽이다), 몸의 발열은 신호(붙어 있다).** 채널을 갈라 두면
+         네온 선이 조준선으로 안 읽힌다 — 늘 같은 밝기라 정보가 없기 때문이다 */
+      if(WALL_ART.length && geo.w > 22){
+        ctx.save(); rr(geo.x, row.y, geo.w, BLOCK_H, R); ctx.clip();
+        ctx.globalAlpha = b.gold ? .55 : 1;
+        ctx.drawImage(WALL_ART[b.art], geo.x - b.aoff, row.y);
+        ctx.restore(); ctx.globalAlpha = 1;
+        const sx = geo.x + geo.w/2, sy = row.y + BLOCK_H/2;
+        const sr = Math.min(7.6, BLOCK_H*.31, geo.w*.16);      // 소원별 — 좁은 벽에선 알아서 작아진다
+        /* 후광은 **원반이 아니라 그림자로** 준다. 낮은 알파의 원을 깔면 어두운 배경 위에서
+           잿빛 접시가 된다 — v0.80·0.83·0.84 에서 같은 실패를 세 번 했다.
+           shadowBlur 는 가장자리가 0 으로 사라져 접시가 생기지 않는다 */
+        /* 🔴 **소원별은 금빛이면 안 된다.** 레퍼런스 시안은 금빛이었지만, 이 게임에서
+           금빛 별은 이미 뜻이 있다 — **별가루(먹는 것)**. 22조에 따라 별가루는 위험한 줄 위에
+           놓인 미끼이므로 금빛 별 = "이리 와"다. 그걸 벽 **안**에 넣으면 "이리 와 → 죽어"가 된다.
+           7-B: 같은 언어를 두 뜻으로 쓰지 않는다. 그래서 별자리와 같은 **차가운 흰빛**으로 간다 —
+           벽 속은 풍경(지나가는 것)이고 금빛은 전경(먹는 것)이다.
+           시안 그대로 금빛으로 되돌리려면 아래 두 색만 바꾸면 된다 */
+        ctx.shadowColor = b.gold ? 'rgba(255,210,120,.9)' : 'rgba(176,214,255,.9)';
+        ctx.shadowBlur = 7;
+        ctx.fillStyle = b.gold ? '#FFE9A8' : '#CFE4FF';
+        starPath(sx, sy, sr, 0); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#FFFFFF';
+        starPath(sx, sy, sr*.46, 0); ctx.fill();
+      }
+      ctx.strokeStyle = b.gold ? 'rgba(255,214,120,.92)' : (row.rim || 'rgba(150,170,255,.6)');
+      ctx.lineWidth = 1.3;
+      rr(geo.x + .65, row.y + .65, geo.w - 1.3, BLOCK_H - 1.3, Math.max(1, R - .65)); ctx.stroke();
       // 달아오르는 건 벽의 '몸'뿐 — 모서리에 선을 그으면 조준선처럼 읽혀서
       // "저기 붙여야 하나?"가 된다. 벽은 먼저 위험으로 읽혀야 하고, 붙는 건 플레이어의 선택이다
       if(glow > .012){
