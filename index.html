@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.14</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.15</div>
 </div>
 
 <script>
@@ -3049,17 +3049,25 @@ function draw(){
                    **빼고**(위로 흐름) 하나는 **더해**(반대로 흐름) 서로 스쳐 지나가게 한다
                  · 진폭은 길이에 비례(22%)하되 등급 상한을 둔다. 간발은 광선이 2~3px 라
                    흔들 자리가 없고, 흔들면 오히려 붙어 있는 게 안 보인다 */
+            /* 🔴 **지그재그는 폭이 아니라 파수가 만든다 (v1.15).** 유저: "너무 지그재그야".
+               v1.14 는 20px 짜리 광선에 파수 9.2+17.3 을 얹었다 — 짧은 구간에 꺾임이
+               1.5~2.7 번. 마디는 10 개뿐이라 한 마디가 0.9rad 을 건너뛰어 **각지기까지** 했다.
+               세 가지를 같이 낮춘다:
+                 진폭 길이의 22% -> 13%, 상한 5.0/4.2/3.0 -> 2.8/2.2/1.6
+                 파수 9.2/17.3 -> 5.2/9.4 (한 번 굽이치고 마는 정도)
+                 마디 10 -> 14 (파수를 낮췄으니 한 마디가 0.37rad — 곡선으로 읽힌다)
+               둘째 사인의 몫도 .40 -> .28 로 줄였다. 잔물결은 거들 뿐이어야 한다 */
             const blen2 = Math.hypot(px1 - px0, py1 - py0);
-            const amp = Math.min(t3 ? 3.0 : t2 ? 4.2 : 5.0, blen2 * .22);
+            const amp = Math.min(t3 ? 1.6 : t2 ? 2.2 : 2.8, blen2 * .13);
             const arcOff = (tt, ph) => {
               const w = Math.sin(Math.PI * tt);
-              return (Math.sin(tt*9.2 - elapsed*13 + ph)*.60
-                    + Math.sin(tt*17.3 + elapsed*8.1 + ph*1.7)*.40) * amp * w;
+              return (Math.sin(tt*5.2 - elapsed*9 + ph)*.72
+                    + Math.sin(tt*9.4 + elapsed*5.6 + ph*1.7)*.28) * amp * w;
             };
             const beam = (ph) => {
               ctx.beginPath(); ctx.moveTo(px0, py0);
-              for(let i = 1; i < 10; i++){
-                const tt = i/10, o = arcOff(tt, ph);
+              for(let i = 1; i < 14; i++){
+                const tt = i/14, o = arcOff(tt, ph);
                 ctx.lineTo(px0 + (px1-px0)*tt - uy*o, py0 + (py1-py0)*tt + ux*o);
               }
               ctx.lineTo(px1, py1); ctx.stroke();
@@ -3104,8 +3112,8 @@ function draw(){
               let mox = 0, moy = 0;
               if(near){
                 const w2 = Math.sin(Math.PI * e);
-                const amp2 = Math.min(t3 ? 3.0 : t2 ? 4.2 : 5.0, Math.hypot(px1-px0, py1-py0) * .22);
-                const o2 = (Math.sin(e*9.2 - elapsed*13)*.60 + Math.sin(e*17.3 + elapsed*8.1)*.40) * amp2 * w2;
+                const amp2 = Math.min(t3 ? 1.6 : t2 ? 2.2 : 2.8, Math.hypot(px1-px0, py1-py0) * .13);
+                const o2 = (Math.sin(e*5.2 - elapsed*9)*.72 + Math.sin(e*9.4 + elapsed*5.6)*.28) * amp2 * w2;
                 mox = -uy*o2; moy = ux*o2;
               }
               const mx = px0 + (px1 - px0)*e + mox, my = py0 + (py1 - py0)*e + moy;
