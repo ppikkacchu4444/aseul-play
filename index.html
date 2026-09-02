@@ -64,7 +64,7 @@
   #score{
     position:absolute;top:18px;left:0;right:0;text-align:center;
     font-family:"Black Han Sans","Gothic A1",sans-serif;
-    font-size:46px;line-height:1;letter-spacing:1px;
+    font-size:52px;line-height:1;letter-spacing:1px;   /* v1.24: 46 -> 52. 점수는 화면에서 **항상 제일 커야 한다** — 배수가 46/44 로 거의 같아 위계가 없었다 */
     font-variant-numeric:tabular-nums;
     text-shadow:0 2px 24px rgba(125,243,255,.25);
   }
@@ -72,15 +72,28 @@
      원래 읽는 자리를 키웠다 — 27 -> 44px, 테두리를 둘러 칩이 아니라 **계기**로 보이게.
      등급이 오를수록 글자·테두리·후광이 함께 세지고, 상한에서는 칩 바깥으로도 빛이 번진다.
      한 곳만 보면 되니 시선이 갈라지지 않고, 그 자리는 점수 바로 아래라 이미 보고 있다 */
+  /* 🔴 **×N 은 그 자체로 아무 뜻이 아니다 (v1.24).** 유저: "지금 콤보 배수가 콤보 배수가
+     맞는지 애매해. 왜 ×n 이 무슨 숫자지? 못알아보는 사람도 있을 것 같은데."
+     맞다 — 기호는 배우는 것이지 아는 것이 아니다. 처음 켠 사람에게 ×24 는 그냥 숫자다.
+     **이름을 붙인다**: 작은 '배수' 라벨 + 큰 숫자. 라벨은 흐리고 숫자는 등급 색이라
+     한 번 읽으면 그다음부터는 숫자만 봐도 된다.
+     그리고 숫자를 점수보다 작게 되돌린다(44 -> 30) — **점수가 항상 제일 커야 한다**(유저).
+     보이게 만드는 일은 크기가 아니라 테두리·후광·맥동이 맡는다 */
   #mult{
-    position:absolute;top:66px;left:50%;transform:translateX(-50%);
+    position:absolute;top:74px;left:50%;transform:translateX(-50%);
+    display:flex;align-items:baseline;gap:7px;
     font-family:"Black Han Sans","Gothic A1",sans-serif;
-    font-size:44px;padding:2px 24px 6px;border-radius:99px;
+    padding:3px 18px 6px;border-radius:99px;
     color:var(--dim);background:rgba(255,255,255,.04);
     border:2px solid rgba(255,255,255,.06);
     transition:color .15s, background .15s, text-shadow .15s, border-color .15s, box-shadow .15s;
     font-variant-numeric:tabular-nums;line-height:1.05;
   }
+  #mult .lb{
+    font-family:"Gothic A1",sans-serif;font-weight:700;font-size:12px;
+    letter-spacing:.10em;opacity:.68;text-shadow:none;
+  }
+  #mult .nm{ font-size:30px }
   #mult.t2{color:var(--spark);background:rgba(255,180,84,.12);border-color:rgba(255,180,84,.35);
     text-shadow:0 0 14px rgba(255,180,84,.55)}
   #mult.t3{color:#FF8E4F;background:rgba(255,142,79,.15);border-color:rgba(255,142,79,.45);
@@ -321,7 +334,7 @@
       <div id="cgauge"><div id="cgfill"></div></div>
       <div id="zonechip"></div>
       <div id="score">0</div>
-      <div id="mult">×1</div>
+      <div id="mult"><span class="lb">배수</span><span class="nm">×1</span></div>
     </div>
     <button id="mute" title="소리 켜기/끄기">♪</button>
 
@@ -407,7 +420,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.23</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.24</div>
 </div>
 
 <script>
@@ -2601,7 +2614,7 @@ function updateHud(){
   if(!constHad && liveProg >= stg.goal) acquireConstellation();
   if(mult !== lastMultShown){
     lastMultShown = mult;
-    multEl.textContent = '×' + mult;
+    multEl.querySelector('.nm').textContent = '×' + mult;
     multEl.className = mult >= 50 ? 'tmax' : mult >= 35 ? 't6' : mult >= 20 ? 't5' : mult >= 10 ? 't4' : mult >= 5 ? 't3' : mult >= 2 ? 't2' : '';
     multEl.classList.remove('pop'); void multEl.offsetWidth; multEl.classList.add('pop');
   }
