@@ -381,7 +381,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.18</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.19</div>
 </div>
 
 <script>
@@ -451,7 +451,11 @@ const deepNow = () => DEEP * (1 + (NEB_MUL - 1) * nebQ());
    앉아 있는 것이었다 — 게임 이름이 아슬아슬인데 규칙이 아슬아슬함을 말리고 있었다.
    새 규칙이 아니라 **빠진 칸**이다: 스침 → 아슬로 오르던 계단이 아슬에서 평평해지는데,
    그 마지막 칸을 놓는다. 죽음 판정 13px은 그대로다(3조) — 기존 밴드 안을 나눌 뿐 */
-const HAIR = 3;         // 죽음까지 남은 여유(px)가 이 안이면 '간발'
+const HAIR = 4;         /* 죽음까지 남은 여유(px)가 이 안이면 '간발'.
+                           v1.19: 3 -> 4. 3px 는 정밀한 컨트롤러로는 재현되지만(계측: 겨냥 시 0.31~3px)
+                           엄지로는 사실상 사고로만 나온다. 최상위 등급이 한 판에 한 번도 안 나오면
+                           규칙이 있어도 없는 것과 같다 — 창을 3 -> 4px 로 한 칸 넓힌다.
+                           죽음 13px 은 그대로다(3조) */
 const hairNow = () => HAIR * (1 + (NEB_MUL - 1) * nebQ());   // 성운은 여기도 넓혀 준다
 const BLOCK_H = 26;
 /* 🔴 **벽 옆면은 완전히 둥글다 (v1.06).** 11 -> BLOCK_H/2 = 13. 반지름이 높이의 절반이면
@@ -1486,7 +1490,12 @@ function spawnRow(y = -BLOCK_H - 6){
 /* k 를 주면 **동그라미가 아니라 빛**으로 그려진다 (v1.17).
    'ray' = 날아가는 방향으로 늘어난 빛줄기 / 'star' = 십자로 뻗는 별빛.
    기본값(k 없음)은 예전 그대로라 스침·초신성·아이템 연출은 하나도 안 변한다 */
-function sparks(x, y, n, col, pow=1, biasY=0, k){
+/* 🔴 **이 세계에 동그란 불티는 없다 (v1.19).** 유저: "곳곳에 동그란 이펙트들, 콤보때도
+   자주 나오는데 이제 별이나 빛모양으로 전부 바꾸자."
+   동그란 점은 아무리 밝아도 **물체**로 보인다 — 튄 조각. 이 게임에서 튀는 것은 빛이고,
+   빛은 물체가 아니라 방향이다. 그래서 **기본값을 'ray' 로 뒤집는다** — 호출부 17곳이
+   한 번에 바뀐다. 무언가를 '삼키는' 자리(별가루·별무리·수호별)만 'star' 로 따로 준다 */
+function sparks(x, y, n, col, pow=1, biasY=0, k='ray'){
   for(let i=0;i<n;i++){
     const a = Math.random()*6.283, s = (60+Math.random()*190)*pow;
     parts.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s + biasY, life: .4+Math.random()*.35, t: 0, r: 1.4+Math.random()*2.2, col, k });
@@ -2183,7 +2192,7 @@ function update(sdt, rawDt){
       // 별가루 = 보너스 점수 + 재화. 콤보(아슬함의 척도)는 절대 건드리지 않는다 — 역할 분리
       dustRun++;
       score += 5;
-      sparks(mt.x, mt.y, 4, '#FFD98A', .6);
+      sparks(mt.x, mt.y, 4, '#FFD98A', .6, 0, 'star');   // 별가루는 별이 사라지는 것 — 십자로 튄다
       if(nova <= 0) floater(mt.x, mt.y - 12, '+5', '#FFD98A', 11, .45);   // 소나기 중엔 텍스트 생략 — 소리와 불꽃만
       tone(1568, .07, 'triangle', .12); tone(2093, .09, 'sine', .08);   // 동전 반짝 — 두 겹을 같이 쳐서 한 소리로(v0.91)
     }
@@ -2219,7 +2228,7 @@ function update(sdt, rawDt){
       floater(orb.x, orb.y - 56, '수호별 — 점수 ×2', '#FFE9A0', 19, 1.3);
       rings.push({ x: orb.x, y: orb.y, r0: 10, r1: 96,  col: '#FFE9A0', lw: 4, life: .5, t: 0 });
       rings.push({ x: orb.x, y: orb.y, r0: 130, r1: 34, col: '#FFF3C4', lw: 3, life: .62, t: 0 });  // 밖에서 모여든다
-      sparks(gd.x, gd.y, 22, '#FFE9A0', 1.3); sparks(orb.x, orb.y + 44, 12, '#FFF3C4', 1.0);
+      sparks(gd.x, gd.y, 22, '#FFE9A0', 1.3, 0, 'star'); sparks(orb.x, orb.y + 44, 12, '#FFF3C4', 1.0, 0, 'star');
       spawnStars(gd.x, gd.y, 8);
       if(!REDUCED){ zoom = Math.max(zoom, 1.07); flash = Math.max(flash, .3); shake = Math.max(shake, 5); }
       // 둘이 겹치는 화음 — "하나 더 왔다"
@@ -2255,7 +2264,7 @@ function update(sdt, rawDt){
       floater(w2.x, w2.y - 18, '별무리 · 별가루 +' + WH_N, '#FFD05C', 17, 1.0);
       rings.push({ x: orb.x, y: orb.y, r0: 14, r1: WH_R, col: '#FFD05C', lw: 5, life: .42, t: 0 });   // 터져 나가고
       rings.push({ x: orb.x, y: orb.y, r0: WH_R, r1: 14, col: '#FFF6DC', lw: 3, life: .62, t: 0 });   // 다시 조여든다
-      sparks(w2.x, w2.y, 22, '#FFD05C', 1.4); sparks(w2.x, w2.y, 10, '#FFFFFF', 1.0);
+      sparks(w2.x, w2.y, 22, '#FFD05C', 1.4, 0, 'star'); sparks(w2.x, w2.y, 10, '#FFFFFF', 1.0, 0, 'star');
       spawnStars(w2.x, w2.y, 6);
       if(!REDUCED){ shake = Math.max(shake, 9); zoom = Math.max(zoom, 1.08); flash = Math.max(flash, .35); }
       // 낮게 떨어졌다 부풀어오르는 소리 — 성운의 상승 스윕, 별가루의 동전음과 겹치지 않게
@@ -3486,42 +3495,45 @@ function draw(){
   }
 
   // 파티클
-  for(const p of parts){
-    const pa = 1 - p.t/p.life;
-    ctx.globalAlpha = pa;
-    if(!p.k){                                        // 예전 그대로 — 동그란 불티
-      ctx.fillStyle = p.col;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
-      continue;
-    }
-    /* 🔴 **터지는 별에는 동그라미가 없다 (v1.17).** 유저: "동그란 것들은 다 없애".
-       동그란 점은 아무리 밝아도 **물체**로 보인다 — 날아간 조각. 빛은 물체가 아니라
-       방향이다. 그래서 속도 방향으로 늘이거나(ray) 십자로 뻗게(star) 그린다 */
+  /* 🔴 **번진 겹 + 심지 — shadowBlur 를 쓰지 않는다 (v1.19).**
+     v1.17 은 파티클마다 shadowBlur 10 을 켰다. 폭발 한 번이면 괜찮지만 이제 **모든**
+     불티가 빛이라, 발진 화염(36개)·초신성 파괴처럼 많이 뜨는 자리에서 그림자 렌더가
+     프레임을 먹는다. 이 프로젝트가 이미 쓰는 방식(네온 테두리·흡수 광선)으로 바꾼다 —
+     **번진 겹(굵고 옅게) 위에 심지(가늘고 진하게)**. 가산이라 겹칠수록 하얘진다 */
+  if(parts.length){
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
-    ctx.shadowColor = p.col; ctx.shadowBlur = 10;
-    ctx.strokeStyle = p.col;
-    if(p.k === 'star'){
-      const L = p.r * 3.4 * (.45 + pa*.8);
-      ctx.lineWidth = p.r * .55;
-      ctx.beginPath();
-      ctx.moveTo(p.x - L, p.y);      ctx.lineTo(p.x + L, p.y);
-      ctx.moveTo(p.x, p.y - L*.58);  ctx.lineTo(p.x, p.y + L*.58);
-      ctx.stroke();
-    } else {
-      const sp2 = Math.hypot(p.vx, p.vy) || 1;
-      const ux2 = p.vx/sp2, uy2 = p.vy/sp2;
-      const L = Math.min(32, sp2*.055) * (.35 + pa*.9);   // 빠를수록 길다 — 한 장에 속도가 들어간다
-      ctx.lineWidth = p.r * (.5 + pa*.75);
-      ctx.beginPath();
-      ctx.moveTo(p.x - ux2*L, p.y - uy2*L);               // 꼬리는 지나온 쪽
-      ctx.lineTo(p.x + ux2*L*.2, p.y + uy2*L*.2);
-      ctx.stroke();
+    for(const p of parts){
+      const pa = 1 - p.t/p.life;
+      if(p.k === 'star'){
+        const L = p.r * 3.4 * (.45 + pa*.8);
+        const cross = (len, w, a) => {
+          ctx.globalAlpha = a; ctx.strokeStyle = p.col; ctx.lineWidth = w;
+          ctx.beginPath();
+          ctx.moveTo(p.x - len, p.y);     ctx.lineTo(p.x + len, p.y);
+          ctx.moveTo(p.x, p.y - len*.58); ctx.lineTo(p.x, p.y + len*.58);
+          ctx.stroke();
+        };
+        cross(L, p.r * 1.35, pa * .34);          // 번진 겹
+        cross(L * .78, p.r * .46, pa * .95);     // 심지
+      } else {
+        const sp2 = Math.hypot(p.vx, p.vy) || 1;
+        const ux2 = p.vx/sp2, uy2 = p.vy/sp2;
+        const L = Math.min(32, sp2*.055) * (.35 + pa*.9);   // 빠를수록 길다 — 한 장에 속도가 들어간다
+        const ray = (w, a, k2) => {
+          ctx.globalAlpha = a; ctx.strokeStyle = p.col; ctx.lineWidth = w;
+          ctx.beginPath();
+          ctx.moveTo(p.x - ux2*L*k2, p.y - uy2*L*k2);       // 꼬리는 지나온 쪽
+          ctx.lineTo(p.x + ux2*L*.2, p.y + uy2*L*.2);
+          ctx.stroke();
+        };
+        ray(p.r * 1.55, pa * .30, 1);            // 번진 겹
+        ray(p.r * .58,  pa * .95, .82);          // 심지
+      }
     }
-    ctx.shadowBlur = 0;
     ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
 
   // 별 — 점수판으로 빨려 들어간다
   for(const st of stars){
