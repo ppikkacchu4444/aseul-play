@@ -77,10 +77,12 @@
      맞다 — 기호는 배우는 것이지 아는 것이 아니다. 처음 켠 사람에게 ×24 는 그냥 숫자다.
      **이름을 붙인다**: 작은 라벨 + 큰 숫자. 라벨은 흐리고 숫자는 등급 색이라
      한 번 읽으면 그다음부터는 숫자만 봐도 된다.
-     v1.25: '배수' -> **'콤보'**. 유저: "배수만 봐선 무슨 배수지 싶은 표시긴해."
-     맞다 — '배수'는 **무엇의** 배수인지를 안 말한다. '콤보'는 그 자체로 완결된 말이고
-     (연속으로 잘하고 있다), 유저 자신도 이걸 계속 "콤보 배수"라고 불렀다.
-     게임 관습상 콤보 옆의 ×N 은 곱하기로 읽히므로 두 번 설명할 필요가 없다.
+     v1.27: '배수' -> '콤보' -> **'아슬아슬'**(유저 확정).
+     '배수'는 **무엇의** 배수인지를 안 말하고, '콤보'는 무난하지만 **이 게임의 말은 아니다**.
+     '아슬아슬'은 게임 이름 자체이고, 그래서 숫자가 **얼마나 아슬아슬했는가**로 곧장 읽힌다 —
+     라벨이 설명이 아니라 **정체**가 된다. 켜자마자 제목에서 한 번 본 말이라 배울 것도 없다.
+     (판정 등급의 '아슬'과 글자가 겹치지만, 한국어에서 '아슬아슬'은 한 낱말로 읽히지
+      '아슬'이 두 번으로 읽히지 않는다. 폰 확인에서 헷갈리면 그때 다시 본다)
      그리고 숫자를 점수보다 작게 되돌린다(44 -> 30) — **점수가 항상 제일 커야 한다**(유저).
      보이게 만드는 일은 크기가 아니라 테두리·후광·맥동이 맡는다 */
   #mult{
@@ -124,26 +126,12 @@
      이미 보고 있는 점수를 금빛으로 바꾼다: 읽을 것이 늘지 않고 뜻만 하나 늘어난다 */
   #score.rec{color:#FFDF6B;text-shadow:0 0 26px rgba(255,200,60,.75)}
   @keyframes sbump{40%{transform:scale(1.1)}}
-  /* 존 칩 — 유일하게 남은 좌상단 정보. **지금 어떤 하늘을 지나는가**는 다음 벽의 모양을
-     예고하므로 행동에 쓰인다. BEST·별자리 이름·정복%는 판 중에 바꿀 수 있는 게 없어
-     결과 화면으로 보냈다(v1.20) */
-  /* v1.25: 이름만 띄우니 "저게 뭐지" 였다(유저). 배수 칩과 **같은 문법**으로 —
-     작은 라벨 + 이름. '구간' 이라고 말해 주면 그게 코스의 한 토막이라는 게 한 번에 온다 */
-  #zonechip{
-    position:absolute;top:18px;left:16px;
-    display:flex;align-items:baseline;gap:6px;
-    padding:4px 11px 5px;border-radius:999px;
-    color:var(--dim);
-    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
-    transition:color .25s, border-color .25s, background .25s;
-  }
-  #zonechip .lb{ font-family:"Gothic A1",sans-serif;font-weight:700;font-size:9.5px;letter-spacing:.10em;opacity:.55 }
-  #zonechip .nm{ font-family:"Gothic A1",sans-serif;font-weight:700;font-size:12.5px;letter-spacing:.02em }
-  #zonechip.turn{
-    color:#BFE9FF;border-color:rgba(125,243,255,.45);background:rgba(125,243,255,.10);
-    animation:zpop .5s;
-  }
-  @keyframes zpop{ 0%{transform:scale(1)} 26%{transform:scale(1.14)} 100%{transform:scale(1)} }
+  /* 🔴 **구간 표시를 없앤다 (v1.27).** 유저: "좌측상단에 위치를 없애자.
+     굳이 알려주지 않아도 될듯."
+     맞다 — 존 이름을 안다고 손이 달라지지 않는다. 다음 벽이 어떻게 생겼는지는
+     **벽을 보면 된다**. 이름은 그 위에 덧씌운 설명일 뿐이고, 설명이 필요 없는 것에
+     라벨을 붙이려다 '구간'이라는 말까지 배우게 만들 뻔했다.
+     존이 바뀌는 것은 여전히 몸으로 온다 — 한 박 쉼표 + 하이햇 + 링 한 번(4조를 안 건드린다) */
   /* 🔴 **플레이 중엔 음표 버튼을 숨긴다 (v1.25).** 유저: "음표 버튼을 없애고 다시 위치를
      구성해볼까? 음표 버튼은 없어도 될거같다."
      판 중에 소리를 끄는 사람은 거의 없고, 그 버튼은 **오른쪽 위 한 칸을 상시 점유**하면서
@@ -360,9 +348,8 @@
 
     <div id="hud">
       <div id="cgauge"><div id="cgfill"></div></div>
-      <div id="zonechip"><span class="lb">구간</span><span class="nm"></span></div>
       <div id="score">0</div>
-      <div id="mult"><span class="lb">콤보</span><span class="nm">×1</span></div>
+      <div id="mult"><span class="lb">아슬아슬</span><span class="nm">×1</span></div>
     </div>
     <button id="mute" title="소리 켜기/끄기">♪</button>
 
@@ -448,7 +435,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.26</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.27</div>
 </div>
 
 <script>
@@ -459,7 +446,7 @@ const stage = document.getElementById('stage');
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
-const hud = $('hud'), scoreEl = $('score'), multEl = $('mult'), zoneChip = $('zonechip');
+const hud = $('hud'), scoreEl = $('score'), multEl = $('mult');
 const titleOv = $('title'), deathOv = $('death');
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1553,8 +1540,6 @@ function spawnRow(y = -BLOCK_H - 6){
        가림막이 된다. 존 이름은 좌상단에 **상시** 있으니 바뀌는 순간엔 그 칩이 반짝이면 된다 —
        읽을 필요 없이 "바뀌었다"만 오면 되고, 무엇으로 바뀌었는지는 이미 거기 적혀 있다.
        한 박 쉼표와 하이햇은 그대로 둔다: 몸으로 오는 신호는 화면을 안 가린다 */
-    if(zoneChip){ zoneChip.classList.remove('turn'); void zoneChip.offsetWidth; zoneChip.classList.add('turn');
-      setTimeout(() => zoneChip.classList.remove('turn'), 520); }
     rings.push({x:W/2, y:H*.5, r0:20, r1:W*.62, col:'#7DF3FF', lw:2, life:.45, t:0});
     restBeats = 1;                                       // 존이 바뀌는 자리에 **한 박 쉼표** — 픽셀이 아니라 박이다
     if(AC && !muted){ hat(AC.currentTime,.12); hat(AC.currentTime+.09,.12); hat(AC.currentTime+.18,.18); kick(AC.currentTime+.27); }
@@ -2637,8 +2622,6 @@ function updateHud(){
   const liveProg = Math.min(stg.goal, constSaved + score);
   const cpct = constHad ? 100 : Math.round(liveProg / stg.goal * 100);
   $('cgfill').style.width = cpct + '%';
-  const zn = zone().name;
-  if(zoneChip && zoneChip.dataset.z !== zn){ zoneChip.dataset.z = zn; zoneChip.querySelector('.nm').textContent = zn; }
   if(!constHad && liveProg >= stg.goal) acquireConstellation();
   if(mult !== lastMultShown){
     lastMultShown = mult;
