@@ -85,21 +85,28 @@
       '아슬'이 두 번으로 읽히지 않는다. 폰 확인에서 헷갈리면 그때 다시 본다)
      그리고 숫자를 점수보다 작게 되돌린다(44 -> 30) — **점수가 항상 제일 커야 한다**(유저).
      보이게 만드는 일은 크기가 아니라 테두리·후광·맥동이 맡는다 */
+  /* 🔴 **한 줄에 붙이면 정렬이 안 맞는다 (v1.28).** 유저: "아슬아슬 지금 정렬이 안맞잖아.
+     2줄로 하던가 좀 더 깔끔하게 바꿔."
+     맞다 — 라벨(Gothic A1 12px)과 숫자(Black Han Sans 30px)는 **서체도 크기도 다르다**.
+     베이스라인을 맞춰도 두 글꼴의 x-height 와 어센더가 달라 눈에는 어긋나 보인다.
+     한 줄에 억지로 세우는 대신 **위아래로 쌓는다** — 라벨이 이름표 자리에 놓이고
+     숫자가 그 아래 계기판 자리에 놓여, 정렬을 맞출 일 자체가 없어진다.
+     칩도 좁아져(154 -> 약 100px) 맨 위를 지나는 벽을 덜 가린다 */
   #mult{
-    position:absolute;top:74px;left:50%;transform:translateX(-50%);
-    display:flex;align-items:baseline;gap:7px;
+    position:absolute;top:70px;left:50%;transform:translateX(-50%);
+    display:flex;flex-direction:column;align-items:center;gap:1px;
     font-family:"Black Han Sans","Gothic A1",sans-serif;
-    padding:3px 18px 6px;border-radius:99px;
+    padding:5px 20px 7px;border-radius:20px;
     color:var(--dim);background:rgba(255,255,255,.04);
     border:2px solid rgba(255,255,255,.06);
     transition:color .15s, background .15s, text-shadow .15s, border-color .15s, box-shadow .15s;
-    font-variant-numeric:tabular-nums;line-height:1.05;
+    font-variant-numeric:tabular-nums;
   }
   #mult .lb{
-    font-family:"Gothic A1",sans-serif;font-weight:700;font-size:12px;
-    letter-spacing:.10em;opacity:.68;text-shadow:none;
+    font-family:"Gothic A1",sans-serif;font-weight:700;font-size:10.5px;
+    letter-spacing:.16em;opacity:.60;text-shadow:none;line-height:1;
   }
-  #mult .nm{ font-size:30px }
+  #mult .nm{ font-size:30px;line-height:1 }
   #mult.t2{color:var(--spark);background:rgba(255,180,84,.12);border-color:rgba(255,180,84,.35);
     text-shadow:0 0 14px rgba(255,180,84,.55)}
   #mult.t3{color:#FF8E4F;background:rgba(255,142,79,.15);border-color:rgba(255,142,79,.45);
@@ -435,7 +442,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.27</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.28</div>
 </div>
 
 <script>
