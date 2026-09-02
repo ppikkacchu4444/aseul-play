@@ -75,8 +75,12 @@
   /* 🔴 **×N 은 그 자체로 아무 뜻이 아니다 (v1.24).** 유저: "지금 콤보 배수가 콤보 배수가
      맞는지 애매해. 왜 ×n 이 무슨 숫자지? 못알아보는 사람도 있을 것 같은데."
      맞다 — 기호는 배우는 것이지 아는 것이 아니다. 처음 켠 사람에게 ×24 는 그냥 숫자다.
-     **이름을 붙인다**: 작은 '배수' 라벨 + 큰 숫자. 라벨은 흐리고 숫자는 등급 색이라
+     **이름을 붙인다**: 작은 라벨 + 큰 숫자. 라벨은 흐리고 숫자는 등급 색이라
      한 번 읽으면 그다음부터는 숫자만 봐도 된다.
+     v1.25: '배수' -> **'콤보'**. 유저: "배수만 봐선 무슨 배수지 싶은 표시긴해."
+     맞다 — '배수'는 **무엇의** 배수인지를 안 말한다. '콤보'는 그 자체로 완결된 말이고
+     (연속으로 잘하고 있다), 유저 자신도 이걸 계속 "콤보 배수"라고 불렀다.
+     게임 관습상 콤보 옆의 ×N 은 곱하기로 읽히므로 두 번 설명할 필요가 없다.
      그리고 숫자를 점수보다 작게 되돌린다(44 -> 30) — **점수가 항상 제일 커야 한다**(유저).
      보이게 만드는 일은 크기가 아니라 테두리·후광·맥동이 맡는다 */
   #mult{
@@ -123,18 +127,30 @@
   /* 존 칩 — 유일하게 남은 좌상단 정보. **지금 어떤 하늘을 지나는가**는 다음 벽의 모양을
      예고하므로 행동에 쓰인다. BEST·별자리 이름·정복%는 판 중에 바꿀 수 있는 게 없어
      결과 화면으로 보냈다(v1.20) */
+  /* v1.25: 이름만 띄우니 "저게 뭐지" 였다(유저). 배수 칩과 **같은 문법**으로 —
+     작은 라벨 + 이름. '구간' 이라고 말해 주면 그게 코스의 한 토막이라는 게 한 번에 온다 */
   #zonechip{
-    position:absolute;top:18px;left:16px;font-size:11px;font-weight:700;
-    color:var(--dim);letter-spacing:.10em;
-    padding:4px 10px;border-radius:999px;
+    position:absolute;top:18px;left:16px;
+    display:flex;align-items:baseline;gap:6px;
+    padding:4px 11px 5px;border-radius:999px;
+    color:var(--dim);
     background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
     transition:color .25s, border-color .25s, background .25s;
   }
+  #zonechip .lb{ font-family:"Gothic A1",sans-serif;font-weight:700;font-size:9.5px;letter-spacing:.10em;opacity:.55 }
+  #zonechip .nm{ font-family:"Gothic A1",sans-serif;font-weight:700;font-size:12.5px;letter-spacing:.02em }
   #zonechip.turn{
     color:#BFE9FF;border-color:rgba(125,243,255,.45);background:rgba(125,243,255,.10);
     animation:zpop .5s;
   }
   @keyframes zpop{ 0%{transform:scale(1)} 26%{transform:scale(1.14)} 100%{transform:scale(1)} }
+  /* 🔴 **플레이 중엔 음표 버튼을 숨긴다 (v1.25).** 유저: "음표 버튼을 없애고 다시 위치를
+     구성해볼까? 음표 버튼은 없어도 될거같다."
+     판 중에 소리를 끄는 사람은 거의 없고, 그 버튼은 **오른쪽 위 한 칸을 상시 점유**하면서
+     아무 일도 안 한다. 다만 통째로 지우진 않는다 — 공공장소에서 끌 방법은 있어야 하고,
+     그건 판에 들어가기 **전**(타이틀·로비)이나 **끝난 뒤**(결과)에 하면 된다.
+     #mute 는 #hud 바로 뒤 형제라 인접 선택자 하나로 플레이 중에만 사라진다 */
+  #hud.on ~ #mute{ display:none }
   #mute{
     position:absolute;top:12px;right:12px;pointer-events:auto;
     width:38px;height:38px;border-radius:12px;border:1px solid #222B4C;
@@ -332,9 +348,9 @@
 
     <div id="hud">
       <div id="cgauge"><div id="cgfill"></div></div>
-      <div id="zonechip"></div>
+      <div id="zonechip"><span class="lb">구간</span><span class="nm"></span></div>
       <div id="score">0</div>
-      <div id="mult"><span class="lb">배수</span><span class="nm">×1</span></div>
+      <div id="mult"><span class="lb">콤보</span><span class="nm">×1</span></div>
     </div>
     <button id="mute" title="소리 켜기/끄기">♪</button>
 
@@ -420,7 +436,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.24</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.25</div>
 </div>
 
 <script>
@@ -2610,7 +2626,7 @@ function updateHud(){
   const cpct = constHad ? 100 : Math.round(liveProg / stg.goal * 100);
   $('cgfill').style.width = cpct + '%';
   const zn = zone().name;
-  if(zoneChip && zoneChip.dataset.z !== zn){ zoneChip.dataset.z = zn; zoneChip.textContent = zn; }
+  if(zoneChip && zoneChip.dataset.z !== zn){ zoneChip.dataset.z = zn; zoneChip.querySelector('.nm').textContent = zn; }
   if(!constHad && liveProg >= stg.goal) acquireConstellation();
   if(mult !== lastMultShown){
     lastMultShown = mult;
