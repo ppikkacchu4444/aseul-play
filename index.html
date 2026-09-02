@@ -106,7 +106,12 @@
     font-family:"Gothic A1",sans-serif;font-weight:700;font-size:10.5px;
     letter-spacing:.16em;opacity:.60;text-shadow:none;line-height:1;
   }
-  #mult .nm{ font-size:30px;line-height:1 }
+  /* 🔴 **Black Han Sans 는 제목용이다 (v1.30).** 유저: "콤보 글씨체가 너무 두껍다 안어울림."
+     맞다 — 이 서체는 획이 통째로 굵어 큰 제목에서나 버틴다. 30px 짜리 계기 숫자에 쓰면
+     속공간(카운터)이 막혀 뭉쳐 보인다. **이미 불러와 있는 Gothic A1 900** 으로 바꾼다 —
+     새 폰트를 더 받지 않으므로 로딩도 안 늘고, 숫자 획이 열려 있어 작아도 읽힌다.
+     점수(52px)는 제목급이라 Black Han Sans 그대로 둔다 */
+  #mult .nm{ font-family:"Gothic A1",sans-serif;font-weight:900;font-size:30px;line-height:1;letter-spacing:-.01em }
   #mult.t2{color:var(--spark);background:rgba(255,180,84,.12);border-color:rgba(255,180,84,.35);
     text-shadow:0 0 14px rgba(255,180,84,.55)}
   #mult.t3{color:#FF8E4F;background:rgba(255,142,79,.15);border-color:rgba(255,142,79,.45);
@@ -442,7 +447,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.29</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.30</div>
 </div>
 
 <script>
@@ -1574,7 +1579,7 @@ function sparks(x, y, n, col, pow=1, biasY=0, k='ray'){
 function glint(x, y, r, col, life = .26){
   glints.push({ x, y, r, col, life, t: 0 });
 }
-function floater(x, y, txt, col, size=15, life=.8){
+function floater(x, y, txt, col, size=15, life=.8, glow=0){   // glow = 글자 뒤로 번지는 반경(v1.30)
   // 겹침 방지 — 방금 생긴 플로터와 자리가 겹치면 위로 쌓는다 (점수와 배수 텍스트가 안 겹치게)
   let moved = true, guard = 0;
   while(moved && guard++ < 5){
@@ -1583,7 +1588,7 @@ function floater(x, y, txt, col, size=15, life=.8){
       if(f.t < .45 && Math.abs(f.x - x) < 72 && Math.abs(f.y - y) < 21){ y = f.y - 22; moved = true; }
     }
   }
-  floats.push({ x, y, txt, col, size, t: 0, life });
+  floats.push({ x, y, txt, col, size, t: 0, life, glow });
 }
 function spawnStars(x, y, n){
   for(let i=0;i<n;i++){
@@ -1655,8 +1660,11 @@ function grazeEvent(cx, cy, deep, b){
      GOLD 도 영문으로 맞춘다 — 한 줄에 '골드'와 'EDGE'가 섞이면 언어가 둘이 된다.
      EDGE 만 거리를 이름에 넣는다: 죽어야만 보던 숫자를 그 자리에서 보여주는 게 요점이다 */
   const why = hair ? ('EDGE ' + clear.toFixed(1) + 'px') : gold ? 'GOLD' : deep ? 'GRAZE' : 'BRUSH';
+  /* 후광은 등급을 따른다 — EDGE 가 가장 세게 탄다(v1.30). BRUSH 는 0:
+     제일 자주 뜨는 등급이라 번지면 화면이 금세 뿌예진다 */
   floater(cx, cy - 16, nv ? why + ' +' + pay(base) : why + ' +' + base, col,
-    (hair ? 24 : deep || gold ? 19 : 14) + (chain ? 2 : 0) + (nv ? 6 : 0), hair ? 1.05 : deep || gold ? .95 : .7);
+    (hair ? 24 : deep || gold ? 19 : 14) + (chain ? 2 : 0) + (nv ? 6 : 0), hair ? 1.05 : deep || gold ? .95 : .7,
+    hair ? 22 : gold ? 14 : deep ? 10 : 0);
   sfx.graze(Math.floor(heat), deep, gold, chain);
   if(!localStorage.getItem('aseul-firstgraze')){       // 생애 첫 스침 — 문법을 몸으로 깨닫는 순간을 축하한다
     try{ localStorage.setItem('aseul-firstgraze', '1'); }catch(e){}
@@ -3721,9 +3729,35 @@ function draw(){
   ctx.textAlign = 'center';
   for(const f of floats){
     ctx.globalAlpha = 1 - (f.t/f.life);
-    ctx.font = `${f.size}px "Black Han Sans","Gothic A1",sans-serif`;
+    /* 서체를 Gothic A1 900 으로 (v1.30) — Black Han Sans 는 제목용이라 14~24px 플로터에서는
+       획이 뭉쳐 "BRUSH +1" 이 덩어리로 보인다. 영문 대문자는 특히 그렇다 */
+    ctx.font = `900 ${f.size}px "Gothic A1",sans-serif`;
     ctx.fillStyle = f.col;
-    ctx.fillText(f.txt, f.x, f.y);
+    if(f.glow){
+      /* 🔴 **흰색은 그 자체로 세지 않다 (v1.30).** 유저: "edge는 뭔가 더 빛나야할것 같음.
+         하얀색이라 사실 임팩트가 없어서."
+         맞다 — 흰 글자는 **밝은 게 아니라 그냥 색이 없는 것**이다. 어두운 하늘에 놓으면
+         읽히기는 해도 타오르지는 않는다. 최상위 등급이 제일 조용해지는 셈이다.
+         빛나 보이게 하는 건 색이 아니라 **번짐**이다 — 네온 테두리·흡수 광선과 같은
+         "번진 겹 + 심지".
+
+         🔴 **단, 번지는 겹에 글자꼴을 실으면 안 된다.** 처음엔 그림자를 켠 채로
+         글자를 두 번 덧그렸는데, 그러면 **글자 몸통까지 세 번 쌓여** 흰색이 타 버리고
+         'EDGE 1.5px' 의 획이 서로 녹아붙었다. 계측: 벽 후광과 겹친 왼쪽 세 글자가
+         포화되어 글자꼴이 사라졌다. EDGE 는 **거리(px)를 읽히게 하는 게 요점**이라
+         읽을 수 없게 되면 등급이 아니라 얼룩이 된다.
+         그래서 **글자를 화면 밖(-4000)에 그리고 그림자만 제자리로 밀어 넣는다** —
+         canvas 의 그림자는 원본과 따로 놓이므로 이러면 **후광만 남고 몸통은 0 번** 쌓인다.
+         그 위에 안 번진 심지 한 번. 후광은 넓고 글자는 또렷한, 원래 의도한 그림이 된다 */
+      const OFF = 4000;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.shadowColor = f.col; ctx.shadowOffsetX = OFF;
+      ctx.shadowBlur = f.glow;      ctx.fillText(f.txt, f.x - OFF, f.y);   // 넓게 번지는 겹
+      ctx.shadowBlur = f.glow * .42; ctx.fillText(f.txt, f.x - OFF, f.y);  // 안쪽 심 — 글자 둘레를 데운다
+      ctx.shadowBlur = 0; ctx.shadowOffsetX = 0;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.fillText(f.txt, f.x, f.y);   // 심지 — 언제나 한 번만 그린다
   }
   ctx.globalAlpha = 1;
 
