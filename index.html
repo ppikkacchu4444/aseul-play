@@ -152,7 +152,7 @@
      #mute 는 #hud 바로 뒤 형제라 인접 선택자 하나로 플레이 중에만 사라진다 */
   #hud.on ~ #mute{ display:none }
   #mute{
-    position:absolute;top:12px;right:12px;pointer-events:auto;
+    position:absolute;bottom:14px;right:14px;pointer-events:auto;
     width:38px;height:38px;border-radius:12px;border:1px solid #222B4C;
     background:rgba(18,23,41,.7);color:var(--dim);font-size:16px;
     cursor:pointer;
@@ -231,8 +231,20 @@
   #death.s3 #retry,#death.s3 .anywhere{opacity:1;transform:none}
   #death.s3 #retry,#death.s3 #tohome{pointer-events:auto}
   /* ── 로비 — 하늘 이름이 제목, 캐릭터가 주인공. 재화는 상단 바에 아이콘으로 ── */
-  #lobby{gap:0;justify-content:flex-start;padding:14px 16px 18px}
-  #lb-top{display:flex;align-items:center;gap:6px;width:100%;pointer-events:auto}
+  /* 🔴 **상단 바만 위에 붙이고 나머지는 가운데로 (v1.26).** 유저: "로비도 일단 캐릭터
+     좀 내려 중앙으로. 지금 너무 위에 붙어 있다. 상단 허드 말고는 다 중앙으로 내려."
+     예전엔 로비 전체가 flex-start 라 재화 바부터 캐릭터·버튼까지 통째로 위로 몰리고
+     아래에 큰 여백이 남았다. **상단 바를 흐름에서 빼내(absolute) 위에 고정**하면
+     남은 것들은 .overlay 의 기본값(justify-content:center)대로 저절로 가운데로 온다 —
+     로비의 주인공은 캐릭터이고, 주인공은 화면 가운데에 서야 한다.
+     음표 버튼은 상단 바와 부딪히지 않게 **아래 모서리로** 내렸다 — 상단 바에 재화 3칸과
+     밤하늘 버튼이 이미 380px 을 꽉 채워, 오른쪽 위를 비워 주면 밤하늘 글자가 두 줄로 깨진다.
+     소리 설정은 여기(로비)에서 한다(유저 확정) */
+  #lobby{gap:0;justify-content:center;padding:14px 16px 18px}
+  #lb-top{
+    position:absolute;top:14px;left:16px;right:16px;
+    display:flex;align-items:center;gap:6px;pointer-events:auto;
+  }
   .cur{
     display:flex;align-items:center;gap:5px;
     background:rgba(18,23,41,.82);border:1px solid #1D2542;border-radius:99px;
@@ -244,7 +256,7 @@
   .cur.dust i{color:#FFD98A} .cur.con i{color:#FFDF6B}
   #lb-top .lbbtn{margin-left:auto}
   #lb-title{
-    margin-top:24px;
+    margin-top:0;
     font-family:"Black Han Sans","Gothic A1",sans-serif;font-weight:400;
     font-size:34px;line-height:1.12;text-wrap:balance;
     text-shadow:0 0 32px rgba(125,243,255,.3);
@@ -436,7 +448,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.25</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.26</div>
 </div>
 
 <script>
