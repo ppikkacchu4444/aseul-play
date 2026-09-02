@@ -392,7 +392,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.20</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.21</div>
 </div>
 
 <script>
@@ -2897,17 +2897,32 @@ function draw(){
     ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
   }
 
-  // 배수는 세계에 그린다 — 시선이 머무는 '다음 벽 자리' 배경에 크게. 벽이 그 위를 지나간다 (시야를 가리지 않음)
-  if((state === 'play' || state === 'dying') && mult >= 2){
-    const cooling = state === 'play' && nova <= 0 && sinceGraze > delayNow() && heat > CH().heat0 + .01;
-    const size = (96 + hsAll*40) * (1 + wmPop*.3) | 0;
-    ctx.font = size + 'px "Black Han Sans","Gothic A1",sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = cooling ? '#68729A'
-      : mult >= 50 ? '#FFDF6B' : mult >= 35 ? '#FF7DA0' : mult >= 20 ? '#FF3D64' : mult >= 10 ? '#FF5C7A' : mult >= 5 ? '#FF8E4F' : '#FFB454';
-    ctx.globalAlpha = (cooling ? .07 : .11 + bp*.05) + wmPop*.16 + (nova > 0 ? .06 : 0);
-    ctx.fillText('×' + mult, W/2, H*.28);
-    ctx.globalAlpha = 1;
+  /* 🔴 **배수를 숫자에서 "하늘이 타는 정도"로 (v1.21).** 유저: "중앙에 콤보 숫자 크게
+     뜨는것도 다른 쪽으로 개선할 수 없을까."
+     이 워드마크의 원래 임무는 개정 7 의 "배수가 안 보인다" 였다. 그런데 그 뒤로
+     ①칩이 티어 색과 펄스를 갖고 ②꼬리 길이가 곧 열기 게이지가 되고 ③플로터가 매 사건을
+     말하게 되면서, **숫자를 넷째로 한 번 더 쓸 이유가 없어졌다.**
+     게다가 이건 H*.28 — **다음 벽이 오는 길** 한복판이다(4조).
+     그래서 글자를 걷고 같은 정보를 **가장자리에서 안으로 스며드는 빛**으로 옮긴다:
+       · 중앙은 완전히 비고, 느낌은 주변시로만 온다
+       · 벽보다 **먼저** 그려서 하늘의 색이지 화면 위에 덮은 막이 아니다
+       · 읽을 숫자는 상단 칩 하나뿐이 된다
+     초신성 중엔 끈다 — 금빛 액자 게이지가 이미 가장자리를 쓰고 있고, 같은 자리에
+     두 가지 뜻을 겹치면 7-B 위반이다 */
+  if((state === 'play' || state === 'dying') && mult >= 2 && nova <= 0){
+    const cooling = state === 'play' && sinceGraze > delayNow() && heat > CH().heat0 + .01;
+    const wq = Math.min(1, (mult - 1) / Math.max(1, capH()));      // 0(×1) ~ 1(자기 상한)
+    const wc = cooling ? '104,114,154'
+      : mult >= 50 ? '255,223,107' : mult >= 35 ? '255,125,160' : mult >= 20 ? '255,61,100'
+      : mult >= 10 ? '255,92,122'  : mult >= 5  ? '255,142,79'  : '255,180,84';
+    /* 가장자리에서만 진하고 가운데로 갈수록 0 — 안쪽 반지름을 넉넉히 잡아
+       **필드 한복판에는 색이 아예 닿지 않는다.** 배수가 오르는 순간(wmPop)엔 한 번 확 밝아진다 */
+    const wr0 = Math.min(W, H) * .34, wr1 = Math.hypot(W, H) * .58;
+    const wg = ctx.createRadialGradient(W/2, H*.56, wr0, W/2, H*.56, wr1);
+    wg.addColorStop(0, 'rgba(' + wc + ',0)');
+    wg.addColorStop(.55, 'rgba(' + wc + ',' + (wq * (cooling ? .05 : .13) + wmPop*.05).toFixed(3) + ')');
+    wg.addColorStop(1,   'rgba(' + wc + ',' + (wq * (cooling ? .10 : .30) + wmPop*.13 + bp*.02).toFixed(3) + ')');
+    ctx.fillStyle = wg; ctx.fillRect(0, 0, W, H);
   }
 
   // 벽
