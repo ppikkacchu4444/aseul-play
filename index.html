@@ -86,11 +86,27 @@
   #mult.pop{animation:pop .18s}
   @keyframes pop{40%{transform:translateX(-50%) scale(1.65)}}
   #score.bump{animation:sbump .18s}
+  /* 🔴 **BEST 를 지운 자리를 점수 색이 대신한다 (v1.20).** 좌상단에 늘 떠 있던 BEST 는
+     판 중에 할 수 있는 게 없어 걷어냈지만, **최고 기록을 넘는 순간**만은 다르다 —
+     그때부터는 "지금 기록을 쓰는 중"이라 손이 달라진다. 새 요소를 추가하는 대신
+     이미 보고 있는 점수를 금빛으로 바꾼다: 읽을 것이 늘지 않고 뜻만 하나 늘어난다 */
+  #score.rec{color:#FFDF6B;text-shadow:0 0 26px rgba(255,200,60,.75)}
   @keyframes sbump{40%{transform:scale(1.1)}}
-  #best-hud{
-    position:absolute;top:20px;left:16px;font-size:11px;font-weight:700;
-    color:var(--dim);letter-spacing:.12em;font-variant-numeric:tabular-nums;
+  /* 존 칩 — 유일하게 남은 좌상단 정보. **지금 어떤 하늘을 지나는가**는 다음 벽의 모양을
+     예고하므로 행동에 쓰인다. BEST·별자리 이름·정복%는 판 중에 바꿀 수 있는 게 없어
+     결과 화면으로 보냈다(v1.20) */
+  #zonechip{
+    position:absolute;top:18px;left:16px;font-size:11px;font-weight:700;
+    color:var(--dim);letter-spacing:.10em;
+    padding:4px 10px;border-radius:999px;
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+    transition:color .25s, border-color .25s, background .25s;
   }
+  #zonechip.turn{
+    color:#BFE9FF;border-color:rgba(125,243,255,.45);background:rgba(125,243,255,.10);
+    animation:zpop .5s;
+  }
+  @keyframes zpop{ 0%{transform:scale(1)} 26%{transform:scale(1.14)} 100%{transform:scale(1)} }
   #mute{
     position:absolute;top:12px;right:12px;pointer-events:auto;
     width:38px;height:38px;border-radius:12px;border:1px solid #222B4C;
@@ -245,10 +261,6 @@
   }
   .skychip.sel{color:#FFD98A;border-color:#8A6A2A;background:rgba(255,180,84,.08)}
   .skychip.lock{opacity:.38;cursor:default}
-  #stprog{
-    position:absolute;top:38px;left:16px;font-size:11px;font-weight:700;
-    color:var(--dim);letter-spacing:.08em;font-variant-numeric:tabular-nums;
-  }
   #cgauge{
     position:absolute;top:0;left:0;right:0;height:3px;
     background:rgba(255,255,255,.06);
@@ -292,8 +304,7 @@
 
     <div id="hud">
       <div id="cgauge"><div id="cgfill"></div></div>
-      <div id="best-hud">BEST 0</div>
-      <div id="stprog"></div>
+      <div id="zonechip"></div>
       <div id="score">0</div>
       <div id="mult">×1</div>
     </div>
@@ -381,7 +392,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.19</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.20</div>
 </div>
 
 <script>
@@ -392,7 +403,7 @@ const stage = document.getElementById('stage');
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
-const hud = $('hud'), scoreEl = $('score'), multEl = $('mult'), bestHud = $('best-hud');
+const hud = $('hud'), scoreEl = $('score'), multEl = $('mult'), zoneChip = $('zonechip');
 const titleOv = $('title'), deathOv = $('death');
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -971,6 +982,7 @@ let novaSpin = 0;                      // 초신성 진입 가속분 (부스터 
 let novaRoll = 0;                      // 초신성 회전 각 — 드릴처럼 계속 돌며 돌진한다
 const SPIN_T = .5;
 const LAUNCH_T = .7;
+let recHit = false;            // 이번 판에 최고 기록을 넘었는가 (넘은 순간 한 번만 알린다)
 let wmPop = 0, coolWarned = false, deathSkip = false, novaWarned = false;   // 세계 배수 팝 · 냉각 예고 · 성적표 스킵 · 초신성 꺼짐 예고
 let best = +(localStorage.getItem('aseul3-best') || 0);
 let bestMult = +(localStorage.getItem('aseul3-bmult') || 0);
@@ -1046,7 +1058,7 @@ function reset(){
   phraseQueue = [];
   melody = []; peakAt = 0;
   sinceGraze = 99; timeScale = 1; shake = 0; flash = 0; zoom = 1; vign = 0;
-  wmPop = 0; coolWarned = false; novaWarned = false; launch = LAUNCH_T; novaSpin = 0; novaRoll = 0;
+  wmPop = 0; coolWarned = false; novaWarned = false; recHit = false; scoreEl.classList.remove('rec'); launch = LAUNCH_T; novaSpin = 0; novaRoll = 0;
   orb = { x: W/2, tx: W/2, y: H*.74, trail: [], px: W/2, vxs: 0, ptx: W/2, push: 0, turn: 0 };
   held = false;
   lastMultShown = -1;
@@ -1130,7 +1142,7 @@ function startRun(){
   $('cardview').classList.remove('on'); $('skyview').classList.remove('on');   // 모달을 끌고 들어가지 않는다
   deathOv.classList.remove('s1','s2','s3');    // 성적표 단계 클래스도 정리 — 남으면 꺼진 버튼이 되살아난다
   hud.classList.add('on');
-  bestHud.textContent = 'BEST ' + best.toLocaleString();
+
   if(tut) floater(W/2, H*.52, '벽 옆의 금빛 별을 따라가 봐', '#FFD98A', 16, 2.8);   // 온보딩 — 첫 안내
 }
 
@@ -1479,8 +1491,15 @@ function spawnRow(y = -BLOCK_H - 6){
       bandSnap = { top: bandCur.top, bot: bandCur.bot, starA: bandCur.starA, deco: BANDS[bandTo].deco };
       bandFrom = bandTo; bandTo = zoneIdx % BANDS.length; bandT = 0;
     }
-    floater(W/2, H*.36, 'ZONE ' + (zoneIdx+1) + ' · ' + nz.name, '#7DF3FF', 26, 1.5);
-    rings.push({x:W/2, y:H*.5, r0:20, r1:W*.7, col:'#7DF3FF', lw:3, life:.6, t:0});
+    /* 🔴 **존 안내를 화면 한복판에서 걷는다 (v1.20).** 유저: "굳이 중앙 텍스트로 알려줘서
+       헷갈리게 하지 말자. 바뀔때도 살짝 느낌만."
+       중앙은 **다음 벽이 오는 길**이다. 거기에 26px 글씨를 1.5초 띄우면 정보가 아니라
+       가림막이 된다. 존 이름은 좌상단에 **상시** 있으니 바뀌는 순간엔 그 칩이 반짝이면 된다 —
+       읽을 필요 없이 "바뀌었다"만 오면 되고, 무엇으로 바뀌었는지는 이미 거기 적혀 있다.
+       한 박 쉼표와 하이햇은 그대로 둔다: 몸으로 오는 신호는 화면을 안 가린다 */
+    if(zoneChip){ zoneChip.classList.remove('turn'); void zoneChip.offsetWidth; zoneChip.classList.add('turn');
+      setTimeout(() => zoneChip.classList.remove('turn'), 520); }
+    rings.push({x:W/2, y:H*.5, r0:20, r1:W*.62, col:'#7DF3FF', lw:2, life:.45, t:0});
     restBeats = 1;                                       // 존이 바뀌는 자리에 **한 박 쉼표** — 픽셀이 아니라 박이다
     if(AC && !muted){ hat(AC.currentTime,.12); hat(AC.currentTime+.09,.12); hat(AC.currentTime+.18,.18); kick(AC.currentTime+.27); }
   }
@@ -2415,7 +2434,11 @@ function update(sdt, rawDt){
     const m5 = Math.floor(mult/5)*5;                 // 골드 +5 점프로 건너뛴 마일스톤도 잡는다
     if(up && m5 >= 5 && m5 > Math.floor(prev/5)*5){
       const MS = {5:'불붙었다',10:'활활',15:'이글이글',20:'폭주!!',25:'유성우!!',30:'혜성!!',35:'신성!!',40:'백열!!',45:'은하!!',50:'초신성!!'};
-      floater(W/2, H*.42, MS[m5] + ' ×' + m5, m5 >= 40 ? '#FFDF6B' : m5 >= 10 ? '#FF5C7A' : '#FFB454', 30);
+      /* 🔴 **같은 사실을 세 번 말하지 않는다 (v1.20).** 유저: "너무 많이 출력되는 정보야."
+         배수는 이미 세 곳에 있었다 — 상단 칩(지금 값) · 세계에 그린 워드마크(온도) ·
+         플레이어 옆 플로터(방금 무엇을). 여기 중앙 30px 텍스트는 **넷째**였고,
+         셋 중 어느 것도 대신하지 못하면서 화면 한복판을 1초 가렸다.
+         등급이 오르는 사건은 워드마크가 확 밝아지는 것(wmPop=1)과 칩이 튀는 것으로 충분하다 */
       sfx.milestone();
       rings.push({x:orb.x, y:orb.y, r0:12, r1:130, col: m5 >= 40 ? '#FFDF6B' : m5 >= 10 ? '#FF5C7A' : '#FFD98A', lw:4, life:.5, t:0});
       if(!REDUCED){ flash = m5 >= 50 ? .45 : .3; zoom = 1.06; if(m5 >= 50) vign = .7; }
@@ -2548,12 +2571,18 @@ function updateHud(){
   dispScore += (target - dispScore) * .25;
   if(target - dispScore < 1) dispScore = target;
   scoreEl.textContent = Math.round(dispScore).toLocaleString();
+  if(!recHit && best > 0 && score > best && state === 'play'){
+    recHit = true; scoreEl.classList.add('rec');
+    floater(W/2, H*.19, '최고 기록', '#FFDF6B', 15, 1.1);   // 점수 바로 아래 한 줄, 한 번뿐
+    if(AC && !muted){ tone(1568,.12,'sine',.12); tone(2093,.16,'sine',.09,.06); tone(2637,.2,'triangle',.07,.12); }
+  }
   // 별자리 정복 게이지 — 화면 최상단, 이번 판 점수만큼 실시간으로 차오른다
   const stg = STAGES[currentSky];
   const liveProg = Math.min(stg.goal, constSaved + score);
   const cpct = constHad ? 100 : Math.round(liveProg / stg.goal * 100);
   $('cgfill').style.width = cpct + '%';
-  $('stprog').textContent = stg.name + (constHad ? ' ★' : ' · 정복 ' + cpct + '%');
+  const zn = zone().name;
+  if(zoneChip && zoneChip.dataset.z !== zn){ zoneChip.dataset.z = zn; zoneChip.textContent = zn; }
   if(!constHad && liveProg >= stg.goal) acquireConstellation();
   if(mult !== lastMultShown){
     lastMultShown = mult;
