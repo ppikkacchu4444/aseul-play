@@ -392,7 +392,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.21</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.22</div>
 </div>
 
 <script>
@@ -2917,12 +2917,30 @@ function draw(){
       : mult >= 10 ? '255,92,122'  : mult >= 5  ? '255,142,79'  : '255,180,84';
     /* 가장자리에서만 진하고 가운데로 갈수록 0 — 안쪽 반지름을 넉넉히 잡아
        **필드 한복판에는 색이 아예 닿지 않는다.** 배수가 오르는 순간(wmPop)엔 한 번 확 밝아진다 */
-    const wr0 = Math.min(W, H) * .34, wr1 = Math.hypot(W, H) * .58;
+    const wr0 = Math.min(W, H) * .30, wr1 = Math.hypot(W, H) * .58;
     const wg = ctx.createRadialGradient(W/2, H*.56, wr0, W/2, H*.56, wr1);
+    /* v1.22: 가장자리 .30 -> .52, 비트 몫 .02 -> .07. "조용해졌다"(유저) — 중앙을 비운 건
+       맞았지만 가장자리가 너무 얌전했다. 태우는 세기는 여기 두 숫자로만 조절한다 */
     wg.addColorStop(0, 'rgba(' + wc + ',0)');
-    wg.addColorStop(.55, 'rgba(' + wc + ',' + (wq * (cooling ? .05 : .13) + wmPop*.05).toFixed(3) + ')');
-    wg.addColorStop(1,   'rgba(' + wc + ',' + (wq * (cooling ? .10 : .30) + wmPop*.13 + bp*.02).toFixed(3) + ')');
+    wg.addColorStop(.48, 'rgba(' + wc + ',' + (wq * (cooling ? .07 : .19) + wmPop*.07).toFixed(3) + ')');
+    wg.addColorStop(1,   'rgba(' + wc + ',' + (wq * (cooling ? .16 : .52) + wmPop*.18 + bp*.07).toFixed(3) + ')');
     ctx.fillStyle = wg; ctx.fillRect(0, 0, W, H);
+
+    /* 🔴 **숫자는 채우지 않고 긋는다 (v1.22).**
+       v1.21 에서 글자를 통째로 걷었더니 "조용해졌다"는 판정이 왔다. 되살리되 예전처럼
+       **면으로 채우면** 다시 다음 벽이 오는 길을 덮는다(4조). 그래서 **윤곽선만** 긋는다:
+       · 속이 완전히 비어 있어 벽도 별도 그대로 비친다 — 잉크의 총량은 예전의 1/10 이하
+       · 그런데 **모서리가 또렷해서 형태는 오히려 더 잘 읽힌다.**
+         흐린 면은 '무언가 있다'까지지만, 가는 선은 '×40 이다'까지 온다
+       · 배수가 오르는 순간(wmPop)엔 선이 굵어지고 밝아진다 — 사건은 굵기로 말한다
+       칩·꼬리·가장자리와 겹치는 게 아니라, 셋이 못 하는 **'크다'는 감각**만 맡는다 */
+    const wsz = (104 + hsAll*54) * (1 + wmPop*.22) | 0;
+    ctx.font = '900 ' + wsz + 'px "Black Han Sans","Gothic A1",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 2.2 + wmPop*2.6 + hsAll*1.1;
+    ctx.strokeStyle = 'rgba(' + wc + ',' + ((cooling ? .16 : .30) + wmPop*.34 + bp*.06).toFixed(3) + ')';
+    ctx.strokeText('×' + mult, W/2, H*.30);
   }
 
   // 벽
