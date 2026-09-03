@@ -447,7 +447,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.34</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.35</div>
 </div>
 
 <script>
@@ -1427,7 +1427,12 @@ function island(row, bw, bx, amp){
 }
 
 /* 존 색을 그대로 밝혀 테두리로 쓴다 — 색이 곧 존이라 존 구분이 흐려지지 않는다 */
-const RIM_CACHE = {}, BODY_CACHE = {}, RGB_CACHE = {};
+const RIM_CACHE = {}, BODY_CACHE = {}, RGB_CACHE = {}, RAW_CACHE = {};
+function rawRGB(hex){                            // '#FFDF6B' -> '255,223,107' (손대지 않은 원색)
+  if(RAW_CACHE[hex]) return RAW_CACHE[hex];
+  const v = parseInt((hex || '#FFFFFF').slice(1), 16);
+  return RAW_CACHE[hex] = (v>>16&255) + ',' + (v>>8&255) + ',' + (v&255);
+}
 function rimRGB(hex){                            // 테두리 색의 순수 rgb — 알파를 바꿔 가며 겹칠 때 쓴다
   if(RGB_CACHE[hex]) return RGB_CACHE[hex];
   const v = parseInt((hex || '#3A4680').slice(1), 16);
@@ -3943,14 +3948,33 @@ function draw(){
          그래서 **글자를 화면 밖(-4000)에 그리고 그림자만 제자리로 밀어 넣는다** —
          canvas 의 그림자는 원본과 따로 놓이므로 이러면 **후광만 남고 몸통은 0 번** 쌓인다.
          그 위에 안 번진 심지 한 번. 후광은 넓고 글자는 또렷한, 원래 의도한 그림이 된다 */
-      const OFF = 4000 / sc;   // 좌표계가 sc 배로 늘어나 있으므로 밀어내는 거리도 나눠 준다
-      ctx.globalAlpha = halo;                         // 밝기는 유지, 벌어지는 건 반경 쪽
+      /* 🔴 **글자 그림자로 후광을 만들지 않는다 (v1.35).** 유저: "콤보 텍스트 효과 좀 없애라.
+         옆에서 그림자인지 뭔지 날라오는 느낌은 별로야. 다른 연출을 넣거나 해야지."
+         맞다 — 그리고 그건 연출이 아니라 **버그였다.** canvas 의 shadowOffsetX 는
+         **현재 변환(CTM)을 따라가지 않는다.** 그런데 나는 글자를 변환된 좌표계에서
+         -OFF 만큼 밀어 놓고 오프셋으로 되돌리려 했으니, 팝 스케일(sc)이 바뀔 때마다
+         후광이 가로로 딸려 움직였다. 실측(제자리 400px): sc=1.0 -> 98px, sc=0.5 -> 357px,
+         sc=0.42 -> 411px. 팝이 0.42에서 1.18로 커지는 0.2초 동안 후광이 옆에서 미끄러져
+         들어온 것이다. v1.30~34 내내 후광은 제자리에 없었다.
+
+         고치는 방향은 오프셋을 다시 맞추는 게 아니라 **글자로 빛을 만들지 않는 것**이다.
+         글자를 흐려 후광을 만들면 (ㄱ)글자꼴이 뭉개지거나 (ㄴ)오프셋에 휘둘린다.
+         대신 글자 뒤에 **진짜 빛줄기**를 하나 깐다 — 납작하게 눌러(세로 .30) 가로로 길게,
+         가운데가 밝고 끝으로 갈수록 사라지는 가산 그라디언트. 동그라미가 아니라 빛의 결이고,
+         글자는 그 위에 딱 한 번 또렷하게 얹힌다. 사라질 때는 줄기가 옆으로 벌어지며 꺼진다 */
+      const tw = ctx.measureText(f.txt).width;
+      const R = (tw * .5 + f.size * .55) * (1 + (1 - halo) * .45);
+      ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.shadowColor = f.col; ctx.shadowOffsetX = OFF;
-      ctx.shadowBlur = f.glow * bloom;       ctx.fillText(f.txt, -OFF, 0);   // 넓게 번지는 겹
-      ctx.shadowBlur = f.glow * bloom * .42; ctx.fillText(f.txt, -OFF, 0);   // 안쪽 심 — 글자 둘레를 데운다
-      ctx.shadowBlur = 0; ctx.shadowOffsetX = 0;
-      ctx.globalCompositeOperation = 'source-over';
+      ctx.translate(0, -f.size * .34);
+      ctx.scale(1, .30);                              // 납작한 빛줄기 — 원이 아니라 결이다
+      const rgb = rawRGB(f.col), a = halo * Math.min(1, f.glow / 22) * .60;
+      const bg = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+      bg.addColorStop(0,   'rgba(' + rgb + ',' + a.toFixed(3) + ')');
+      bg.addColorStop(.40, 'rgba(' + rgb + ',' + (a * .45).toFixed(3) + ')');
+      bg.addColorStop(1,   'rgba(' + rgb + ',0)');
+      ctx.fillStyle = bg; ctx.fillRect(-R, -R, R * 2, R * 2);
+      ctx.restore();
     }
     ctx.globalAlpha = core;                           // 글자는 먼저 녹는다
     ctx.fillText(f.txt, 0, 0);   // 심지 — 언제나 한 번만 그린다
