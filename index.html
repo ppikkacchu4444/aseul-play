@@ -471,7 +471,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.37</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.38</div>
 </div>
 
 <script>
@@ -857,17 +857,49 @@ function bpmNow(){ return lerp(96, 152, diff()) * (nova > 0 ? 1.2 : 1); }
    1.28배면 같은 자리가 293px — 화면에 2.7 줄이 들어와 **다음 수를 읽으면서 지금을 처리**한다.
    기어가 오르면 여전히 1.0배로 수렴하므로 '기어가 박자로 들린다'는 v0.92 구조는 그대로다 */
 const zoneStep = () => Math.max(0, zoneIdx - ZONE_ONCE);       // 워밍업 이후 몇 번째 존인가
-function beatStretch(){
-  if(zoneIdx < ZONE_ONCE) return 2.0;                          // 워밍업 — 원래 간격 그대로 쉽게
-  return clamp(1.30 - .045 * zoneStep(), .82, 1.30);
+
+/* 🔴 **줄 간격은 존이 아니라 진행도가 정한다 (v1.38).** 유저: "지금 속도처럼 점진적으로
+   가야한다고. 속도는 점점 빨라지잖아. 이것처럼 되어야 해. 존의 줄 간격이 지금 중구난방이잖아.
+   점차적으로 레벨의 난이도가 상승해야하는거지. 무한정 플레이하게 할 수 없으니까."
+
+   맞다. v1.37 실측 줄 간격: 224 → 181 → 230 → 117 → 182 → 236 → 165 → 224 → 119 → 175 → 220 → 160.
+   오르내리는 이유가 둘이었다:
+     ① 간격이 **존의 음표**(빗발 .5박 ↔ 성긴 하늘 1.0박)에 물려 있어 존이 바뀔 때마다 튄다.
+     ② 기어가 오르면 속도가 24% 뛰는데 늘이기 배수는 10%밖에 안 줄어, 기어 경계에서
+        간격이 **되레 벌어졌다**(v1.37 z3 156px → z4 174px).
+
+   그래서 **목표를 픽셀로 직접 잡는다** — 속도가 기어의 함수이듯 간격은 존 번호의 함수다.
+   워밍업 224px, 이후 200px 에서 존마다 7%씩 줄어 76px 에서 멈춘다.
+   속도는 계속 오르므로 **반응 시간은 간격보다 더 빨리 짧아진다**(0.65초 → 0.13초).
+   난이도가 두 축으로 동시에 조여드는 셈이고, 둘 다 단조롭다.
+
+   무한정 못 하게 하는 것도 여기서 해결된다: 속도는 5단에서 멈추지만(v0.87 — 끝을 시간이
+   정하면 안 된다) **간격은 그 뒤로도 계속 좁아져** 결국 판이 끝난다. 끝내는 것은
+   시간이 아니라 여전히 손이다 — 좁아진 통로를 못 지나가는 것이니까.
+
+   **박자는 지킨다**: 목표 픽셀을 1/16박 격자에 스냅하고, 스냅 때문에 직전 존보다 넓어지면
+   한 칸씩 좁혀 내린다. 그래서 벽은 여전히 박자 위에 오면서(v0.92) 간격은 절대 안 늘어난다.
+   존의 성격은 이제 **폭과 흔들림**이 맡는다(ZONE_DEFS 참고) — 간격은 난이도 전용 축이다 */
+const ROW_PX0 = 224, ROW_PX1 = 200, ROW_PXMIN = 76, ROW_DECAY = .93;
+const rowPxTarget = () => zoneIdx < ZONE_ONCE ? ROW_PX0
+  : Math.max(ROW_PXMIN, ROW_PX1 * Math.pow(ROW_DECAY, zoneStep()));
+/* 계획은 **기본 속도**로 세운다 — 열기·초신성 배수까지 넣으면 잘하는 사람일수록
+   간격이 벌어져 곡선이 사람마다 달라진다 */
+/* 🔴 **계획은 '지금 기어'가 아니라 '이 존의 기어'로 세운다.** 변속은 0.45초에 걸쳐
+   미끄러지므로(v0.89), 존이 바뀌는 그 순간의 diff() 는 아직 **이전 기어**다.
+   그걸로 계획하면 새 존이 낡은 속도 기준으로 계산돼 간격이 도로 넓어진다 —
+   실측: 1존 목표 200px 인데 274px 이 나왔고, 기어 경계마다 역전이 4번 생겼다.
+   diffTarget() 은 변속이 끝났을 때의 값이라, 이걸 쓰면 계획과 실제가 맞는다 */
+const baseSpeed = () => lerp(T.speed0, T.speed1, diffTarget()) * zone().spdMul;
+function refreshRowStep(){
+  const bpm = lerp(96, 152, diffTarget()), sp = Math.max(60, baseSpeed()), unit = 60 / bpm / 16;
+  let k = Math.max(4, Math.round(rowPxTarget() / sp / unit));                   // 최소 1/4박
+  while(k > 4 && curRowPx > 0 && k * unit * sp > curRowPx) k--;                 // 넓어지면 한 칸씩 좁힌다
+  curRowSec = k * unit;
+  curRowPx  = curRowSec * sp;
 }
-function rowBeats(){
-  const b = (zone().beats || .75) * beatStretch();
-  /* 바닥을 .5박으로 — 제일 빠른 존(빗발)이 최고 기어에서 0.197초가 되는 선이다.
-     지금까지 실제로 나오던 가장 짧은 값이라, 여기서 더 내리면 새 영역으로 들어간다 */
-  return Math.max(.5, Math.round(b * 8) / 8);
-}
-const rowSecNow = () => rowBeats() * (60 / bpmNow());
+function rowBeats(){ return (curRowSec || .6) * bpmNow() / 60; }   // 스케줄러·훅이 쓰는 박 값
+const rowSecNow = () => curRowSec || .6;
 function startMusic(){
   if(!ac() || BEAT.timer) return;
   BEAT.next = AC.currentTime + .06; BEAT.n = 0;
@@ -1059,6 +1091,7 @@ let firstGrazeT = null, secondGrazeT = null, deathZone = '';   // 검증 로거 
 let constSaved, constHad, constGotRun;   // 현재 별자리: 누적 점수 / 이미 획득 / 이번 판에 획득
 let rowsSpawned, zoneIdx, lastGapC, zigDir, forkSafeLeft;
 let zoneRow, zoneRowsTarget;                     // v1.34: 존 안에서 몇 줄째 · 이 존의 줄 수
+let curRowSec, curRowPx;                         // v1.38: 이 존의 한 줄 시간·간격(존이 바뀔 때만 갱신, 절대 안 늘어난다)
 let stillIv, stillN;                             // v1.34: "한 자리에 서서" 통과되는 x 구간과 그 연속 줄 수
 let moteGap;                   // 별가루 배치 간격 카운터 — 마지막 무리 이후 지난 줄 수
 let handHint;                  // 첫 판 조작 안내(반투명 손) — 실제로 손을 대면 사라진다
@@ -1161,6 +1194,7 @@ function reset(){
   firstGrazeT = null; secondGrazeT = null; deathZone = '';
   rowsSpawned = 0; zoneIdx = 0; lastGapC = W/2; zigDir = 1; forkSafeLeft = true; moteGap = 99;
   zoneRow = 0; zoneRowsTarget = 0;                // 0 = 아직 안 정해짐, 첫 줄에서 계산한다(로드 시점 TDZ 회피)
+  curRowSec = 0; curRowPx = 0;
   stillIv = null; stillN = 0;
   phraseQueue = [];
   melody = []; peakAt = 0;
@@ -1303,13 +1337,16 @@ const ZONE_DEFS = {
      `beats` = 벽 하나가 오는 간격을 **음표**로 적은 것(최고 기어 기준). 기어가 낮으면
      같은 음표가 길게 늘어난다(gearBeatMul). 픽셀 간격은 이제 결과값이다 — 속도 x 시간.
      이래야 존이 바뀔 때 '간격이 달라졌다'가 아니라 **'박자가 바뀌었다'**로 읽힌다 */
-  basic:  { name:'워밍업',    col:'#3A4680', type:'basic',  gapMul:1.0,  spdMul:1.0, beats:.75 },
-  zigzag: { name:'지그재그',  col:'#2E5F6E', type:'zigzag', gapMul:1.0,  spdMul:1.0, beats:.75 },   // 점8분
+  /* 🔴 **beats 를 걷어냈다 (v1.38).** 줄 간격이 진행도 전용 축이 된 이상, 존이 간격을
+     건드리면 그 곡선이 다시 울퉁불퉁해진다. 존의 성격은 이제 **통로 폭(gapMul)과
+     좌우 흔들림(drift)**이 맡는다 — 난이도 곡선을 건드리지 않으면서 손맛은 갈린다 */
+  basic:  { name:'워밍업',    col:'#3A4680', type:'basic',  gapMul:1.0,  spdMul:1.0 },
+  zigzag: { name:'지그재그',  col:'#2E5F6E', type:'zigzag', gapMul:1.0,  spdMul:1.0 },              // 좌우 교대
   /* 별 소나기 (v0.85) — **여기만 줄 간격을 넓힌다.** 이 존은 줄마다 떠 있는 섬을 끼고
      옆으로 붙어야 해서, 같은 반응 창에 다른 존보다 **더 많이 움직여야** 한다. 간격이 같으면
      그 차이가 그대로 조급함이 된다(유저: "다음 벽까지 간격이 너무 좁다").
      넓히는 건 봐주는 게 아니라 **붙을 시간을 주는 것** — 여긴 그레이즈 파티다 */
-  island: { name:'별 소나기', col:'#6E5230', type:'island', gapMul:1.12, spdMul:1.0, beats:1 },     // 4분
+  island: { name:'별 소나기', col:'#6E5230', type:'island', gapMul:1.12, spdMul:1.0 },              // 떠 있는 섬
   /* 빗발 (v0.74) — **줄 간격**을 좁힌 존. 통로 폭이 아니라 간격을 좁히는 게 핵심이다:
      폭을 좁히면 안전 차선이 사라져 "붙는 것"이 선택이 아니게 되고(20조), 그건 이미
      좁은 골목 기믹이다. 간격을 좁히면 벽이 연달아 빗발쳐 **스침이 촘촘해지고 배수가 빨리 오른다**
@@ -1320,7 +1357,9 @@ const ZONE_DEFS = {
      통로를 화면 전체에 무작위로 놓으면 엄지 예산(reach) 안이긴 해도 초당 대여섯 번
      최대치로 뛰어야 해서 손이 먼저 지친다(15조는 "가능한가"가 아니라 "아픈가"를 묻는다).
      그래서 여긴 통로를 **이전 줄 근처(±46px)에** 놓는다 — 벽은 빗발치되 길은 완만히 굽는다 */
-  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:1.15, spdMul:1.0, beats:.5, drift:46 },   // 8분 — 다다다다
+  /* 빗발 — 예전엔 '빠른 박자'가 정체성이었다. 간격이 공용 축이 된 지금은
+     **좁은 통로 + 큰 흔들림**으로 그 조급함을 낸다: 손이 쉴 틈이 없다 */
+  swarm:  { name:'빗발',     col:'#5A4A7E', type:'basic',  gapMul:.92, spdMul:1.0, drift:74 },
   /* ── 기본 하늘의 리듬 존 (v0.88 → v0.89 속도 통일) ──
      스테이지 존들은 **벽의 문법**(갈림길·움직임·닫힘)으로 다르지만, 기본 하늘의 존은
      같은 문법 위에서 **리듬**만 다르다 — 얼마나 자주 오고, 얼마나 넓고, 길이 얼마나 굽는가.
@@ -1328,11 +1367,11 @@ const ZONE_DEFS = {
      그건 단계가 아니라 진동이고, "갈수록 빨라진다"가 깨진다(유저 보고).
      속도는 **루프를 넘을 때만** 오르고(기어), 존은 속도 말고 나머지로만 다르다.
      그래서 순풍은 '빠른 존'이 아니라 **넓고 곧은 활주로**가 됐다 — 붙기 제일 좋은 구간 */
-  draft:  { name:'순풍',     col:'#2E7A6B', type:'basic',  gapMul:1.22, spdMul:1.0, beats:.75, drift:85 },  // 점8분
-  /* 🔴 **1.5박 → 1.0박 (v1.33).** 이 존 하나가 1기어 한 바퀴의 **33%** 를 먹고 있었다
-     (13줄 x 1.43초 = 18.6초, 빗발은 4.4초). 순환은 다섯인데 체감은 성긴 하늘이 절반이었던 셈.
-     '성기다'는 **줄 간격이 아니라 벽 수**로 말해야 한다 — 간격으로 말하면 그냥 빈 화면이다 */
-  sparse: { name:'성긴 하늘', col:'#6E4A3A', type:'basic',  gapMul:1.0,  spdMul:1.0, beats:1.0 },   // 4분 — 쿠웅 … 쿠웅
+  draft:  { name:'순풍',     col:'#2E7A6B', type:'basic',  gapMul:1.22, spdMul:1.0, drift:85 },   // 넓게 크게 흐른다
+  /* 성긴 하늘 — 숨 고르는 자리. 예전엔 '느린 박자'였는데(v1.33에서 1.5→1.0박으로 줄였다)
+     이제 간격은 못 건드리므로 **가장 넓은 통로 + 흔들림 0** 으로 쉬게 한다.
+     빠르기는 같은데 손이 편한 구간이라, 다음 존이 조여들 때 대비가 된다 */
+  sparse: { name:'성긴 하늘', col:'#6E4A3A', type:'basic',  gapMul:1.28, spdMul:1.0 },
   fork:   { name:'갈림길',    col:'#3F6045', type:'fork',   gapMul:1.0,  spdMul:.97 },
   mover:  { name:'무빙워크',  col:'#4A3E86', type:'mover',  gapMul:1.06, spdMul:1.0 },
   narrow: { name:'좁은 골목', col:'#5C3550', type:'narrow', gapMul:.88,  spdMul:.94 },
@@ -1490,7 +1529,7 @@ function spawnRow(y = -BLOCK_H - 6){
   const d = diff(), z = zone();
   const row = { y, blocks: [], scored: false, col: z.col };
   const r = rng();                                       // 배치 난수는 전부 rng — 오늘 안에서 코스가 고정된다
-  if(!zoneRowsTarget) zoneRowsTarget = rowsForZone();
+  if(!zoneRowsTarget){ refreshRowStep(); zoneRowsTarget = rowsForZone(); }
   const gateRow = (zoneRow + 1) >= zoneRowsTarget;
   /* ── 조임목 (v0.68) — 통로를 상시 좁히는 대신 **가끔** 조인다 ──
      상시 좁히면 후반엔 안 스치고 지나갈 수가 없어져 "붙는다"가 선택이 아니라 기하가 된다.
@@ -1703,7 +1742,8 @@ function spawnRow(y = -BLOCK_H - 6){
   if(zoneRow >= zoneRowsTarget){                        // 페이지 넘김
     zoneRow = 0;
     zoneIdx++;
-    zoneRowsTarget = rowsForZone();                     // 새 존의 템포로 줄 수를 다시 뽑는다
+    refreshRowStep();                                   // 새 존의 간격 — 직전보다 절대 넓어지지 않는다
+    zoneRowsTarget = rowsForZone();                     // 그 간격으로 15초를 채울 줄 수
     const nz = zone();
     if(nz.type === 'fork') forkSafeLeft = rng() < .5;    // 이번 갈림길의 안전측 결정
     if(STAGES[currentSky].band === undefined){           // 1스테이지만 고도가 계속 내려간다 — 이후 별자리는 제 색 고정
@@ -2378,7 +2418,7 @@ function update(sdt, rawDt){
     /* 협곡엔 줄이 없으니 rowsSpawned도 안 오른다 — 난이도가 줄에 물린 뒤로는(v0.87)
        그대로 두면 협곡만 영원히 초기 속도에 머문다. **같은 거리 = 같은 한 줄**로 세어 준다 */
     while(cScoreAcc >= need && guard++ < 8){ cScoreAcc -= need; rowsSpawned++; zoneRow++;
-      if(zoneRow >= (zoneRowsTarget || ROWS_PER_ZONE)){ zoneRow = 0; zoneIdx++; zoneRowsTarget = rowsForZone(); } payPass(); }
+      if(zoneRow >= (zoneRowsTarget || ROWS_PER_ZONE)){ zoneRow = 0; zoneIdx++; refreshRowStep(); zoneRowsTarget = rowsForZone(); } payPass(); }
   } else {
     for(const row of rows){
       if(!row.scored && row.y > orb.y + ORB_R){ row.scored = true; payPass(); }
@@ -4429,6 +4469,7 @@ window.ASEUL = {
   get zoneName(){ return zone().name; },
   get beats(){ return rowBeats(); },               // 검증용: 이 존의 음표 값(박)
   get rowSec(){ return +rowSecNow().toFixed(3); },
+  get rowPx(){ return Math.round(curRowPx); },      // v1.38 검증용: 이 존의 계획 줄 간격(px, 열기 배수 제외)
   get dist(){ return Math.round(distAcc); },       // v1.36 검증용: 이동 거리(px = m) // 검증용: 벽 하나가 오는 간격(초)
   get diff(){ return +diff().toFixed(3); },
   get spd(){ return +speed().toFixed(0); },
