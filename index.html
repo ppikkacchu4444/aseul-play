@@ -485,7 +485,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.41</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.42</div>
 </div>
 
 <script>
@@ -1079,7 +1079,16 @@ let state = 'title';           // title | play | dying | dead
 let boom = null;               // 별이 터지는 순간 — {x,y,t,life}. 죽음마다 하나뿐이라 배열이 아니다
 let rows = [], parts = [], floats = [], stars = [], rings = [], lines = [];
 let glints = [];               // 스침 섬광 — 폭발과 구분되는 '긁힘'의 언어
-let motes = [], nova = 0, novaMax = 6;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
+/* 🔴 **초신성 6초 -> 4.5초 (v1.42).** 유저: "지금 초신성이 좀 길게 느껴지거든. 시간을 좀 줄여보자."
+   맞다 — 그리고 v1.41 에서 **초당 부수는 양이 1.27배**가 됐으므로 같은 6초가 예전보다
+   내용이 27% 더 많아진 셈이다. 예전과 같은 파괴량이 되는 지점이 6 / 1.27 = 4.7초라,
+   4.5초면 그보다 살짝 짧다 — "줄이자"에 정확히 해당한다.
+   꺼짐 예고도 같은 비율로 줄인다(2초 -> 1.5초, 둘 다 전체의 33%) — 예고가 구간의 절반을
+   먹으면 질주가 아니라 마무리만 남는다. 예고 창은 여전히 6줄 이상이 지나갈 시간이다.
+   두 값을 상수로 묶어 둔다: 화면 점멸·액자 게이지·하늘 물듦이 전부 이 창을 공유하므로
+   따로 만지면 어긋난다 */
+const NOVA_T = 4.5, NOVA_WARN = 1.5;
+let motes = [], nova = 0, novaMax = NOVA_T;   // 별가루(금빛 미끼) · 초신성(×50 폭주) 잔여 초 / 이번 초신성의 총 길이(게이지 기준)
 let nebs = [], neb = 0, nebGap = 0, nebOut = 0, nebIn = 0;  // 성운 조각 · 부푼 시간 잔여 · 출현 쿨다운 · 마무리(링으로 빨려드는) 잔여
 /* 소용돌이 (v0.74) — **성운과 반대 언어의 아이템.** 성운이 조용히 부푸는 지속형이라면
    이건 확 빨아들이는 순간형이다. 버프를 하나 더 얹으면 게임이 "버프 줍기"가 되고,
@@ -2723,7 +2732,7 @@ function update(sdt, rawDt){
       novaRainT = 0;
       motes.push({ x: 20 + Math.random()*(W - 40), y: -14, ph: Math.random()*6.28 });
     }
-    if(!novaWarned && nova > 0 && nova <= 2){          // 꺼지기 2초 전 — 불꽃이 눈에 띄게 잦아든다 (끝을 모른 채 죽지 않게)
+    if(!novaWarned && nova > 0 && nova <= NOVA_WARN){  // 꺼지기 전 — 불꽃이 눈에 띄게 잦아든다 (끝을 모른 채 죽지 않게)
       novaWarned = true;
       floater(W/2, H*.5, '불꽃이 잦아든다…', '#FFE9C4', 15, 1.2);
       tone(880,.12,'sine',.12); tone(659,.16,'sine',.1,.12); tone(523,.2,'sine',.09,.26);
@@ -2782,7 +2791,7 @@ function update(sdt, rawDt){
       rings.push({x:orb.x, y:orb.y, r0:12, r1:130, col: m5 >= 40 ? '#FFDF6B' : m5 >= 10 ? '#FF5C7A' : '#FFD98A', lw:4, life:.5, t:0});
       if(!REDUCED){ flash = m5 >= 50 ? .45 : .3; zoom = 1.06; if(m5 >= 50) vign = .7; }
       if(mult >= 1 + capH() && nova <= 0){               // 자기 상한 도달 — 초신성: 벽을 뚫는다, 그리고 재가 된다
-        nova = MOOD.id === 'nova' ? 8 : 6; novaMax = nova; novaCount++; novaWarned = false;  // 초신성의 날은 8초
+        nova = MOOD.id === 'nova' ? NOVA_T * 1.33 : NOVA_T; novaMax = nova; novaCount++; novaWarned = false;  // 초신성의 날은 1.33배
         novaSpin = SPIN_T;                           // 한 바퀴 돌며 부스터 점화
         sparks(orb.x, orb.y + 6, 22, '#FFF3C4', 1.7, 280);   // 뒤로 뿜는 화염
         sparks(orb.x, orb.y + 6, 14, '#FFB454', 1.3, 220);
@@ -3237,11 +3246,11 @@ function draw(){
     ctx.globalAlpha = 1;
   }
 
-  // 열기 분위기 — 콤보가 오르면 세상이 달아오른다 (초신성은 백금빛, 마지막 2초는 잦아든다)
+  // 열기 분위기 — 콤보가 오르면 세상이 달아오른다 (초신성은 백금빛, 꺼짐 창에서는 잦아든다)
   if(state !== 'title' && (hsAll > 0 || nova > 0)){
     const g = ctx.createLinearGradient(0,0,0,H);
     const col = nova > 0 ? '255,215,90' : hsAll > .4 ? '255,92,122' : '255,150,60';
-    g.addColorStop(0, `rgba(${col},${.04 + hsAll*.09 + bp*hsAll*.04 + (nova > 0 ? .07 * Math.min(1, nova/2) : 0)})`);
+    g.addColorStop(0, `rgba(${col},${.04 + hsAll*.09 + bp*hsAll*.04 + (nova > 0 ? .07 * Math.min(1, nova/NOVA_WARN) : 0)})`);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
   }
@@ -3769,10 +3778,10 @@ function draw(){
     }
     if(state === 'play'){
       const inB = sinceGraze < .25;
-      // 초신성 꺼짐 박자 — 화면 점멸·액자 게이지·캐릭터가 이 한 값을 공유한다(6펄스)
+      // 초신성 꺼짐 박자 — 화면 점멸·액자 게이지·캐릭터가 이 한 값을 공유한다(NOVA_WARN 창에서 5펄스)
       let novaPulse = 0;
-      if(nova > 0 && nova <= 2 && !REDUCED){
-        const nt = (2 - nova) / 2, nf2 = (nt * 6) % 1;
+      if(nova > 0 && nova <= NOVA_WARN && !REDUCED){
+        const nt = (NOVA_WARN - nova) / NOVA_WARN, nf2 = (nt * 5) % 1;   // 창이 짧아진 만큼 6 -> 5펄스 (셀 수 있는 속도 유지)
         novaPulse = nf2 < .32 ? (1 - nf2 / .32) * (.55 + nt * .45) : 0;
       }
       // 몸 = 히트박스 그대로, 크기 절대 고정(13px). 몸짓(기울기·늘어남)은 그리기 변형뿐 — 넓이 보존
@@ -3794,9 +3803,9 @@ function draw(){
         ctx.scale(1 + st, Math.max(.8, 1 - st*.75 - sq));
       }
       if(nova > 0){
-        /* 초신성 — 백열의 핵. 마지막 2초에는 **액자·화면과 같은 박자로 캐릭터도 함께 번쩍인다**:
+        /* 초신성 — 백열의 핵. 꺼짐 창에서는 **액자·화면과 같은 박자로 캐릭터도 함께 번쩍인다**:
            별·게이지·화면이 한 심장으로 뛰어야 "이 불이 곧 꺼진다"가 하나의 사건으로 읽힌다 */
-        const nf = Math.min(1, nova / 2);
+        const nf = Math.min(1, nova / NOVA_WARN);
         ctx.shadowColor = '#FFDF6B';
         ctx.shadowBlur = (30 + Math.sin(elapsed*18)*8) * (.35 + .65*nf) + novaPulse * 40;
       } else {
@@ -3830,8 +3839,8 @@ function draw(){
         ctx.beginPath(); ctx.arc(0, 0, bodyR, 0, 6.283); ctx.fill();
       }
       ctx.shadowBlur = 0;
-      if(nova > 0 && charImgOk){                       // 백열 플리커 — 마지막 2초엔 꺼짐 박자에 맞춰 크게 터진다
-        ctx.globalAlpha = nova <= 2 ? .12 + novaPulse * .8 : .2 + .2 * Math.max(0, Math.sin(elapsed*22));
+      if(nova > 0 && charImgOk){                       // 백열 플리커 — 꺼짐 창에서는 그 박자에 맞춰 크게 터진다
+        ctx.globalAlpha = nova <= NOVA_WARN ? .12 + novaPulse * .8 : .2 + .2 * Math.max(0, Math.sin(elapsed*22));
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath(); ctx.arc(0, 0, bodyR * (1 + novaPulse * .5), 0, 6.283); ctx.fill();
         ctx.globalAlpha = 1;
@@ -4127,11 +4136,11 @@ function draw(){
     ctx.fillStyle = gg; ctx.fillRect(0, 0, W, H);
   }
 
-  // 초신성 꺼짐 — 마지막 2초, 조명이 나가듯 화면 전체가 6번 크게 점멸한다.
+  // 초신성 꺼짐 — NOVA_WARN 창 동안, 조명이 나가듯 화면 전체가 5번 크게 점멸한다.
   // 고주파 사인은 프레임에 뭉개져 안 읽혔다 → 셀 수 있는 박자로 바꾸고 갈수록 세게
-  if(nova > 0 && nova <= 2 && !REDUCED){
-    const t = (2 - nova) / 2;                                // 0 → 1
-    const f = (t * 6) % 1;                                   // 펄스 6번, 각 펄스 안의 위상 (셀 수 있되 다급하게)
+  if(nova > 0 && nova <= NOVA_WARN && !REDUCED){
+    const t = (NOVA_WARN - nova) / NOVA_WARN;                // 0 → 1
+    const f = (t * 5) % 1;                                   // 펄스 5번, 각 펄스 안의 위상 (셀 수 있되 다급하게)
     const amp = .30 + t * .28;                               // 마지막이 가장 세다
     ctx.fillStyle = f < .32
       ? `rgba(255,246,220,${amp * (1 - f/.32) * .95})`        // 번쩍
@@ -4144,7 +4153,7 @@ function draw(){
   if(nova > 0){
     const p = clamp(nova / novaMax, 0, 1), ins = 3;
     const seg = (W/2 - ins) + (H - ins*2) + (W/2 - ins);      // 한쪽 경로 길이(상단 중앙 → 모서리 → 하단 중앙)
-    const end = nova <= 2;
+    const end = nova <= NOVA_WARN;
     ctx.save();
     ctx.lineWidth = end ? 7 : 5;
     ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
