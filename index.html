@@ -447,7 +447,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.33</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.34</div>
 </div>
 
 <script>
@@ -817,6 +817,14 @@ const BEAT = { next:0, n:0, timer:null, lastKick:0, spb:.6 };
 function bpmNow(){ return lerp(96, 152, diff()) * (nova > 0 ? 1.2 : 1); }
 /* 벽 하나가 오는 간격(박) — 존의 음표 x 기어. 기어가 5단 계단이라 **박자도 5단으로 고정**되고,
    한 기어 안에서는 언제나 같은 맥이라 몸이 배울 수 있다. 1/8박 격자에 스냅해 음표로 떨어뜨린다 */
+/* 🔴 **존이 갈수록 간격이 좁아진다 (v1.34).** 유저: "워밍업 단계는 원래 간격 쉽게 유지해.
+   이후부터 살짝 간격 좁히고... 존이 뒤로 갈수록 벽 줄 간격이 조금씩 줄어야하고
+   그래야 갈수록 재미와 스릴을 느낄 수 있지."
+   계측해 보니 **정반대로 가고 있었다** — 별 소나기의 줄 간격이 1기어 233px → 5기어 281px.
+   속도는 2.6배 오르는데 템포(BPM)는 1.58배밖에 안 올라서, 픽셀 간격이 되레 벌어진 것이다.
+   그래서 늘이기 배수를 **기어가 아니라 존 번호**에 물린다: 워밍업은 2.0(원래 간격 그대로),
+   이후 1.30 에서 존마다 .045씩 줄어 .82 에서 멈춘다. 반응 시간이 단조롭게 짧아진다.
+   1/8박 격자 스냅은 그대로라 여전히 음표로 떨어진다 */
 /* 🔴 **저기어 늘이기 2.0배 → 1.28배 (v1.33).** 유저: "레벨이 너무 루즈해졌다.
    벽 줄 간격이 너무 먼 것들이 많다. 너무 지루하고 루즈함. 너무 안전한 느낌이다."
    원인은 여기였다 — 낮은 기어에서 모든 존의 음표를 **통째로 두 배**로 늘이고 있었다.
@@ -824,9 +832,16 @@ function bpmNow(){ return lerp(96, 152, diff()) * (nova > 0 ? 1.2 : 1); }
    벽이 하나 지나가고 나면 다음 벽이 올 때까지 아무 일도 안 일어나는 구간이 생긴 것이다.
    1.28배면 같은 자리가 293px — 화면에 2.7 줄이 들어와 **다음 수를 읽으면서 지금을 처리**한다.
    기어가 오르면 여전히 1.0배로 수렴하므로 '기어가 박자로 들린다'는 v0.92 구조는 그대로다 */
+const zoneStep = () => Math.max(0, zoneIdx - ZONE_ONCE);       // 워밍업 이후 몇 번째 존인가
+function beatStretch(){
+  if(zoneIdx < ZONE_ONCE) return 2.0;                          // 워밍업 — 원래 간격 그대로 쉽게
+  return clamp(1.30 - .045 * zoneStep(), .82, 1.30);
+}
 function rowBeats(){
-  const b = (zone().beats || .75) * lerp(1.28, 1, diff());
-  return Math.max(.25, Math.round(b * 8) / 8);
+  const b = (zone().beats || .75) * beatStretch();
+  /* 바닥을 .5박으로 — 제일 빠른 존(빗발)이 최고 기어에서 0.197초가 되는 선이다.
+     지금까지 실제로 나오던 가장 짧은 값이라, 여기서 더 내리면 새 영역으로 들어간다 */
+  return Math.max(.5, Math.round(b * 8) / 8);
 }
 const rowSecNow = () => rowBeats() * (60 / bpmNow());
 function startMusic(){
@@ -1018,6 +1033,8 @@ let path = [], lastPathT = 0;           // 절정 카드용 경량 궤적 (0.05�
 let firstGrazeT = null, secondGrazeT = null, deathZone = '';   // 검증 로거 — 문법 학습·사망 원인 추적
 let constSaved, constHad, constGotRun;   // 현재 별자리: 누적 점수 / 이미 획득 / 이번 판에 획득
 let rowsSpawned, zoneIdx, lastGapC, zigDir, forkSafeLeft;
+let zoneRow, zoneRowsTarget;                     // v1.34: 존 안에서 몇 줄째 · 이 존의 줄 수
+let stillIv, stillN;                             // v1.34: "한 자리에 서서" 통과되는 x 구간과 그 연속 줄 수
 let moteGap;                   // 별가루 배치 간격 카운터 — 마지막 무리 이후 지난 줄 수
 let handHint;                  // 첫 판 조작 안내(반투명 손) — 실제로 손을 대면 사라진다
 let phraseQueue = [];          // 진행 중인 프레이즈의 남은 줄들
@@ -1117,6 +1134,8 @@ function reset(){
   path = []; lastPathT = 0;
   firstGrazeT = null; secondGrazeT = null; deathZone = '';
   rowsSpawned = 0; zoneIdx = 0; lastGapC = W/2; zigDir = 1; forkSafeLeft = true; moteGap = 99;
+  zoneRow = 0; zoneRowsTarget = 0;                // 0 = 아직 안 정해짐, 첫 줄에서 계산한다(로드 시점 TDZ 회피)
+  stillIv = null; stillN = 0;
   phraseQueue = [];
   melody = []; peakAt = 0;
   sinceGraze = 99; timeScale = 1; shake = 0; flash = 0; zoom = 1; vign = 0;
@@ -1230,6 +1249,12 @@ let rampLoops = 5;   // v1.33: 4 -> 5 (한 칸 약 20초이므로 최고 속도�
    순환(5)과 기어(3)의 주기가 어긋나므로 **같은 존을 여러 기어에서 만나게 되는** 덤도 있다 */
 const GEAR_ZONES = 3;
 const cycleLen = () => GEAR_ZONES;
+/* 🔴 **순환 길이와 기어 주기를 갈랐다 (v1.34).** 유저: "지금 존이 몇개가 안느껴지는데 총 몇개야??"
+   v1.33 에서 기어를 3존마다로 바꾸면서 cycleLen 을 3 으로 만들었는데, **zone() 이 같은 함수로
+   순환을 돌리고 있었다.** 그래서 순환이 앞 세 개(지그재그·별 소나기·빗발)로 잘리고
+   **순풍·성긴 하늘 두 존이 통째로 사라졌다** — 정의는 6개인데 4개만 나오고 있었던 것.
+   유저가 "몇 개 안 느껴진다"고 한 게 정확했다. 기어는 3존마다, 순환은 5존 그대로 */
+const rotLen = () => Math.max(1, (STAGES[currentSky].zones || BASE_ROTATION).length - ZONE_ONCE);
 /* 몇 바퀴째인가 — **워밍업이 0단, 한 바퀴 돌 때마다 한 단**. 워밍업은 판에 한 번뿐이라
    그 자체가 가장 느린 기어이고("말 그대로 레벨 워밍업"), 이후는 순환 한 바퀴 = 한 기어다 */
 const cycleIdx = () => zoneIdx < ZONE_ONCE ? 0 : Math.floor((zoneIdx - ZONE_ONCE) / cycleLen()) + 1;
@@ -1303,12 +1328,19 @@ const PHRASES = [
   { name:'바늘 계단', rows:[ {g:.72,c:.35}, {g:1.8,c:.6}, {g:.72,c:.65}, {g:1.8,c:.4}, {g:.72,c:.5} ] },
   { name:'골드 유혹', rows:[ {g:1.4,c:.3,gold:1}, {g:1.2,c:.42,gold:1}, {g:1.0,c:.54,gold:1}, {g:.8,c:.64,gold:1} ] },
 ];
-const ROWS_PER_ZONE = 13;
+const ROWS_PER_ZONE = 13;      // 되돌림용 기본값 — 실제 줄 수는 rowsForZone() 이 정한다
+/* 🔴 **존 길이를 줄 수가 아니라 시간으로 (v1.34).** 유저: "존 1개당 15초면 좋겠고."
+   13줄 고정이면 존 길이가 그 존의 템포에 휘둘린다 — 실측 3.3초(빗발 5기어) ~ 9.4초(별 소나기 1기어).
+   같은 '한 존'인데 세 배가 차이 나면 존이 몇 개인지도, 언제 바뀌는지도 몸에 안 남는다.
+   줄 수를 **그 존의 한 줄 시간으로 나눠서** 정하면 어느 존이든 15초가 된다 —
+   빠른 존은 줄이 많고 느린 존은 적다. 존은 이제 '13줄'이 아니라 '15초'다 */
+const ZONE_SEC = 15;
+function rowsForZone(){ return clamp(Math.round(ZONE_SEC / Math.max(.12, rowSecNow())), 6, 80); }
 function zone(){
   const list = STAGES[currentSky].zones || BASE_ROTATION;
   /* 워밍업은 **모든 하늘에서** 판에 한 번뿐이다(v0.89). 숨 고르기가 필요하면 워밍업을
      되풀이할 게 아니라 **그 하늘의 첫 존을 쉽게 짜면 된다**(유저 확정) */
-  const i = zoneIdx < ZONE_ONCE ? zoneIdx : ZONE_ONCE + ((zoneIdx - ZONE_ONCE) % cycleLen());
+  const i = zoneIdx < ZONE_ONCE ? zoneIdx : ZONE_ONCE + ((zoneIdx - ZONE_ONCE) % rotLen());
   return ZONE_DEFS[list[i]];                       // 모든 하늘이 무한 순환 — 코어는 어디서든 같다
 }
 
@@ -1320,17 +1352,71 @@ function zone(){
    빨라질수록 저절로 좁아지므로, 후반의 "물리적으로 불가능한 배치"까지 함께 사라진다.
    난이도는 이동 거리가 아니라 통로 폭(정밀도)이 만든다 — 손이 아니라 실력을 요구한다 */
 const REACH = { span: 320, spd: 700, safe: .8 };   // 편한 스윕 폭(px) · 편한 엄지 속도(px/s) · 여유
-function gateCenter(gc, gapW){
+/* 🔴 **손놓기는 "직전 통로"가 아니라 "계속 서 있을 수 있는 자리"로 재야 한다 (v1.34b).**
+   1차 시도는 새 통로를 lastGapC(직전 줄의 통로 중심)에서 밀어냈는데, 계측은 전혀 다른 것을
+   보고 있었다 — **한 x 에 가만히 서서 몇 줄을 연속 통과할 수 있나**. 둘은 다르다:
+   직전 통로에서 밀어내도, 플레이어가 실제로 서 있을 수 있는 다른 자리가 계속 열려 있으면
+   손은 여전히 놀고 있다. 실제로 별 소나기의 최장 손놓기가 35줄 그대로였다.
+   그래서 줄마다 **통과 가능 구간의 교집합**을 이어 두고(stillIv), 그게 이어진 줄 수가
+   한도를 넘으면 **그 교집합을 깨는 쪽으로** 다음 줄을 놓는다. 계측하는 것과 막는 것이 같아졌다 */
+function rowFree(row){                                   // 이 줄에서 공이 지나갈 수 있는 x 구간들
+  const seg = row.blocks.map(b => { const g = blockGeom(row, b); return [g.x, g.x + g.w]; }).sort((a,b) => a[0]-b[0]);
+  const out = []; let cur = 0;
+  for(const sg of seg){ if(sg[0] > cur) out.push([cur, sg[0]]); cur = Math.max(cur, sg[1]); }
+  if(cur < W) out.push([cur, W]);
+  return out.map(g => [g[0] + ORB_R, g[1] - ORB_R]).filter(g => g[1] > g[0]);
+}
+function noteRow(row){                                   // 줄을 다 만든 뒤 교집합을 잇는다
+  const iv = rowFree(row);
+  if(!stillIv || !stillIv.length){ stillIv = iv; stillN = 1; return; }
+  const nx = [];
+  for(const a of stillIv) for(const b of iv){
+    const lo = Math.max(a[0], b[0]), hi = Math.min(a[1], b[1]);
+    if(hi > lo) nx.push([lo, hi]);
+  }
+  if(nx.length){ stillIv = nx; stillN++; } else { stillIv = iv; stillN = 1; }
+}
+const stillLimit = () => rowSecNow() < .3 ? 4 : 2;       // 빠른 존에서 두 줄마다 옮기게 하면 고문이다(v0.43)
+function stillTarget(){                                  // 지금 "계속 서 있을 수 있는" 자리 — 여기를 깬다
+  if(!stillIv || !stillIv.length || stillN < stillLimit()) return null;
+  let best = stillIv[0];
+  for(const g of stillIv) if(g[1]-g[0] > best[1]-best[0]) best = g;
+  return (best[0] + best[1]) / 2;
+}
+function gateCenter(gc, gapW, noStill){
   const lo0 = gapW*.7 + gapW/2, hi0 = W - gapW*.7 - gapW/2;     // 벽이 남아야 하는 최소 여백
   const half = Math.min(W, REACH.span) / 2;
   const step = REACH.spd * (nextSpace / Math.max(1, speed())) * REACH.safe;
   let lo = Math.max(lo0, W/2 - half, lastGapC - step);
   let hi = Math.min(hi0, W/2 + half, lastGapC + step);
   if(lo > hi){ lo = hi = clamp((lo + hi)/2, lo0, hi0); }         // 모순이면 벽 여백을 우선한다
-  return clamp(gc, lo, hi);
+  let c = clamp(gc, lo, hi);
+
+  /* 🔴 **손을 놓고 있어도 되는 구간을 끊는다 (v1.34).** 유저: "지금 손을 아예 놓고있어도 될
+     수준으로 쭉쭉 이어진 구간이 많다."
+     계측: 자리를 안 옮기고 통과되는 줄이 **최장 14줄 연속**, p90 10줄, 평균 3.4줄.
+     통로 중심이 조금씩만 움직이면 다음 통로가 지금 서 있는 자리를 그냥 덮어 버린다 —
+     코스가 있어도 조작이 없는 구간이다. 원인은 이동 **상한**(엄지 예산)만 있고
+     **하한**이 없었던 것.
+     그래서 "가만히 있어도 통과되는" 줄이 이어지면 다음 줄을 서 있는 자리 **밖으로** 민다.
+     미는 폭도 엄지 예산(lo~hi) 안에서만 고르므로 손이 아파지지는 않는다(v0.43).
+     빠른 존은 한도를 늘린다 — 0.2초짜리 줄에서 두 줄마다 옮기게 하면 그건 난이도가 아니라 고문이다 */
+  if(noStill){
+    const t = stillTarget();
+    const slack = gapW/2 - ORB_R;                               // 이 폭이면 이만큼 벗어나도 그냥 통과된다
+    if(t != null && Math.abs(c - t) <= slack){
+      const need = slack + 14;
+      const a = clamp(t - need, lo, hi), b = clamp(t + need, lo, hi);
+      const pick = Math.abs(a - t) > Math.abs(b - t) ? a : b;
+      if(Math.abs(pick - t) > slack) c = pick;                  // 엄지 예산(lo~hi) 안에서만 민다
+    }
+  }
+  return c;
 }
-function gate(row, gapW, gc){
-  gc = gateCenter(gc, gapW);
+function gate(row, gapW, gc, allowStill){
+  /* 기본은 손놓기 차단 켬. 끄는 곳은 셋뿐 —
+     별의 문(관문이라 한가운데로 와야 한다) · 첫 3줄(온보딩) · 프레이즈(안무가 이미 짜여 있다) */
+  gc = gateCenter(gc, gapW, !allowStill);
   row.blocks.push({ x: 0, w: gc - gapW/2 }, { x: gc + gapW/2, w: W - gc - gapW/2 });
   lastGapC = gc;
 }
@@ -1373,7 +1459,8 @@ function spawnRow(y = -BLOCK_H - 6){
   const d = diff(), z = zone();
   const row = { y, blocks: [], scored: false, col: z.col };
   const r = rng();                                       // 배치 난수는 전부 rng — 오늘 안에서 코스가 고정된다
-  const gateRow = (rowsSpawned + 1) % ROWS_PER_ZONE === 0;
+  if(!zoneRowsTarget) zoneRowsTarget = rowsForZone();
+  const gateRow = (zoneRow + 1) >= zoneRowsTarget;
   /* ── 조임목 (v0.68) — 통로를 상시 좁히는 대신 **가끔** 조인다 ──
      상시 좁히면 후반엔 안 스치고 지나갈 수가 없어져 "붙는다"가 선택이 아니라 기하가 된다.
      실측: 66초 시점 안전 구간 **0%** — 통로를 지나가는 것만으로 양쪽 벽에 동시에 스쳤다.
@@ -1407,14 +1494,14 @@ function spawnRow(y = -BLOCK_H - 6){
   if(gateRow){                                           // 별의 문 — 존의 마지막 줄은 순금 바늘구멍
     phraseQueue.length = 0;                              // 문 앞에서 프레이즈는 끝난다
     const gw = Math.max(gapW * .85, ORB_R * 2 * 1.9);
-    gate(row, gw, lerp(W*.3, W*.7, rng()));
+    gate(row, gw, lerp(W*.3, W*.7, rng()), true);        // 별의 문 — 관문은 강제 이동 없이
     row.blocks.forEach(b => b.gold = true);
   } else if(rowsSpawned < 3){                            // 첫 3줄은 넓은 게이트
-    gate(row, gapW*1.25, lerp(W*.3, W*.7, rng()));
+    gate(row, gapW*1.25, lerp(W*.3, W*.7, rng()), true);  // 첫 3줄 — 온보딩
   } else if(phraseQueue.length){                         // 작곡된 프레이즈 진행 중
     const ps = phraseQueue.shift();
     const pg = Math.max(gapW * ps.g, 54);                // 폭은 현재 난이도에 상대적 — 초반은 순하고 후반은 조인다
-    gate(row, pg, ps.c * W + (rng() - .5) * 24);
+    gate(row, pg, ps.c * W + (rng() - .5) * 24, true);    // 프레이즈 — 안무를 건드리지 않는다
     if(ps.gold) row.blocks[rng() < .5 ? 0 : 1].gold = true;
   } else if(z.type === 'closer'){                        // 닫히는 문 — 내려올수록 조여든다. 도착 시점을 예측하라
     const c = gateCenter(lerp(W*.22, W*.78, rng()), gapW);       // 닫히는 문도 엄지 범위 안에서
@@ -1454,13 +1541,22 @@ function spawnRow(y = -BLOCK_H - 6){
   } else if(z.type === 'narrow'){                        // 좁지만 살짝 느린 골목
     gate(row, gapW, lerp(gapW, W - gapW, rng()));
   } else if(z.type === 'island'){                        // 떠 있는 섬들 = 그레이즈 파티
+    /* 🔴 **섬 줄에도 손놓기 차단을 건다 (v1.34).** 섬은 gate() 를 안 거치므로 처음엔 빠져 있었고,
+       그 결과 손놓기 최장이 14줄에서 **35줄**로 되레 늘었다(존이 15초로 길어졌으니 당연하다).
+       별 소나기는 통로가 넓어서 한 자리에 서 있으면 존 하나가 통째로 지나간다.
+       섬을 **서 있던 자리 위에** 놓으면 반드시 돌아가야 한다 — 섬 존다운 해법이기도 하다 */
+    const sTgt = stillTarget();                        // 계속 서 있을 수 있던 자리 — 섬으로 덮는다
     if(r < .5){
       const bw = W * lerp(.14,.2,rng());
-      island(row, bw, W*.5 - bw - gapW*.55, 0);
-      island(row, bw, W*.5 + gapW*.55, 0);
+      let off = 0;
+      if(sTgt != null) off = clamp(sTgt - (W*.5 - gapW*.55 - bw/2), -W*.42, W*.42);
+      island(row, bw, clamp(W*.5 - bw - gapW*.55 + off, 2, W - bw - 2), 0);
+      island(row, bw, clamp(W*.5 + gapW*.55 + off, 2, W - bw - 2), 0);
     } else {
       const bw = clamp(W - 2*gapW, 60, W*.55);
-      island(row, bw, lerp(gapW*.7, W - gapW*.7 - bw, rng()), 0);
+      const lo = gapW*.7, hi = W - gapW*.7 - bw;
+      const bx = sTgt != null ? clamp(sTgt - bw/2 + (rng()-.5)*12, lo, hi) : lerp(lo, hi, rng());
+      island(row, bw, bx, 0);
     }
   } else if(z.drift){
     /* 촘촘한 존(빗발) — **섬을 쓰지 않고** 통로를 이전 줄 근처에 놓는다.
@@ -1568,11 +1664,15 @@ function spawnRow(y = -BLOCK_H - 6){
   });
   row.rim = rimOf(row.col); row.body = bodyOf(row.col); row.rgb = rimRGB(row.col);
   row.blocks.forEach(b => { b.inBand = false; b.judged = false; b.pending = false; b.minDist = 999; b.flash = 0; b.cornerHit = false; });
+  noteRow(row);                                        // 교집합 잇기 — 손놓기 판정의 유일한 기준
   rows.push(row);
 
   rowsSpawned++;
-  if(rowsSpawned % ROWS_PER_ZONE === 0){                 // 페이지 넘김
+  zoneRow++;
+  if(zoneRow >= zoneRowsTarget){                        // 페이지 넘김
+    zoneRow = 0;
     zoneIdx++;
+    zoneRowsTarget = rowsForZone();                     // 새 존의 템포로 줄 수를 다시 뽑는다
     const nz = zone();
     if(nz.type === 'fork') forkSafeLeft = rng() < .5;    // 이번 갈림길의 안전측 결정
     if(STAGES[currentSky].band === undefined){           // 1스테이지만 고도가 계속 내려간다 — 이후 별자리는 제 색 고정
@@ -2241,7 +2341,8 @@ function update(sdt, rawDt){
     let guard = 0;
     /* 협곡엔 줄이 없으니 rowsSpawned도 안 오른다 — 난이도가 줄에 물린 뒤로는(v0.87)
        그대로 두면 협곡만 영원히 초기 속도에 머문다. **같은 거리 = 같은 한 줄**로 세어 준다 */
-    while(cScoreAcc >= need && guard++ < 8){ cScoreAcc -= need; rowsSpawned++; if(rowsSpawned % ROWS_PER_ZONE === 0) zoneIdx++; payPass(); }
+    while(cScoreAcc >= need && guard++ < 8){ cScoreAcc -= need; rowsSpawned++; zoneRow++;
+      if(zoneRow >= (zoneRowsTarget || ROWS_PER_ZONE)){ zoneRow = 0; zoneIdx++; zoneRowsTarget = rowsForZone(); } payPass(); }
   } else {
     for(const row of rows){
       if(!row.scored && row.y > orb.y + ORB_R){ row.scored = true; payPass(); }
