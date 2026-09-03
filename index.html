@@ -424,7 +424,7 @@
       <div id="d-close"></div>
       <div id="chips">
         <div class="chip">최고 <em id="c-mult">×1</em></div>
-        <div class="chip">스친 벽 <em id="c-graze">0</em></div>   <!-- v1.29: GLOW 등급과 헷갈리지 않게 — 이 숫자는 등급 무관 전체 횟수다 -->
+        <div class="chip">스친 벽 <em id="c-graze">0</em></div>   <!-- v1.29: SPARK 등급과 헷갈리지 않게 — 이 숫자는 등급 무관 전체 횟수다 -->
         <div class="chip">통과 <em id="c-pass">0</em>줄</div>
       </div>
       <div id="chips2">
@@ -447,7 +447,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.31</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.32</div>
 </div>
 
 <script>
@@ -613,7 +613,7 @@ try{ skiesOwned = JSON.parse(localStorage.getItem('aseul-skies') || '{}'); }catc
 const CHARS = {
   basic: { name:'기본별', desc:'모든 여정의 시작',                 cost:0,   graze:1, deep:2, heatCap:49, heat0:0, decayMul:1, col:'#EAFBFF' },
   ember: { name:'잿불별', desc:'×5에서 시작, 초신성이 ×30에서 터진다 — 대신 상한도 ×30', cost:200, graze:1, deep:2, heatCap:29, heat0:4, decayMul:1, col:'#FFD9B8' },
-  comet: { name:'혜성',   desc:'GLOW +2 — 대신 두 배로 빨리 식는다 (초신성 ×50)',        cost:500, graze:2, deep:3, heatCap:49, heat0:0, decayMul:2, col:'#CFE3FF' },
+  comet: { name:'혜성',   desc:'SPARK +2 — 대신 두 배로 빨리 식는다 (초신성 ×50)',        cost:500, graze:2, deep:3, heatCap:49, heat0:0, decayMul:2, col:'#CFE3FF' },
 };
 const CHAR_ORDER = ['basic', 'ember', 'comet'];
 
@@ -1652,18 +1652,24 @@ function grazeEvent(cx, cy, deep, b){
   // 배수 이벤트는 '이유 + 증가량'으로 표기 — 초신성 중엔 같은 이유에 점수가 붙는다
   /* 간발은 **거리를 이름에 넣는다** — 죽어야만 보던 숫자를 그 자리에서 보여주는 게 요점이라
      따로 띄우면 두 줄이 겹쳐 둘 다 못 읽는다(렌더로 확인). 한 줄로 합친다 */
-  /* 🔴 **등급을 빛의 언어로 — GLOW / FLARE / BLAZE (v1.31).** 유저: "별이라서 지금
+  /* 🔴 **등급을 빛의 언어로 — SPARK / FLARE / NOVA (v1.32 확정).** 유저: "별이라서 지금
      용어가 안어울리네. 별세계관에 맞게 워딩 바꾸자."
      맞다 — BRUSH(붓질)·GRAZE(긁힘)·EDGE(모서리)는 전부 **닿는 것의 언어**다.
      돌·나무를 스칠 때 쓰는 말이라, 별똥별이 멈춘 별의 소원을 스쳐 가는 세계와
      아귀가 안 맞았다. 이 세계에서 벽을 스치는 일은 긁는 게 아니라
      **그 별의 빛을 얼마나 받아 왔는가**다(세계관: 멈춘 소원을 스쳐 안고 오른다).
      그래서 세 단계를 **타오르는 정도** 하나의 자로 바꾼다 —
-     GLOW(은은히) → FLARE(확 타오름) → BLAZE(활활). 셋 다 같은 종류의 말이라
+     SPARK(불티) → FLARE(확 타오름) → NOVA(터진다). 셋 다 같은 종류의 말이라
      사다리로 읽히고, 색(주황 → 붉은빛 → 백열)과도 방향이 같다.
-     NOVA 계열은 일부러 피했다 — 초신성이 이미 ×50 구간의 이름이라 겹친다.
-     BLAZE 만 거리를 이름에 달고 나온다: 죽어야만 보던 숫자를 그 자리에서 보여주는 게 요점.
+     NOVA 만 거리를 이름에 달고 나온다: 죽어야만 보던 숫자를 그 자리에서 보여주는 게 요점.
 
+     🔴 **NOVA 와 초신성의 겹침은 피하지 않고 쓰기로 했다 (v1.32, 유저 확정).**
+     v1.31 에서는 "초신성이 이미 ×50 의 이름이라 겹친다"며 BLAZE 를 골랐는데,
+     유저가 겹침을 알고도 NOVA 를 택했다. 다시 보니 겹치는 게 아니라 **같은 언어의
+     크기 차이**다 — 한 번의 스침이 NOVA 이고, 그게 쌓여 판 전체가 초신성이 된다.
+     오히려 최상위 등급과 최상위 구간이 같은 말을 쓰는 편이 사다리를 이어 준다.
+
+     (구) v1.31: GLOW / FLARE / BLAZE — "워딩이 눈에 딱 안 들어온다"(유저)
      (구) v1.29 A-1: BRUSH / GRAZE / EDGE
      GOOD/GREAT/EXCELLENT 계열은 **"얼마나 정확했나"의 언어**(리듬게임)라 이 게임과 안 맞는다 —
      여기서 재는 것은 정확도가 아니라 **얼마나 죽음에 가까웠나**다.
@@ -1671,10 +1677,10 @@ function grazeEvent(cx, cy, deep, b){
      **물리적으로 점점 가까워진다.** 짧아서 숫자와 붙여 써도 한 줄에 들어간다.
      GOLD 도 영문으로 맞춘다 — 한 줄에 '골드'와 'EDGE'가 섞이면 언어가 둘이 된다.
      EDGE 만 거리를 이름에 넣는다: 죽어야만 보던 숫자를 그 자리에서 보여주는 게 요점이다 */
-  const why = hair ? ('BLAZE ' + clear.toFixed(1) + 'px') : gold ? 'GOLD' : deep ? 'FLARE' : 'GLOW';
-  /* 후광은 등급을 따른다 — BLAZE 가 가장 세게 탄다. v1.30 에서는 GLOW 를 0 으로 뒀지만
+  const why = hair ? ('NOVA ' + clear.toFixed(1) + 'px') : gold ? 'GOLD' : deep ? 'FLARE' : 'SPARK';
+  /* 후광은 등급을 따른다 — NOVA 가 가장 세게 탄다. v1.30 에서는 최하위 등급을 0 으로 뒀지만
      v1.31 에서 **떠오르는 움직임을 뺐으므로 빛이 유일하게 남은 채널**이다.
-     그래서 GLOW 에도 최소한(8)을 준다 — 자주 뜨는 등급이라 이 이상은 화면이 뿌예진다 */
+     그래서 SPARK 에도 최소한(8)을 준다 — 자주 뜨는 등급이라 이 이상은 화면이 뿌예진다 */
   floater(cx, cy - 16, nv ? why + ' +' + pay(base) : why + ' +' + base, col,
     (hair ? 24 : deep || gold ? 19 : 14) + (chain ? 2 : 0) + (nv ? 6 : 0), hair ? .82 : deep || gold ? .72 : .56,
     hair ? 22 : gold ? 14 : deep ? 11 : 8);
@@ -3772,11 +3778,11 @@ function draw(){
     const halo  = k < .85 ? 1 : (1 - (k-.85)/.15);                       // 빛은 끝까지 버틴다
     const bloom = 1 + Math.min(1, k) * 1.6;                              // 반경 1 -> 2.6
 
-    /* 🔴 **BLAZE 는 벽에 붙어야만 뜨는데, 벽은 화면 끝에 있다 (v1.31).**
-       플로터는 별 위치를 중심으로 그려지므로 좌우 끝에서는 'BLAZE 1.9px +5' 의 앞글자가
+    /* 🔴 **NOVA 는 벽에 붙어야만 뜨는데, 벽은 화면 끝에 있다 (v1.31).**
+       플로터는 별 위치를 중심으로 그려지므로 좌우 끝에서는 'NOVA 1.9px +5' 의 앞글자가
        화면 밖으로 잘린다. 예전엔 위로 흘러가며 잠깐만 걸쳤지만, 이제 제자리에 머무르므로
        **잘린 채로 수명 내내 있는다.** 하필 제일 읽혀야 할 최상위 등급이 제일 잘 잘린다
-       (BLAZE 는 정의상 벽에 붙었을 때만 나온다). 글자 폭을 재서 화면 안으로 밀어 넣는다 */
+       (NOVA 는 정의상 벽에 붙었을 때만 나온다). 글자 폭을 재서 화면 안으로 밀어 넣는다 */
     ctx.font = `900 ${f.size}px "Gothic A1",sans-serif`;
     const halfW = ctx.measureText(f.txt).width * .5 * sc;
     const fx = Math.max(halfW + 6, Math.min(W - halfW - 6, f.x));
@@ -3784,7 +3790,7 @@ function draw(){
     ctx.save();
     ctx.translate(fx, f.y); ctx.scale(sc, sc);
     /* 서체를 Gothic A1 900 으로 (v1.30) — Black Han Sans 는 제목용이라 14~24px 플로터에서는
-       획이 뭉쳐 "GLOW +1" 이 덩어리로 보인다. 영문 대문자는 특히 그렇다 */
+       획이 뭉쳐 "SPARK +1" 이 덩어리로 보인다. 영문 대문자는 특히 그렇다 */
     ctx.font = `900 ${f.size}px "Gothic A1",sans-serif`;
     ctx.fillStyle = f.col;
     if(f.glow){
