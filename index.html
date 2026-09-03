@@ -61,6 +61,28 @@
   /* ── HUD ── */
   #hud{position:absolute;inset:0;pointer-events:none;display:none}
   #hud.on{display:block}
+  /* 🔴 **시간·거리는 주변시로 읽는다 (v1.36).** 유저: "실시간으로 플레이 진행 시간이랑
+     이동 거리를 표시해주자."
+     둘 다 **판을 바꾸는 정보가 아니라 여정을 말해 주는 정보**다 — 보고 손을 바꾸지 않는다.
+     그래서 점수(52px)·배수(30px)의 위계를 건드리지 않게 12.5px 로 두고,
+     비워 두었던 좌우 상단 구석에 나눠 앉힌다(v1.26 에서 비운 자리다).
+     가운데를 피하는 이유는 헌법 4조 — 위쪽 시야는 다음 벽의 길이라 비워 둬야 한다.
+     라벨은 안 붙인다: '1:23' 은 그 자체로 시간이고 'km' 는 그 자체로 단위다.
+     ×N 때와 달리 **기호가 아니라 이미 아는 표기**라 배울 것이 없다 */
+  /* 🔴 **점수 옆이 아니라 배수와 같은 줄에 (v1.36).** 처음엔 점수(52px) 양옆 구석에 뒀는데,
+     점수는 자릿수가 늘어나면 가로로 자란다 — 실측: 58,325 는 폭 170px 이지만
+     1,458,325 는 246px 이 되어 **거리 표시와 정확히 맞닿는다**(우측 끝 333 = ds 시작점).
+     하필 점수가 클 때, 즉 제일 잘 보여야 할 때 겹치는 배치였다.
+     배수 칩(폭 70px)은 자릿수가 늘어도 두 자리에서 멈추므로 그 줄은 언제나 비어 있다.
+     [시간] [×N] [거리] 한 줄이 되어 계기판처럼 읽히는 덤도 있다 */
+  #tm, #ds{
+    position:absolute;top:85px;
+    font-family:"Gothic A1",sans-serif;font-weight:700;font-size:12.5px;
+    letter-spacing:.04em;color:var(--dim);opacity:.55;
+    font-variant-numeric:tabular-nums;line-height:1;pointer-events:none;
+  }
+  #tm{ left:16px }
+  #ds{ right:16px }
   #score{
     position:absolute;top:18px;left:0;right:0;text-align:center;
     font-family:"Black Han Sans","Gothic A1",sans-serif;
@@ -362,6 +384,8 @@
       <div id="cgauge"><div id="cgfill"></div></div>
       <div id="score">0</div>
       <div id="mult"><span class="nm">×1</span></div>   <!-- v1.31: 라벨 삭제, 배수만 -->
+      <div id="tm">0:00</div>
+      <div id="ds">0.0 km</div>
     </div>
     <button id="mute" title="소리 켜기/끄기">♪</button>
 
@@ -447,7 +471,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.35</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.36</div>
 </div>
 
 <script>
@@ -458,7 +482,7 @@ const stage = document.getElementById('stage');
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
-const hud = $('hud'), scoreEl = $('score'), multEl = $('mult');
+const hud = $('hud'), scoreEl = $('score'), multEl = $('mult'), tmEl = $('tm'), dsEl = $('ds');
 const titleOv = $('title'), deathOv = $('death');
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1023,6 +1047,7 @@ let bandSnap, bandTo, bandT, bandCur, bandFrom = 0;   // 하늘의 여정 — �
 let dust = [], dustT = 0;
 let lastMultShown = -1, zoom = 1, vign = 0;
 let orb, elapsed, distAcc, nextSpace, score, dispScore, heat, mult, peakMult, grazes, passed;
+let lastTm = '', lastDs = '';                    // v1.36: 표시 중인 시간·거리 문자열(불필요한 DOM 쓰기 방지)
 let dustRun;                   // 이번 판에 주운 별가루 — 죽음 정산에서 지갑으로
 let runMinDist, runMinSpd;     // 아슬아슬 기록 — 이번 판 최고 근접(가장자리 기준 px)과 그 순간의 속도
 let maxChain, curChain, deepCount, goldCount, pierceCount, novaCount;
@@ -1122,6 +1147,7 @@ function reset(){
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
   bandFrom = bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
   elapsed = 0; distAcc = 0; nextSpace = 0; diffCur = 0; melodyStep = 0; lastNoteIdx = -1;
+  lastTm = ''; lastDs = '';                       // 새 판이니 다음 프레임에 반드시 다시 쓴다
   rowClock = 0; rowSec = .1; restBeats = 0;        // 첫 줄은 곧바로 — 판이 시작하자마자 박이 선다
   score = 0; dispScore = 0; grazes = 0; passed = 0;
   heat = CH().heat0; mult = 1 + Math.floor(heat); peakMult = mult;   // 잿불별은 ×5에서 출발
@@ -2293,6 +2319,11 @@ function update(sdt, rawDt){
   /* 기어 변속 — 목표 단으로 0.45초에 걸쳐 미끄러진다(v0.89). 계단을 그대로 쓰면 뚝 끊긴다 */
   diffCur += (diffTarget() - diffCur) * Math.min(1, sdt * 2.2);
   const spd = speed();
+  /* 이동 거리 — 세계가 흐른 만큼이 곧 내가 오른 높이다(v1.36).
+     elapsed 와 같은 sdt 를 쓴다: 슬로모가 걸린 순간에는 시간도 거리도 함께 느려져야
+     둘이 어긋나지 않는다. 1px = 1m 로 읽는다 — 좋은 판이 수십 km 가 되어
+     '밤하늘을 오른다'는 규모로 떨어진다 */
+  distAcc += spd * sdt;
 
   // 스폰
   if(CANYON){
@@ -2798,6 +2829,12 @@ function updateHud(){
   dispScore += (target - dispScore) * .25;
   if(target - dispScore < 1) dispScore = target;
   scoreEl.textContent = Math.round(dispScore).toLocaleString();
+  /* 매 프레임 DOM 에 쓰지 않는다 — 글자가 바뀔 때만 건드린다(초 단위/0.1km 단위로만 바뀐다) */
+  const ss = Math.floor(elapsed), ts = Math.floor(ss / 60) + ':' + String(ss % 60).padStart(2, '0');
+  if(ts !== lastTm){ lastTm = ts; tmEl.textContent = ts; }
+  const km = distAcc / 1000;
+  const ds = (km < 100 ? km.toFixed(1) : Math.round(km)) + ' km';
+  if(ds !== lastDs){ lastDs = ds; dsEl.textContent = ds; }
   if(!recHit && best > 0 && score > best && state === 'play'){
     recHit = true; scoreEl.classList.add('rec');
     floater(W/2, H*.19, '최고 기록', '#FFDF6B', 15, 1.1);   // 점수 바로 아래 한 줄, 한 번뿐
@@ -4391,7 +4428,8 @@ window.ASEUL = {
   get loop(){ return cycleIdx(); },
   get zoneName(){ return zone().name; },
   get beats(){ return rowBeats(); },               // 검증용: 이 존의 음표 값(박)
-  get rowSec(){ return +rowSecNow().toFixed(3); }, // 검증용: 벽 하나가 오는 간격(초)
+  get rowSec(){ return +rowSecNow().toFixed(3); },
+  get dist(){ return Math.round(distAcc); },       // v1.36 검증용: 이동 거리(px = m) // 검증용: 벽 하나가 오는 간격(초)
   get diff(){ return +diff().toFixed(3); },
   get spd(){ return +speed().toFixed(0); },
   get rampLoops(){ return rampLoops; },
