@@ -485,7 +485,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.42</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.43</div>
 </div>
 
 <script>
@@ -1153,6 +1153,13 @@ let recHit = false;            // 이번 판에 최고 기록을 넘었는가 (�
 let wmPop = 0, coolWarned = false, deathSkip = false, novaWarned = false;   // 세계 배수 팝 · 냉각 예고 · 성적표 스킵 · 초신성 꺼짐 예고
 let best = +(localStorage.getItem('aseul3-best') || 0);
 let bestMult = +(localStorage.getItem('aseul3-bmult') || 0);
+/* 🔴 **최근접을 두 번째 기록 축으로 (v1.43).** 이 게임은 매 프레임 "죽음까지 몇 px" 를 재고
+   있으면서 그 숫자를 **죽어야만** 보여줬다. 그런데 그건 다른 어떤 회피 게임도 갖지 못한
+   숫자다 — 세상의 닷지 게임은 "얼마나 오래 버텼나"를 묻지 "얼마나 가까이 갔나"를 안 묻는다.
+   점수와 같은 급으로 올린다. 부수 효과가 크다: **20초 만에 죽어도 개인 기록이 나올 수 있어**
+   3분 램프를 반복하는 피로가 줄고, "나 0.4px" 는 스크린샷 없이 문장 하나로 자랑이 된다.
+   판 중에 살아 있어야 하므로(죽어서 정산하면 그 순간이 사라진다) 여기서 들고 있는다 */
+let nearBest = (() => { const v = localStorage.getItem('aseul3-close'); return v === null ? 999 : +v; })();
 
 /* 유성우 — 나와 같은 방향으로 함께 흐르지만 **언제나 나보다 느리다**(v < 1).
    내 별똥별이 그 사이를 앞질러 나가는 그림이라, 속도는 숫자가 아니라 추월로 느껴진다.
@@ -1609,7 +1616,26 @@ function spawnRow(y = -BLOCK_H - 6){
     phraseQueue = PHRASES[(rng() * PHRASES.length)|0].rows.slice();
   }
 
-  if(gateRow){                                           // 별의 문 — 존의 마지막 줄은 순금 바늘구멍
+  /* 🔴 **첫 10초에 훅을 심는다 (v1.43).** 워밍업 15초 동안 아무 사건도 없었다 —
+     속도 234, 간격 229px, 넓은 통로. 조작은 배우지만 **이 게임이 뭔지는 못 배운다.**
+     하이퍼캐주얼은 첫 10초에 "어 이거 뭐지"가 와야 한다.
+     그래서 워밍업 5번째·9번째 줄(약 5초·9초)에 **좁은 금빛 관문**을 심는다.
+     폭 72px / 58px — 양쪽 다 스침 밴드(78px) 안이라 **가운데로 지나가도 양벽이 동시에 스친다.**
+     즉 관통(PIERCE)이 터지고 골드가 양쪽에서 +5씩 붙는다: 10초 안에 배수가 훅 뛰고
+     화면이 금빛이 되는 걸 **반드시** 본다. 죽이려는 게 아니라 보여주려는 것이라
+     여유는 넉넉히 둔다(58px 통로 = 공 26px 기준 양옆 16px).
+     손 놓기 차단은 끈다 — 이 두 줄은 안무이지 무작위가 아니다 */
+  const hookRow = zoneIdx === 0 && (zoneRow === 4 || zoneRow === 8);
+  if(hookRow && !gateRow){
+    const hw = zoneRow === 4 ? 72 : 58;
+    /* 🔴 **금빛은 얹지 않는다.** 처음엔 "오라"는 신호로 양벽을 골드로 만들었는데,
+       골드는 한 벽당 +5 라 두 줄이 배수를 **+22** 나 얹어 버렸다(관통 +2 포함).
+       계측: 15초 만에 배수가 상한 x50 에 닿아 초신성이 워밍업 안에서 터졌다.
+       훅은 **보여주는 것**이지 쥐여 주는 것이 아니다. 골드를 빼면 한 줄당
+       스침+스침+관통 = +4 — 배수가 눈에 띄게 뛰지만 판을 앞당기지는 않는다.
+       초대장은 좁은 통로 자체와 관통 전용 링·소리가 이미 하고 있다 */
+    gate(row, hw, gateCenter(lastGapC + (rng() - .5) * 90, hw), true);
+  } else if(gateRow){                                    // 별의 문 — 존의 마지막 줄은 순금 바늘구멍
     phraseQueue.length = 0;                              // 문 앞에서 프레이즈는 끝난다
     const gw = Math.max(gapW * .85, ORB_R * 2 * 1.9);
     gate(row, gw, lerp(W*.3, W*.7, rng()), true);        // 별의 문 — 관문은 강제 이동 없이
@@ -1883,6 +1909,12 @@ function grazeEvent(cx, cy, deep, b){
   curChain = chain ? curChain + 1 : 1; maxChain = Math.max(maxChain, curChain);   // 연속 스침 기록
   if(deep) deepCount++;
   if(hair){ hairCount++; runHairBest = Math.min(runHairBest, clear); }
+  /* 역대 최근접 갱신 — 판 중에, 그 자리에서. 무적(초신성) 중의 근접은 아슬함이 아니므로 제외 */
+  const isRecord = hair && nova <= 0 && clear < nearBest - .05;
+  if(isRecord){
+    nearBest = clear;
+    try{ localStorage.setItem('aseul3-close', clear); }catch(e){}
+  }
   if(gold) goldCount++;
   if(pierce) pierceCount++;
   const m = 1 + Math.floor(heat);
@@ -1934,7 +1966,7 @@ function grazeEvent(cx, cy, deep, b){
      v1.31 에서 **떠오르는 움직임을 뺐으므로 빛이 유일하게 남은 채널**이다.
      그래서 SPARK 에도 최소한(8)을 준다 — 자주 뜨는 등급이라 이 이상은 화면이 뿌예진다 */
   floater(cx, cy - 16, nv ? why + ' +' + pay(base) : why + ' +' + base, col,
-    (hair ? 24 : deep || gold ? 19 : 14) + (chain ? 2 : 0) + (nv ? 6 : 0), hair ? .82 : deep || gold ? .72 : .56,
+    (hair ? 28 : deep || gold ? 19 : 14) + (chain ? 2 : 0) + (nv ? 6 : 0), hair ? .82 : deep || gold ? .72 : .56,   // v1.43: 간발 24 -> 28, px 가 이 게임의 고유 숫자다
     hair ? 22 : gold ? 14 : deep ? 11 : 8);
   sfx.graze(Math.floor(heat), deep, gold, chain);
   if(!localStorage.getItem('aseul-firstgraze')){       // 생애 첫 스침 — 문법을 몸으로 깨닫는 순간을 축하한다
@@ -1945,6 +1977,13 @@ function grazeEvent(cx, cy, deep, b){
   if(melody.length < 900) melody.push({ e: elapsed, h: Math.floor(heat), d: deep, g: gold });   // 이 판의 악보
   buzz(hair ? 45 : deep ? 25 : 10);
   if(hair){ tone(2637, .09, 'sine', .2); tone(3520, .14, 'sine', .13); tone(1760, .2, 'triangle', .1); }   // 전용 고음 — 스침 음계 위로 솟는다
+  if(isRecord){
+    /* 기록 전용 소리 — 간발음 위로 **올라가는** 3음. 스침 사다리(내려오는 냉각음)와
+       반대 방향이라 "넘어섰다"로 들린다 */
+    tone(1568, .10, 'sine', .16, .05); tone(2093, .12, 'sine', .15, .13); tone(3136, .30, 'sine', .17, .22);
+    floater(cx, cy - 52, '역대 최근접 ' + clear.toFixed(1) + 'px', '#7DF3FF', 26, 1.5, 26);
+    rings.push({ x: cx, y: cy, r0: 10, r1: 150, col: '#7DF3FF', lw: 3, life: .5, t: 0 });
+  }
   // 링(충격파)은 관통·초신성처럼 '터지는' 사건에만 남긴다 — 스침은 링을 쓰지 않는다
   if(b.cornerHit){                               // 모서리를 감아 돈 스침은 그 자리가 하얗게 반짝인다
     glint(cx, cy, 30, '#FFFFFF', .26);
@@ -1955,6 +1994,9 @@ function grazeEvent(cx, cy, deep, b){
     zoom = hair ? 1.09 : deep ? 1.055 : 1.03;
     if(deep) vign = hair ? .8 : .55;
     if(hair){ shake = Math.max(shake, 7); flash = Math.max(flash, .3); }
+    /* 🔴 **기록은 간발보다 한 칸 위다.** 간발은 15초에 한 번쯤 오지만 역대 최근접은
+       몇 판에 한 번이다. 같은 세기로 알리면 그 희소함이 전달되지 않는다 */
+    if(isRecord){ shake = Math.max(shake, 11); flash = Math.max(flash, .55); vign = Math.max(vign, 1); }
   }
 }
 
@@ -2212,7 +2254,7 @@ function die(x, y){
     }
   }, 140);
   if(runMinDist < 999)                                  // 하이라이트: 이번 판 최고 근접이 크게 뜬다
-    floater(x, y - 48, Math.max(0, Math.round(runMinDist)) + 'px', '#FFDF6B', 36, 2.4);
+    floater(x, y - 48, Math.max(0, runMinDist).toFixed(1) + 'px', '#FFDF6B', 36, 2.4);
   if(!REDUCED){ shake = 9; flash = .8; timeScale = .06; }
 }
 
@@ -2284,16 +2326,18 @@ function showDeath(){
     localStorage.setItem('aseul-log', JSON.stringify(rl));
   }catch(e){}
   // 아슬아슬 기록 — 점수는 결과지만, 아슬함은 정체성이다
-  const px = runMinDist < 999 ? Math.max(0, Math.round(runMinDist)) : null;
+  const px = runMinDist < 999 ? Math.max(0, runMinDist).toFixed(1) : null;   // v1.43: 0.1px 단위 — 반올림하면 측정값이 아니라 라벨이 된다
   if(px !== null){
     const tSec = (runMinDist / Math.max(1, runMinSpd)).toFixed(3);
     const rawClose = localStorage.getItem('aseul3-close');
     const prevClose = rawClose === null ? 999 : +rawClose;
     const isClosest = runMinDist < prevClose;
-    if(isClosest) try{ localStorage.setItem('aseul3-close', runMinDist); }catch(e){}
-    $('d-close').innerHTML = `가장 가까웠던 순간 <b>${px}px</b> · 죽음까지 ${tSec}초` + (isClosest && prevClose < 999 ? ' · <b>역대 최근접!</b>' : '');
+    if(isClosest){ nearBest = Math.min(nearBest, runMinDist); try{ localStorage.setItem('aseul3-close', runMinDist); }catch(e){} }
+    $('d-close').innerHTML = `가장 가까웠던 순간 <b>${px}px</b> · 죽음까지 ${tSec}초`
+      + (isClosest && prevClose < 999 ? ' · <b>역대 최근접!</b>'
+         : nearBest < 999 ? ` · 역대 ${nearBest.toFixed(1)}px` : '');
   } else $('d-close').textContent = '';
-  $('c-close').textContent = px === null ? '–' : px + 'px';
+  $('c-close').textContent = px === null ? '–' : px + 'px';   // 0.1px 단위
   $('c-chain').textContent = maxChain;
   $('c-pierce').textContent = pierceCount;
   $('d-badge').textContent = '칭호 — ' + runTitle();
@@ -4200,7 +4244,14 @@ function draw(){
 }
 
 /* 타이틀에 베스트 표기 */
-if(best > 0) $('title-best').textContent = `BEST ${best.toLocaleString()} · 최고 배수 ×${bestMult}`;
+/* 🔴 타이틀에서 **점수와 최근접을 나란히** 둔다 (v1.43). 최고 배수는 점수의 부산물이라
+   사망 화면에 남기고, 첫 화면에는 **서로 다른 두 종류의 기록**만 세운다 —
+   멀리 간 기록과 가까이 간 기록. 이 게임의 질문이 둘이라는 걸 첫 화면이 먼저 말한다 */
+if(best > 0 || nearBest < 999)
+  $('title-best').textContent = [
+    best > 0 ? 'BEST ' + best.toLocaleString() : null,
+    nearBest < 999 ? '최근접 ' + nearBest.toFixed(1) + 'px' : null
+  ].filter(Boolean).join(' · ');
 
 /* ── 로비 — 계정 요약·캐릭터·하늘 선택·게임 시작 (메인 → 로비 → 플레이 → 결과 → 로비) ── */
 function renderChars(){
@@ -4390,7 +4441,7 @@ function buildCard(){
     }
     g.shadowBlur = 0;
   }
-  const px2 = runMinDist < 999 ? Math.max(0, Math.round(runMinDist)) : null;
+  const px2 = runMinDist < 999 ? Math.max(0, runMinDist).toFixed(1) : null;
   g.textAlign = 'center';
   g.fillStyle = '#FFB454'; g.font = '900 19px "Gothic A1",sans-serif'; g.fillText('별똥별의 여정', cw/2, 76);
   g.fillStyle = '#EDF1FF'; g.font = '52px "Black Han Sans","Gothic A1",sans-serif'; g.fillText('아슬아슬', cw/2, 132);
