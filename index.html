@@ -486,7 +486,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.44</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.45</div>
 </div>
 
 <script>
@@ -3401,9 +3401,21 @@ function draw(){
          선언하고 몸통·후광에서도 갖다 썼는데, 몸통이 **선언보다 위**라 TDZ 로 터졌다
          ("Cannot access 'wq' before initialization" — 화면이 통째로 안 그려진다).
          CLAUDE.md 가 경고하는 그 유형을 또 밟았다. 쓰는 곳이 셋이면 선언은 맨 위다 */
-      /* 꺼져가는 별 — 다가오는 동안 빛이 사그라든다. **벽 자체가 시계다**(HUD 타이머 없음).
-         살리면 되살아나 청록 흰빛으로 남는다 */
-      const wq = b.wish ? (b.wishSaved ? 1 : clamp(1 - row.y / Math.max(1, orb.y), 0, 1)) : 0;
+      /* 🔴 **서서히 흐려지는 건 안 보인다 — 깜빡여야 보인다 (v1.45).** 유저: "꺼져가는게
+         안보이는데 뭐 깜빡이던가 뭔가 희미해져가던가 해야할듯."
+         맞다. 그리고 내 설계에 더 나쁜 구멍이 둘 있었다:
+           ① **수명이 화면에 있는 동안뿐이다** — 줄이 위에서 공까지 오는 데 약 1.7초다.
+              13초 쿨다운은 '다음 별까지'이지 '이 별이 사는 시간'이 아니었다.
+              1.7초 동안의 완만한 페이드는 사람 눈에 그냥 "좀 어두운 벽"이다.
+           ② **가까워질수록 어두워졌다** — 멀리(안 볼 때) 제일 밝고, 손댈 순간에 제일 흐리다.
+              신호가 필요한 바로 그때 사라지는 설계였다.
+         그래서 **또렷한 온/오프 깜빡임**으로 바꾼다. 최고 밝기는 끝까지 유지하고(항상 보인다),
+         **깜빡이는 속도만 빨라진다**(4.2 → 9.7Hz) — 꺼져 가는 전구의 문법이다.
+         1.7초면 7~14번 깜빡이므로 곁눈으로도 잡힌다 */
+      const wqRaw = b.wish ? clamp(1 - row.y / Math.max(1, orb.y), 0, 1) : 0;
+      const wHz = 4.2 + (1 - wqRaw) * 5.5;
+      const wOn = ((elapsed * wHz) % 1) < .52;
+      const wq = b.wish ? (b.wishSaved ? 1 : (wOn ? .72 + .28*wqRaw : .10)) : 0;
       ctx.shadowColor = b.wish
         ? `rgba(120,240,255,${(b.wishSaved ? .9 : .25 + .6*wq).toFixed(2)})`
         : b.gold
@@ -3497,7 +3509,18 @@ function draw(){
              shadowBlur 한 줄과 가산 겹 한 줄이면 된다.
              크롭에 여백이 있어 sr 보다 크게 그려야 별 몸통이 제 크기가 된다 */
           const isz = sr * 2.5;
-          ctx.drawImage(WISH_IMG, sx - isz/2, sy - isz/2, isz, isz);
+          if(b.wish && !b.wishSaved){
+            /* 꺼져가는 별의 소원별은 **같이 깜빡인다** — 벽의 혼이고, 안쪽 끝이라
+               통로를 보는 시선에 바로 걸린다. 꺼진 박에는 거의 안 보이게 */
+            ctx.save();
+            ctx.globalAlpha = .18 + .82 * wq;
+            ctx.shadowColor = 'rgba(140,245,255,.9)'; ctx.shadowBlur = 10 * wq;
+            ctx.drawImage(WISH_IMG, sx - isz/2, sy - isz/2, isz, isz);
+            ctx.globalCompositeOperation = 'lighter';   // 켜진 박에는 청록으로 확 달아오른다
+            ctx.globalAlpha = wq * .55;
+            ctx.fillStyle = '#8CF5FF'; starPath(sx, sy, sr * .9, 0); ctx.fill();
+            ctx.restore(); ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+          } else ctx.drawImage(WISH_IMG, sx - isz/2, sy - isz/2, isz, isz);
         } else {                                   // 이미지 로드 전/실패 시 폴백
           ctx.fillStyle = '#FFE9A8'; starPath(sx, sy, sr, 0); ctx.fill();
           ctx.fillStyle = '#FFFFFF'; starPath(sx, sy, sr*.46, 0); ctx.fill();
@@ -3511,10 +3534,11 @@ function draw(){
          금빛은 잭팟, 파랑은 보통, **청록은 살려야 할 것**. 세 계열이 서로 안 닮았다 */
       const rimC = b.wish
         ? (b.wishSaved ? 'rgba(224,252,255,1)'
-           : 'rgba(120,240,255,' + (.22 + .78*wq).toFixed(2) + ')')
+           : 'rgba(120,240,255,' + (.10 + .90*wq).toFixed(2) + ')')
         : b.gold ? 'rgba(255,214,120,.95)' : (row.rim || 'rgba(170,190,255,.9)');
-      /* 부름 — 아직 안 살린 별은 맥이 뛴다. 꺼질수록 느리고 약해진다(다급함이 아니라 사그라듦) */
-      const wp = b.wish && !b.wishSaved ? (.5 + .5*Math.sin(elapsed * (3.2 + wq*3.4))) * wq : 0;
+      /* 리듬은 하나여야 한다 — 깜빡임 위에 사인 맥을 또 얹으면 둘 다 안 읽힌다.
+         맥은 깜빡임의 켜진 박에 그대로 실린다 */
+      const wp = b.wish && !b.wishSaved ? wq : 0;
       ctx.shadowColor = rimC; ctx.shadowBlur = 8 + wp * 20 + (b.wishSaved ? 16 : 0);
       ctx.strokeStyle = rimC; ctx.lineWidth = 1.5 + wp * 1.6 + (b.wishSaved ? 1.2 : 0);
       rr(dx + .75, row.y + .75, dw - 1.5, BLOCK_H - 1.5, Math.max(1, R - .75)); ctx.stroke();
