@@ -486,7 +486,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.46</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.47</div>
 </div>
 
 <script>
@@ -1782,7 +1782,15 @@ function spawnRow(y = -BLOCK_H - 6){
      그대로 후보다. 별의 문·첫 훅 줄은 제외(이미 자기 사건이 있다) */
   if(!gateRow && !hookRow && rowsSpawned >= 5 && wishGap <= 0 && row.blocks.length){
     const cand = row.blocks.filter(b => b.w > 8);
-    if(cand.length){ cand[(rng() * cand.length) | 0].wish = true; wishGap = 13; }
+    if(cand.length){
+      cand[(rng() * cand.length) | 0].wish = true; wishGap = 13;
+      /* 생애 첫 꺼져가는 별 — 딱 한 번 이름을 알려 준다(생애 첫 스침과 같은 방식, v0.36).
+         규칙을 타이틀에만 적어 두면 아무도 안 읽는다 */
+      if(!localStorage.getItem('aseul-firstwish')){
+        try{ localStorage.setItem('aseul-firstwish', '1'); }catch(e){}
+        floater(W/2, H*.42, '꺼져가는 별 — 스치면 살린다', '#9BE8FF', 16, 2.4, 18);
+      }
+    }
   }
   if(!gateRow && rowsSpawned >= 8 && nebGap <= 0 && row.blocks.length){
     const cbs = row.blocks.filter(b => !b.amp && !b.dyn);
@@ -2523,6 +2531,22 @@ function update(sdt, rawDt){
     }
     // 이동
     for(const row of rows) row.y += spd * sdt;
+    /* 🔴 **놓쳤다는 걸 봐야 배운다 (v1.47).** 유저: "겉보기에 저게 기능이 있는지 하나도
+       알 수가 없는데, 그냥 색깔만 다른 일반 벽 같은데. 있으나 마나한 것 같은데."
+       맞다 — 놓쳐도 **아무 일도 안 일어났다.** 성공해야만 피드백이 있으니,
+       한 번도 못 스친 사람은 그게 기능인 줄도 모른다.
+       이제 지나쳐 보내면 그 자리에서 **꺼진다**: 재빛으로 식고, 꺼지는 소리가 나고,
+       조용한 회색 글자가 한 번 뜬다. 점수는 **안 뺏는다**(헌법 v0.17) — 알려 줄 뿐이다.
+       "잃었다"가 있어야 "살렸다"가 값을 갖는다 */
+    for(const row of rows) for(const b of row.blocks){
+      if(b.wish && !b.wishSaved && !b.wishDead && row.y > orb.y + BLOCK_H){
+        b.wishDead = true;
+        const bx = clamp(b.x + b.w/2, 16, W - 16);
+        floater(bx, row.y - 18, '꺼졌다', '#7E8AA6', 13, .9);
+        sparks(bx, row.y + BLOCK_H/2, 5, '#6E7A92', .45, 30, 'ray');
+        if(AC && !muted){ tone(392, .16, 'sine', .07); tone(294, .26, 'sine', .05, .08); }
+      }
+    }
     rows = rows.filter(r => r.y < H + 80);
   }
 
@@ -3431,7 +3455,7 @@ function draw(){
         ? (b.wishSaved ? 1 : (.62 + .38*wqRaw) * (.82 + .18*wBreath))
         : 0;
       ctx.shadowColor = b.wish
-        ? `rgba(120,240,255,${(b.wishSaved ? .9 : .25 + .6*wq).toFixed(2)})`
+        ? (b.wishSaved ? 'rgba(255,226,140,.95)' : `rgba(120,240,255,${(.25 + .6*wq).toFixed(2)})`)
         : b.gold
         ? `rgba(255,215,90,${.75 + b.flash*.25})`
         : `rgba(255,180,84,${.34 + glow*.52 + b.flash*.4 + bp*.1})`;
@@ -3448,7 +3472,7 @@ function draw(){
       /* 몸통도 같이 식는다 — 테두리만 흐려지면 "흐린 벽"이지 "꺼지는 별"이 아니다.
          싱싱할 땐 일반 벽보다 밝고, 다 꺼지면 일반 벽보다 어둡다 */
       ctx.fillStyle = b.wish
-        ? (b.wishSaved ? '#123A48'
+        ? (b.wishSaved ? '#4A3A12'
            : 'rgb(' + Math.round(10 + 22*wq) + ',' + Math.round(14 + 44*wq) + ',' + Math.round(28 + 40*wq) + ')')
         : b.gold ? '#3A2708' : (row.body || '#161A33');
       rr(dx, row.y, dw, BLOCK_H, R); ctx.fill();
@@ -3517,6 +3541,25 @@ function draw(){
            금빛은 이 게임에서 이미 뜻이 있다(별가루 = 먹는 것)지만, 벽 속 별은 5각 통통이,
            별가루는 4각 뾰족이, 그리고 늘 밝은 테두리 안에 갇혀 있어 자리로도 갈린다.
            그래도 폰에서 헷갈리면 색만 차갑게 돌리면 된다 — 아이콘은 그대로 두고 tint 한 겹 */
+        /* 🔴 **색만으로는 "나한테 하라는 것"이 안 된다.** 다른 색은 "나는 다르다"까지만 말한다.
+           목표로 읽히려면 **나를 향해야** 한다 — 소원별에서 플레이어 쪽으로 가는 실 한 줄.
+           가까울수록 진해져 "닿을 수 있다"가 손에 잡힌다. 흡수 광선(v1.12~15)과 같은 언어라
+           이 게임 안에서 처음 보는 문법이 아니다. 얇고 가산이라 위쪽 시야는 안 가린다(헌법 4조) */
+        if(b.wish && !b.wishSaved && !b.wishDead && state === 'play'){
+          const ddx = orb.x - sx, ddy = orb.y - sy, dlen = Math.hypot(ddx, ddy);
+          if(dlen > 24 && dlen < 470){
+            const near = clamp(1 - dlen / 470, 0, 1);
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = 'rgba(140,245,255,' + (.05 + near * .30).toFixed(3) + ')';
+            ctx.lineWidth = .8 + near * 1.5;
+            ctx.setLineDash([7, 9]);
+            ctx.lineDashOffset = -(elapsed * 46) % 16;     // 별 쪽에서 나에게로 흐른다
+            ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(orb.x, orb.y); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+          }
+        }
         if(wishOk){
           /* 후광은 뺐다 (v1.08, 유저: "어색하니까 일단 빼봐"). 아이콘 알파에 이미 빛이
              구워져 있어 어두운 벽 위에서는 그것만으로 뜬다. 되돌리려면 shadowColor/
@@ -3548,8 +3591,10 @@ function draw(){
          일반 벽 테두리가 이미 창백한 파랑(170,190,255)이라 **꺼진 상태가 일반 벽과 똑같아졌다.**
          렌더해 보고서야 알았다. 청록(120,240,255)으로 계열을 아예 갈라 놓는다 —
          금빛은 잭팟, 파랑은 보통, **청록은 살려야 할 것**. 세 계열이 서로 안 닮았다 */
+      /* 살린 별은 **지나가는 내내 켜져 있다** — 아래로 흘러가는 동안 내가 밝힌 것이 눈에 남는다 */
       const rimC = b.wish
-        ? (b.wishSaved ? 'rgba(224,252,255,1)'
+        ? (b.wishSaved ? 'rgba(255,246,214,1)'
+           : b.wishDead ? 'rgba(104,112,132,.55)'
            : 'rgba(' + Math.round(96 + 24*wqRaw) + ',' + Math.round(140 + 100*wqRaw) + ',' + Math.round(160 + 95*wqRaw) + ',' + (.45 + .55*wq).toFixed(2) + ')')
         : b.gold ? 'rgba(255,214,120,.95)' : (row.rim || 'rgba(170,190,255,.9)');
       /* 리듬은 하나여야 한다 — 깜빡임 위에 사인 맥을 또 얹으면 둘 다 안 읽힌다.
