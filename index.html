@@ -407,6 +407,7 @@
       <div class="kicker">별똥별의 여정</div>
       <h1>아슬<br>아슬</h1>
       <div class="rule-line">스치면 배수 UP! 통과하면 10 × 배수!</div>
+      <div class="rule-line">꺼져가는 별을 스쳐 <b>살려라</b></div>
       <div class="rule-sub">
         엄지로 좌우 — 벽에 <b>닿으면 끝</b><br>
         벽을 <b>스칠수록 배수</b>가 오르고, 줄을 <b>넘을 때마다 10 × 배수</b>를 번다<br>
@@ -485,7 +486,7 @@
       <div id="tohome" class="anywhere">로비로</div>
     </div>
   </div>
-  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.43</div>
+  <div id="foot">ASEUL·ASEUL — PLAYABLE PROTOTYPE v1.44</div>
 </div>
 
 <script>
@@ -1102,6 +1103,20 @@ const WH_T = 2.6, WH_R = 210, WH_N = 20;         // 끌어당기는 시간(초) 
    배수는 건드리지 않는다(콤보는 벽 스침으로만, v0.19) — 커지는 건 점수 쪽뿐이다.
    그리고 이 아이템의 진짜 피드백은 배수가 아니라 **곁에 하나가 더 생겼다는 사실**이다 */
 let gds = [], guard = 0, gdGap = 0, gdP = null, gdFlash = 0;  // 수호별 조각 · 잔여 · 쿨다운 · 분신 위치 · 일할 때 번쩍임
+/* 🔴 **꺼져가는 별 (v1.44).** 유저: "왜 자꾸 밋밋하게 느껴지지."
+   구두점을 전부 세어 보니 답이 나왔다 — 별의 문·성운·별무리·수호별·초신성,
+   **다섯 개 전부 "좋은 것이 온다"** 였다. "이건 위험하다"고 말하는 순간이 하나도 없었다.
+   게다가 벽은 종류가 둘(보통·골드)뿐인데 초당 2.6개가 지나가니 **개별 벽이 인식되지 않는다.**
+   긴장은 강도가 아니라 **대비**에서 오는데, 난이도만 매끄럽게 올려 놨으니 평평할 수밖에.
+
+   세계관이 답을 갖고 있었다 — 벽은 **멈춘 별들의 소원**인데 그 설정이 규칙에 한 번도
+   안 나타났다. 이제 13초에 한 번, 벽 하나가 **꺼져 간다**. 다가오는 동안 빛이 사그라들고,
+   스치면 되살아난다. 못 스치면 그냥 꺼진다 — **빼앗지는 않는다**(헌법 v0.17).
+   보상을 배수가 아니라 **점수 x 배수**로 주는 이유가 둘이다:
+     ① 배수는 이미 15초에 상한을 친다 — 여기 더 부으면 그 문제가 커진다
+     ② 배수가 그동안 '수동 배율'이었는데, 이걸로 **쓸 곳**이 생긴다.
+        배수가 높을 때 살리면 크니까, 배수를 지키는 것 자체가 목적이 된다 */
+let wishGap = 0;                                 // 꺼져가는 별 출현 쿨다운(초)
 const GD_T = 5;
 let novaRainT = 0;             // 초신성 별 소나기 스폰 타이머
 let lastG = { t: -9, b: null };// 관통 판정용 — 직전 스침의 시각과 벽
@@ -1213,6 +1228,7 @@ function reset(){
   nebs = []; neb = 0; nebGap = 0; nebOut = 0; nebIn = 0;
   whs = []; whPull = 0; whGap = 8;                       // 첫 별무리는 성운보다 늦게 (8초 뒤부터)
   gds = []; guard = 0; gdGap = 14; gdP = null; gdFlash = 0;   // 수호별은 셋 중 가장 늦게 등장
+  wishGap = 6;                                           // 첫 꺼져가는 별은 6초 뒤 — 훅(5·9초)과 겹치지 않게
   const b0 = BANDS[stg.band || 0];        // 스테이지는 자기 하늘색으로 고정
   bandSnap = { top: b0.top, bot: b0.bot, starA: b0.starA, deco: b0.deco };
   bandFrom = bandTo = stg.band || 0; bandT = 1; bandCur = { top: b0.top, bot: b0.bot, starA: b0.starA };
@@ -1762,6 +1778,12 @@ function spawnRow(y = -BLOCK_H - 6){
      간격은 **줄 수가 아니라 시간**으로 잰다: 후반엔 줄이 초당 4개씩 지나가서
      줄 기준으로 두면 4초마다 나오고, 지속이 5초라 촉진제가 상시 버프가 되어 버린다.
      18초 간격이면 점유율 5/18 ≈ 28% — 특별한 구간으로 남는다 */
+  /* 꺼져가는 별 — 줄의 벽 하나를 고른다. 화면 밖으로 뻗은 벽도 **안쪽 모서리는 스칠 수 있으므로**
+     그대로 후보다. 별의 문·첫 훅 줄은 제외(이미 자기 사건이 있다) */
+  if(!gateRow && !hookRow && rowsSpawned >= 5 && wishGap <= 0 && row.blocks.length){
+    const cand = row.blocks.filter(b => b.w > 8);
+    if(cand.length){ cand[(rng() * cand.length) | 0].wish = true; wishGap = 13; }
+  }
   if(!gateRow && rowsSpawned >= 8 && nebGap <= 0 && row.blocks.length){
     const cbs = row.blocks.filter(b => !b.amp && !b.dyn);
     if(cbs.length){
@@ -1885,6 +1907,20 @@ function spawnStars(x, y, n){
    플로터·소리·판정은 평소와 완전히 동일 — 무엇을 해서 얼마를 벌었는지가 똑같이 읽혀야 한다 */
 function grazeEvent(cx, cy, deep, b){
   const gold = !!b.gold;
+  /* 살렸다 — 꺼져가는 별을 스친 순간. 등급은 안 따진다(스치기만 하면 된다):
+     이건 정밀도 보상이 아니라 **구하러 갔는가**에 대한 보상이다 */
+  if(b.wish && !b.wishSaved){
+    b.wishSaved = true; b.flash = 1;
+    const pay2 = 200 * mult;
+    score += pay2; dustRun += 3;
+    floater(cx, cy - 76, '살렸다 +' + pay2.toLocaleString(), '#9BE8FF', 24, 1.4, 24);
+    rings.push({ x: cx, y: cy, r0: 12, r1: 170, col: '#9BE8FF', lw: 3.5, life: .55, t: 0 });
+    sparks(cx, cy, 12, '#9BE8FF', 1.0, 0, 'ray');
+    /* 소리 — 꺼져 가던 것이 **되살아나는** 방향이라 낮은 데서 위로 두 번 */
+    tone(523, .10, 'sine', .16); tone(784, .13, 'sine', .15, .07);
+    tone(1046, .30, 'triangle', .14, .15); tone(1568, .34, 'sine', .10, .18);
+    buzz(30);
+  }
   /* 여유 거리 = 최근접 거리 − 별의 반지름. 0이면 닿은 것 */
   const clear = (b.minDist !== undefined ? b.minDist : 999) - ORB_R;
   const hair = deep && clear < hairNow();
@@ -2720,6 +2756,7 @@ function update(sdt, rawDt){
     }
   } else if(nebOut > 0) nebOut = Math.max(0, nebOut - sdt);
   if(nebGap > 0) nebGap = Math.max(0, nebGap - sdt);      // 출현 쿨다운(초)
+  if(wishGap > 0) wishGap = Math.max(0, wishGap - sdt);
   for(let i = nebs.length - 1; i >= 0; i--){
     const nb = nebs[i];
     nb.y += spd * sdt;
@@ -3360,10 +3397,19 @@ function draw(){
       }
       const glow = prox * (nova > 0 ? .45 : 1);          // 초신성 땐 화면이 이미 금빛이라 절제
       // 벽 = 덩어리 하나 + 금빛 후광 한 겹(스침 구간). 골드 벽은 잭팟
-      ctx.shadowColor = b.gold
+      /* 🔴 **wq 는 블록 그리기의 맨 앞에서 한 번만 선언한다.** 처음엔 테두리 근처에서
+         선언하고 몸통·후광에서도 갖다 썼는데, 몸통이 **선언보다 위**라 TDZ 로 터졌다
+         ("Cannot access 'wq' before initialization" — 화면이 통째로 안 그려진다).
+         CLAUDE.md 가 경고하는 그 유형을 또 밟았다. 쓰는 곳이 셋이면 선언은 맨 위다 */
+      /* 꺼져가는 별 — 다가오는 동안 빛이 사그라든다. **벽 자체가 시계다**(HUD 타이머 없음).
+         살리면 되살아나 청록 흰빛으로 남는다 */
+      const wq = b.wish ? (b.wishSaved ? 1 : clamp(1 - row.y / Math.max(1, orb.y), 0, 1)) : 0;
+      ctx.shadowColor = b.wish
+        ? `rgba(120,240,255,${(b.wishSaved ? .9 : .25 + .6*wq).toFixed(2)})`
+        : b.gold
         ? `rgba(255,215,90,${.75 + b.flash*.25})`
         : `rgba(255,180,84,${.34 + glow*.52 + b.flash*.4 + bp*.1})`;
-      ctx.shadowBlur = BAND * (.6 + glow*1.05 + b.flash*.45) * (b.gold ? 1.2 : 1);
+      ctx.shadowBlur = BAND * (.6 + glow*1.05 + b.flash*.45) * (b.gold ? 1.2 : b.wish ? 1.1 + wq*.7 : 1);
       /* 🔴 **화면에 붙은 벽은 끝을 보이지 않는다 (v1.05).** 양 끝이 다 보이면 벽이
          "화면 안에 놓인 물체"가 되어 세계가 화면에서 끝난다. 바깥으로 뻗어 두면
          **스칠 수 있는 안쪽 모서리 하나만** 남아서, 하늘이 화면 밖으로 이어진다(유저 시안).
@@ -3373,7 +3419,12 @@ function draw(){
       const atL = geo.x <= .5, atR = geo.x + geo.w >= W - .5;
       const dx = atL ? geo.x - OVER : geo.x;
       const dw = geo.w + (atL ? OVER : 0) + (atR ? OVER : 0);
-      ctx.fillStyle = b.gold ? '#3A2708' : (row.body || '#161A33');
+      /* 몸통도 같이 식는다 — 테두리만 흐려지면 "흐린 벽"이지 "꺼지는 별"이 아니다.
+         싱싱할 땐 일반 벽보다 밝고, 다 꺼지면 일반 벽보다 어둡다 */
+      ctx.fillStyle = b.wish
+        ? (b.wishSaved ? '#123A48'
+           : 'rgb(' + Math.round(10 + 22*wq) + ',' + Math.round(14 + 44*wq) + ',' + Math.round(28 + 40*wq) + ')')
+        : b.gold ? '#3A2708' : (row.body || '#161A33');
       rr(dx, row.y, dw, BLOCK_H, R); ctx.fill();
       ctx.shadowBlur = 0;
       /* 담긴 소원 — 별자리 한 조각과 그 사람의 별.
@@ -3454,9 +3505,18 @@ function draw(){
       }
       /* 네온 테두리 — 넓은 후광 한 겹 위에 얇고 흰 심지 한 겹.
          네온이 빛나 보이는 건 밝아서가 아니라 **번진 색 위에 안 번진 흰 선**이 얹혀서다 */
-      const rimC = b.gold ? 'rgba(255,214,120,.95)' : (row.rim || 'rgba(170,190,255,.9)');
-      ctx.shadowColor = rimC; ctx.shadowBlur = 8;
-      ctx.strokeStyle = rimC; ctx.lineWidth = 1.5;
+      /* 🔴 **색만 바꿔서는 못 알아본다.** 1차 시안은 흰빛↔푸른빛 사이를 오갔는데,
+         일반 벽 테두리가 이미 창백한 파랑(170,190,255)이라 **꺼진 상태가 일반 벽과 똑같아졌다.**
+         렌더해 보고서야 알았다. 청록(120,240,255)으로 계열을 아예 갈라 놓는다 —
+         금빛은 잭팟, 파랑은 보통, **청록은 살려야 할 것**. 세 계열이 서로 안 닮았다 */
+      const rimC = b.wish
+        ? (b.wishSaved ? 'rgba(224,252,255,1)'
+           : 'rgba(120,240,255,' + (.22 + .78*wq).toFixed(2) + ')')
+        : b.gold ? 'rgba(255,214,120,.95)' : (row.rim || 'rgba(170,190,255,.9)');
+      /* 부름 — 아직 안 살린 별은 맥이 뛴다. 꺼질수록 느리고 약해진다(다급함이 아니라 사그라듦) */
+      const wp = b.wish && !b.wishSaved ? (.5 + .5*Math.sin(elapsed * (3.2 + wq*3.4))) * wq : 0;
+      ctx.shadowColor = rimC; ctx.shadowBlur = 8 + wp * 20 + (b.wishSaved ? 16 : 0);
+      ctx.strokeStyle = rimC; ctx.lineWidth = 1.5 + wp * 1.6 + (b.wishSaved ? 1.2 : 0);
       rr(dx + .75, row.y + .75, dw - 1.5, BLOCK_H - 1.5, Math.max(1, R - .75)); ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.strokeStyle = b.gold ? 'rgba(255,246,214,.62)' : 'rgba(238,244,255,.52)';
@@ -4576,7 +4636,15 @@ window.ASEUL = {
   get zoneName(){ return zone().name; },
   get beats(){ return rowBeats(); },               // 검증용: 이 존의 음표 값(박)
   get rowSec(){ return +rowSecNow().toFixed(3); },
-  get rowPx(){ return Math.round(curRowPx); },      // v1.38 검증용: 이 존의 계획 줄 간격(px, 열기 배수 제외)
+  get rowPx(){ return Math.round(curRowPx); },
+  get wishGap(){ return +wishGap.toFixed(2); },              // v1.44 검증용
+  wishNow(){ for(const r of rows) for(const b of r.blocks) if(b.wish && !b.wishSaved) return true; return false; },
+  wishAt(){ for(const r of rows) for(const b of r.blocks) if(b.wish && !b.wishSaved){
+      const g = blockGeom(r, b);
+      return { x: Math.round(g.x), w: Math.round(g.w), y: Math.round(r.y),
+               남은빛: +Math.max(0, Math.min(1, 1 - r.y / Math.max(1, orb.y))).toFixed(2) }; }
+    return null; },
+  wishCount(){ let a=0,c=0; for(const r of rows) for(const b of r.blocks){ if(b.wish){ a++; if(b.wishSaved) c++; } } return {표시:a, 살림:c}; },      // v1.38 검증용: 이 존의 계획 줄 간격(px, 열기 배수 제외)
   get dist(){ return Math.round(distAcc); },       // v1.36 검증용: 이동 거리(px = m) // 검증용: 벽 하나가 오는 간격(초)
   get diff(){ return +diff().toFixed(3); },
   get spd(){ return +speed().toFixed(0); },
